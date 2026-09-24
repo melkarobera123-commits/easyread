@@ -11,8 +11,9 @@
 <meta name="theme-color" content="#2F3FE0">
 <script src="script.js"></script>
 </head>
-<body>
+<body data-view="about">
 <div id="meter" aria-hidden="true"></div>
+<div id="network-status" class="network-status" role="status" hidden></div>
 <header class="top">
   <a class="brand" href="#top">
     <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="7" fill="currentColor"/><path d="M6.5 15.5h11" stroke="var(--marker)" stroke-width="3.2" stroke-linecap="round"/></svg>
@@ -21,6 +22,10 @@
   <button id="theme" class="icon" type="button" aria-label="Switch between light and dark theme">
     <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="7" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M9 2a7 7 0 0 1 0 14z" fill="currentColor"/></svg>
   </button>
+  <nav class="nav-links" aria-label="Primary navigation">
+    <button id="about-nav" class="nav-link active" type="button">About</button>
+    <button id="reader-nav" class="nav-link" type="button">Reader</button>
+  </nav>
   <button id="library-btn" class="btn top-library" type="button">My library</button>
   <button id="account-btn" class="btn account-trigger" type="button"><img id="account-avatar" alt="" hidden><span id="account-label">Sign in</span></button>
 </header>
@@ -62,6 +67,7 @@
   <section id="reader-wrap" class="reader-wrap" hidden>
     <div class="bar">
       <button id="contents-btn" class="btn" type="button" aria-expanded="false" aria-controls="contents">Contents</button>
+      <button id="saved-btn" class="btn" type="button">Saved</button>
       <button id="search-btn" class="btn" type="button">Search</button>
       <span id="page-now"></span>
       <span id="progress"></span>
@@ -89,16 +95,21 @@
       <button id="flashcards-btn" class="btn" type="button">Flashcards</button>
       <button id="autoscroll-btn" class="btn" type="button">Auto-scroll</button>
       <button id="line-focus-btn" class="btn" type="button">Line focus</button>
+      <button id="pdf-mode-btn" class="btn" type="button" hidden>Page view</button>
     </div>
+    <div id="pdf-pages" class="pdf-pages" hidden></div>
     <article id="reader" class="sheet readable"></article>
   </section>
 </main>
+
+<footer class="site-footer">Rob_Era (Abiti) <span>Made with love</span></footer>
 
 <aside id="contents" class="contents" aria-label="Contents">
   <div class="contents-head"><h2>Contents</h2><button id="contents-close" class="btn" type="button">Close</button></div>
   <label class="jump">Go to page <input id="jump" type="number" min="1" inputmode="numeric" placeholder="12"></label>
   <ol id="outline"></ol>
   <p id="outline-empty">No chapter titles found in this file.</p>
+  <section class="saved-section"><h3>Bookmarks</h3><div id="bookmark-list"></div><h3>Notes & highlights</h3><div id="saved-list"></div></section>
 </aside>
 
 <aside id="popup" role="dialog" aria-live="polite" hidden></aside>
@@ -141,11 +152,13 @@
     <p id="auth-status" class="note"></p>
   </div>
   <div id="account-signed-in" hidden>
-    <img id="account-photo" class="account-photo" alt="Google profile photo">
-    <p id="account-name"></p>
+    <div class="account-summary"><img id="account-photo" class="account-photo" alt="Google profile photo"><div><strong id="account-name"></strong><small id="account-email"></small></div></div>
+    <p id="sync-status" class="sync-state"><span class="sync-dot"></span><span id="sync-label">Not synced yet</span></p>
+    <p id="last-synced" class="note"></p>
+    <p id="pending-sync" class="note"></p>
+    <p id="sync-conflicts" class="note"></p>
     <button id="sync-now" class="btn account-action" type="button">Sync now</button>
     <button id="signout" class="btn account-action" type="button">Sign out</button>
-    <p id="sync-status" class="note"></p>
   </div>
 </aside>
 

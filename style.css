@@ -19,6 +19,7 @@ button { font-family: var(--ui); }
 :focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
 
 #meter { position: fixed; inset: 0 0 auto; height: 3px; z-index: 40; background: var(--accent); transform: scaleX(0); transform-origin: 0 50%; }
+.network-status { position: fixed; z-index: 60; top: 0; left: 50%; padding: 7px 16px; color: #fff; background: #202938; border-radius: 0 0 10px 10px; transform: translateX(-50%); font: 600 .78rem var(--ui); box-shadow: 0 8px 18px -12px #000; }
 .top {
   position: sticky; top: 0; z-index: 30; height: var(--hdr); display: flex; align-items: center; justify-content: space-between;
   padding: 0 clamp(16px, 5vw, 64px); background: color-mix(in srgb, var(--bg) 82%, transparent); border-bottom: 1px solid color-mix(in srgb, var(--line) 72%, transparent); backdrop-filter: blur(18px);
@@ -90,6 +91,11 @@ h1 { font: 300 clamp(2.6rem, 6vw, 4.8rem)/1.02 var(--display); letter-spacing: -
 #doc-meta { margin: 10px 0 0; color: var(--muted); font: .95rem var(--ui); }
 
 #reader { padding: clamp(28px, 7vw, 80px); font: var(--reader-fs, 1.25rem)/var(--reader-leading) var(--reader-font); hyphens: auto; }
+#reader[hidden], #pdf-pages[hidden] { display: none; }
+.pdf-pages { display: grid; gap: 26px; justify-items: center; }
+.pdf-page { width: 100%; margin: 0; padding: 16px; background: var(--sheet); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); }
+.pdf-page canvas { display: block; width: 100%; height: auto; background: #fff; }
+.pdf-page figcaption { margin-top: 10px; color: var(--muted); text-align: center; font: .78rem var(--ui); }
 #reader p { margin: 0 0 1.2em; }
 #reader h2 { margin: 2.4rem 0 1.1rem; font: 500 clamp(1.6rem, 3.2vw, 2.15rem)/1.2 var(--display); letter-spacing: -.02em; scroll-margin-top: calc(var(--hdr) + 84px); }
 .page { scroll-margin-top: calc(var(--hdr) + 84px); }
@@ -119,7 +125,19 @@ h1 { font: 300 clamp(2.6rem, 6vw, 4.8rem)/1.02 var(--display); letter-spacing: -
 .learning-panel { width: min(520px, 92vw); }
 .account-panel { width: min(420px, 92vw); }
 .account-action { width: 100%; margin: 8px 0; }
+.account-summary { display: flex; align-items: center; gap: 14px; margin: 14px 0 18px; }
+.account-summary strong, .account-summary small { display: block; overflow-wrap: anywhere; }
+.account-summary small { color: var(--muted); font: .85rem var(--ui); }
 .account-photo { display: block; width: 72px; height: 72px; margin: 18px 0 8px; border-radius: 50%; object-fit: cover; border: 3px solid var(--accent-soft); box-shadow: 0 8px 24px -12px var(--accent); }
+.sync-state { display: flex; align-items: center; gap: 8px; margin: 0; font: 600 .9rem var(--ui); }
+.sync-dot { width: 8px; height: 8px; background: #2EAA69; border-radius: 50%; box-shadow: 0 0 0 4px color-mix(in srgb, #2EAA69 14%, transparent); }
+.saved-section { margin: 24px 20px; padding-top: 18px; border-top: 1px solid var(--line); }
+.saved-section h3 { margin: 18px 0 8px; font: 600 .78rem var(--ui); color: var(--muted); letter-spacing: .08em; text-transform: uppercase; }
+.saved-item { display: grid; gap: 3px; width: 100%; padding: 10px; text-align: left; color: var(--ink); background: none; border: 0; border-radius: 8px; font: .9rem/1.35 var(--ui); }
+button.saved-item { cursor: pointer; }
+button.saved-item:hover { background: var(--accent-soft); }
+.saved-item small { color: var(--muted); font-size: .72rem; }
+.saved-item.static { border-bottom: 1px solid var(--line); }
 .flashcard { display: grid; gap: 9px; width: 100%; margin: 8px 0; padding: 16px; text-align: left; color: var(--ink); background: var(--accent-soft); border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent); border-radius: 10px; cursor: pointer; }
 .flashcard strong { font: 500 1.35rem var(--display); }
 .flashcard span { color: var(--muted); font: .9rem/1.45 var(--ui); }
@@ -178,6 +196,7 @@ h1 { font: 300 clamp(2.6rem, 6vw, 4.8rem)/1.02 var(--display); letter-spacing: -
   .top-library { margin-left: auto; }
   .section-heading { align-items: start; flex-direction: column; }
   #progress { display: none; } .bar { gap: 6px; overflow-x: auto; } #page-now { flex: 1; }
+  .bar .btn { flex: 0 0 auto; padding: 8px 11px; }
   .hero { grid-template-columns: 1fr; }
   .stack::before { transform: translate(6px, 6px); } .stack::after { transform: translate(12px, 12px); } .stack { margin: 0 12px 12px 0; }
   #popup { position: fixed; left: 0; right: 0; bottom: 0; width: auto; max-height: 60vh; overflow: auto; border-radius: 18px 18px 0 0; padding-bottom: 28px; }
