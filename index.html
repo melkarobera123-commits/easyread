@@ -7,6 +7,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@300;500&family=Literata:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#2F3FE0">
 <script src="script.js"></script>
 </head>
 <body>
@@ -29,8 +31,8 @@
       <label class="drop" id="drop">
         <svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 19V6M9 11l5-5 5 5M6 22h16"/></svg>
         <span class="drop-title">Choose a file or drop it here</span>
-        <small>PDF, DOCX or TXT. Your file stays on your device; only tapped words are looked up online.</small>
-        <input id="file" type="file" accept=".pdf,.docx,.txt">
+        <small>PDF, DOCX, EPUB, TXT or images. Your files stay on your device; lookups and translation use the internet.</small>
+        <input id="file" type="file" accept=".pdf,.docx,.txt,.epub,.png,.jpg,.jpeg">
       </label>
       <p id="status" role="status"></p>
     </div>
@@ -53,8 +55,12 @@
   <section id="reader-wrap" class="reader-wrap" hidden>
     <div class="bar">
       <button id="contents-btn" class="btn" type="button" aria-expanded="false" aria-controls="contents">Contents</button>
+      <button id="search-btn" class="btn" type="button">Search</button>
       <span id="page-now"></span>
       <span id="progress"></span>
+      <button id="focus-btn" class="btn" type="button">Focus</button>
+      <button id="fullscreen-btn" class="btn" type="button" aria-label="Enter fullscreen reading">Fullscreen</button>
+      <button id="settings-btn" class="btn" type="button" aria-expanded="false">Settings</button>
       <button id="smaller" class="btn" type="button" aria-label="Smaller text">A−</button>
       <button id="larger" class="btn" type="button" aria-label="Larger text">A+</button>
       <button id="again" class="btn" type="button">New file</button>
@@ -63,6 +69,15 @@
       <p id="file-name" class="doc-title"></p>
       <p id="doc-meta"></p>
     </header>
+    <div id="reader-tools" class="reader-tools" hidden>
+      <label>Search <input id="search-input" type="search" placeholder="Find in this book"></label>
+      <span id="search-count"></span>
+      <button id="search-prev" class="btn" type="button" aria-label="Previous result">↑</button>
+      <button id="search-next" class="btn" type="button" aria-label="Next result">↓</button>
+      <button id="highlight-btn" class="btn" type="button">Highlight</button>
+      <button id="vocab-btn" class="btn" type="button">Vocabulary</button>
+      <button id="stats-btn" class="btn" type="button">Stats</button>
+    </div>
     <article id="reader" class="sheet readable"></article>
   </section>
 </main>
@@ -76,8 +91,28 @@
 
 <aside id="popup" role="dialog" aria-live="polite" hidden></aside>
 
+<aside id="settings" class="panel" hidden>
+  <div class="contents-head"><h2>Reader settings</h2><button id="settings-close" class="btn" type="button">Close</button></div>
+  <label>Font <select id="font-choice"><option value="literata">Literata</option><option value="serif">Classic serif</option><option value="dyslexic">OpenDyslexic</option></select></label>
+  <label>Line spacing <input id="spacing" type="range" min="1.5" max="2.3" step=".1" value="1.9"></label>
+  <label>Page width <input id="width" type="range" min="620" max="980" step="20" value="780"></label>
+  <label class="check"><input id="contrast" type="checkbox"> High contrast</label>
+</aside>
+
+<aside id="vocab" class="panel vocab-panel" hidden>
+  <div class="contents-head"><h2>My vocabulary</h2><button id="vocab-close" class="btn" type="button">Close</button></div>
+  <div id="vocab-list"></div>
+</aside>
+
+<aside id="stats" class="panel stats-panel" hidden>
+  <div class="contents-head"><h2>Reading progress</h2><button id="stats-close" class="btn" type="button">Close</button></div>
+  <div id="stats-content"></div>
+</aside>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.0.4/tesseract.min.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

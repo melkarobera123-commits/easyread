@@ -1,0 +1,9 @@
+{
+  "name": "EasyRead",
+  "short_name": "EasyRead",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#F5F6F8",
+  "theme_color": "#2F3FE0",
+  "icons": []
+}

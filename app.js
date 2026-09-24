@@ -6,13 +6,62 @@ const fileInput = $('#file'), drop = $('#drop'), statusEl = $('#status'), progre
 const reader = $('#reader'), readerWrap = $('#reader-wrap'), popup = $('#popup');
 const API = 'https://api.dictionaryapi.dev/api/v2/entries/en/';
 const cache = new Map();
+const store = {
+  get(key, fallback) { try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; } },
+  set(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* storage blocked */ } }
+};
 let openToken = 0, lookupToken = 0, revealed = false, totalPages = 0, headingCount = 0;
+let currentFileKey = '', currentRange = null, searchMatches = [], searchIndex = -1, readingStarted = 0;
 const seenHeadings = new Set();
 const contents = $('#contents'), outlineList = $('#outline'), outlineEmpty = $('#outline-empty');
 const pageNow = $('#page-now'), docMeta = $('#doc-meta');
+const vocabKey = 'er-vocabulary', statsKey = 'er-stats';
 const pageObserver = new IntersectionObserver(entries => {
   for (const e of entries) if (e.isIntersecting) pageNow.textContent = `Page ${e.target.dataset.page} of ${totalPages}`;
 }, { rootMargin: '-40% 0px -55% 0px' });
+
+const saveScroll = () => {
+  if (!currentFileKey || readerWrap.hidden) return;
+  const stats = store.get(statsKey, {});
+  stats[currentFileKey] = { ...(stats[currentFileKey] || {}), scroll: scrollY, seconds: (stats[currentFileKey]?.seconds || 0) + Math.max(0, Math.round((Date.now() - readingStarted) / 1000)) };
+  store.set(statsKey, stats); readingStarted = Date.now();
+};
+addEventListener('scroll', () => { if (!readerWrap.hidden) saveScroll(); }, { passive: true });
+addEventListener('beforeunload', saveScroll);
+
+$('#search-btn').addEventListener('click', () => {
+  const tools = $('#reader-tools'); tools.hidden = !tools.hidden;
+  if (!tools.hidden) $('#search-input').focus();
+});
+$('#search-input').addEventListener('input', searchInBook);
+$('#search-prev').addEventListener('click', () => moveSearch(-1));
+$('#search-next').addEventListener('click', () => moveSearch(1));
+$('#highlight-btn').addEventListener('click', () => {
+  const selection = getSelection();
+  if (!selection?.rangeCount || !selection.toString().trim()) return;
+  const range = selection.getRangeAt(0).cloneRange();
+  const highlights = store.get('er-highlights', []);
+  highlights.push({ file: currentFileKey, text: selection.toString().trim() });
+  store.set('er-highlights', highlights.slice(-500));
+  if (CSS.highlights) { const existing = CSS.highlights.get('saved') || new Highlight(); existing.add(range); CSS.highlights.set('saved', existing); }
+  selection.removeAllRanges();
+});
+$('#vocab-btn').addEventListener('click', () => togglePanel('vocab'));
+$('#stats-btn').addEventListener('click', () => togglePanel('stats'));
+$('#focus-btn').addEventListener('click', () => document.body.classList.toggle('focus-mode'));
+$('#fullscreen-btn').addEventListener('click', () => readerWrap.requestFullscreen?.());
+$('#settings-btn').addEventListener('click', () => togglePanel('settings'));
+$('#settings-close').addEventListener('click', () => togglePanel('settings', false));
+$('#vocab-close').addEventListener('click', () => togglePanel('vocab', false));
+$('#stats-close').addEventListener('click', () => togglePanel('stats', false));
+$('#font-choice').addEventListener('change', e => { rootStyle('--reader-font', e.target.value === 'dyslexic' ? 'OpenDyslexic, Arial, sans-serif' : e.target.value === 'serif' ? 'Georgia, serif' : "'Literata', Georgia, serif"); });
+$('#spacing').addEventListener('input', e => rootStyle('--reader-leading', e.target.value));
+$('#width').addEventListener('input', e => rootStyle('--reader-width', e.target.value + 'px'));
+$('#contrast').addEventListener('change', e => document.body.classList.toggle('high-contrast', e.target.checked));
+if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+
+function rootStyle(name, value) { document.documentElement.style.setProperty(name, value); }
+function togglePanel(id, open = true) { const panel = $('#' + id); panel.hidden = open === false ? true : !panel.hidden; if (id === 'vocab' && !panel.hidden) renderVocabulary(); if (id === 'stats' && !panel.hidden) renderStats(); }
 
 /* ---------- Opening files ---------- */
 fileInput.addEventListener('change', () => {
@@ -41,17 +90,23 @@ function reveal(name) {
   readerWrap.hidden = false;
   setStatus('');
   readerWrap.scrollIntoView();
+  const saved = store.get(statsKey, {})[currentFileKey]?.scroll;
+  if (saved) setTimeout(() => scrollTo({ top: saved, behavior: 'smooth' }), 80);
 }
 
 async function openFile(file) {
   const my = ++openToken, name = file.name.toLowerCase();
+  currentFileKey = file.name + ':' + file.size + ':' + file.lastModified;
+  readingStarted = Date.now();
   revealed = false; hidePopup(); reader.textContent = ''; progress.textContent = ''; resetOutline();
   try {
     setStatus('Opening ' + file.name + '…');
     if (name.endsWith('.pdf')) await readPdf(file, my);
     else if (name.endsWith('.docx')) await readDocx(file);
+    else if (name.endsWith('.epub')) await readEpub(file);
+    else if (/\.(png|jpe?g)$/i.test(name)) await readImage(file);
     else if (name.endsWith('.txt')) addParagraphs((await file.text()).split(/\n\s*\n/));
-    else return setStatus('Use a PDF, DOCX or TXT file. For an old .doc file, save it as .docx first.', true);
+    else return setStatus('Use a PDF, DOCX, EPUB, TXT or image file.', true);
     if (my !== openToken) return;
     if (!reader.textContent.trim()) return setStatus('No text found. This file may be scanned images.', true);
     reveal(file.name);
@@ -138,6 +193,72 @@ async function readDocx(file) {
   addParagraphs(value.split(/\n\s*\n/));
 }
 
+async function readEpub(file) {
+  const zip = await JSZip.loadAsync(await file.arrayBuffer());
+  const container = new DOMParser().parseFromString(await zip.file('META-INF/container.xml').async('text'), 'application/xml');
+  const rootfile = container.querySelector('rootfile')?.getAttribute('full-path');
+  if (!rootfile) throw new Error('Invalid EPUB');
+  const base = rootfile.includes('/') ? rootfile.slice(0, rootfile.lastIndexOf('/') + 1) : '';
+  const opf = new DOMParser().parseFromString(await zip.file(rootfile).async('text'), 'application/xml');
+  const items = new Map([...opf.querySelectorAll('manifest item')].map(item => [item.id, item.getAttribute('href')]));
+  for (const ref of opf.querySelectorAll('spine itemref')) {
+    const href = items.get(ref.getAttribute('idref'));
+    const entry = href && zip.file(base + decodeURIComponent(href));
+    if (!entry) continue;
+    const doc = new DOMParser().parseFromString(await entry.async('text'), 'text/html');
+    const text = doc.body?.textContent || '';
+    if (text.trim()) addParagraphs(text.split(/\n\s*\n/));
+  }
+}
+
+async function readImage(file) {
+  setStatus('Reading image text…');
+  const result = await Tesseract.recognize(file, 'eng', { logger: m => { if (m.status === 'recognizing text') progress.textContent = Math.round((m.progress || 0) * 100) + '%'; } });
+  addParagraphs(result.data.text.split(/\n\s*\n/));
+}
+
+function searchInBook() {
+  const query = $('#search-input').value.trim().toLowerCase();
+  searchMatches = []; searchIndex = -1;
+  if (CSS.highlights) CSS.highlights.delete('search');
+  if (query) {
+    const walker = document.createTreeWalker(reader, NodeFilter.SHOW_TEXT);
+    while (walker.nextNode()) {
+      const node = walker.currentNode, text = node.data.toLowerCase(); let from = 0, at;
+      while ((at = text.indexOf(query, from)) >= 0) { const range = new Range(); range.setStart(node, at); range.setEnd(node, at + query.length); searchMatches.push(range); from = at + query.length; }
+    }
+    if (CSS.highlights) CSS.highlights.set('search', new Highlight(...searchMatches));
+    if (searchMatches.length) moveSearch(1);
+  }
+  $('#search-count').textContent = query ? searchMatches.length + ' result' + (searchMatches.length === 1 ? '' : 's') : '';
+}
+function moveSearch(direction) {
+  if (!searchMatches.length) return;
+  searchIndex = (searchIndex + direction + searchMatches.length) % searchMatches.length;
+  searchMatches[searchIndex].startContainer.parentElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function renderVocabulary() {
+  const list = $('#vocab-list'), words = store.get(vocabKey, []); list.replaceChildren();
+  if (!words.length) return list.append(el('p', 'note', 'Saved words will appear here.'));
+  words.forEach(item => { const row = el('div', 'vocab-row'); row.append(el('strong', '', item.word), el('span', '', item.definition || '')); const b = el('button', 'btn', 'Remove'); b.onclick = () => { store.set(vocabKey, words.filter(w => w.word !== item.word)); renderVocabulary(); }; row.append(b); list.append(row); });
+}
+function renderStats() {
+  const stats = Object.values(store.get(statsKey, {})), seconds = stats.reduce((n, s) => n + (s.seconds || 0), 0);
+  $('#stats-content').innerHTML = `<p><strong>${Math.round(seconds / 60)}</strong> minutes read</p><p><strong>${store.get(vocabKey, []).length}</strong> saved words</p><p>Progress is stored privately in this browser.</p>`;
+}
+
+function saveWord(word, definition) {
+  const words = store.get(vocabKey, []);
+  if (!words.some(item => item.word === word)) words.unshift({ word, definition });
+  store.set(vocabKey, words.slice(0, 300));
+}
+function speakWord(word) { if ('speechSynthesis' in window) speechSynthesis.speak(new SpeechSynthesisUtterance(word)); }
+async function translateWord(word, target = 'es') {
+  const res = await fetch('https://api.mymemory.translated.net/get?q=' + encodeURIComponent(word) + '&langpair=en|' + target);
+  const data = await res.json(); return data.responseData?.translatedText || 'Translation unavailable';
+}
+
 async function readPdf(file, my) {
   const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
   totalPages = pdf.numPages;
@@ -221,6 +342,7 @@ function wordAt(x, y) {
 
 async function showWord({ word, range }) {
   const my = ++lookupToken;
+  currentRange = range;
   if (window.CSS && CSS.highlights) CSS.highlights.set('picked', new Highlight(range));
   popup.hidden = false;
   popup.replaceChildren(closeBtn(), el('h2', '', word), el('p', 'note', 'Looking up…'));
@@ -356,6 +478,12 @@ function render(result, asked) {
   } else {
     const e = result.entry;
     kids.push(el('h2', '', e.word));
+    const actions = el('div', 'word-actions');
+    const save = el('button', 'btn', 'Save'); save.onclick = () => { saveWord(e.word, e.meanings[0]?.definition); save.textContent = 'Saved'; };
+    const speak = el('button', 'btn', 'Listen'); speak.onclick = () => speakWord(e.word);
+    const translate = el('button', 'btn', 'Translate'); translate.onclick = async () => { translate.textContent = '…'; translate.title = await translateWord(e.word); translate.textContent = translate.title; };
+    const note = el('button', 'btn', 'Note'); note.onclick = () => { const text = prompt('Add a note for “' + e.word + '”'); if (text?.trim()) { const notes = store.get('er-notes', []); notes.unshift({ file: currentFileKey, word: e.word, text: text.trim() }); store.set('er-notes', notes.slice(0, 300)); note.textContent = 'Noted'; } };
+    actions.append(save, speak, translate, note); kids.push(actions);
     if (e.phonetic) kids.push(el('p', 'ph', e.phonetic));
     e.meanings.forEach(m => {
       kids.push(el('p', 'pos', m.partOfSpeech), el('p', 'def', m.definition));
