@@ -149,7 +149,6 @@ async function readPdf(file, my) {
 
   for (let n = 1; n <= pdf.numPages; n++) {
     if (my !== openToken) return;
-
     const page = await pdf.getPage(n);
     const viewport = page.getViewport({ scale: 1.2 });
     const pageEl = document.createElement('section');
@@ -157,16 +156,71 @@ async function readPdf(file, my) {
     pageEl.id = 'p' + n;
     pageEl.dataset.page = n;
 
+    const pageLabel = document.createElement('div');
+    pageLabel.className = 'page-mark';
+    pageLabel.textContent = 'Page ' + n;
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'pdf-page-wrap';
+    wrapper.style.position = 'relative';
+    wrapper.style.display = 'inline-block';
+    wrapper.style.width = viewport.width + 'px';
+    wrapper.style.maxWidth = '100%';
+
     const canvas = document.createElement('canvas');
     canvas.width = viewport.width;
     canvas.height = viewport.height;
     const ctx = canvas.getContext('2d');
     await page.render({ canvasContext: ctx, viewport }).promise;
 
-    const pageLabel = document.createElement('div');
-    pageLabel.className = 'page-mark';
-    pageLabel.textContent = 'Page ' + n;
-    pageEl.append(pageLabel, canvas);
+    const textLayer = document.createElement('div');
+    textLayer.className = 'pdf-text-layer';
+    textLayer.style.position = 'absolute';
+    textLayer.style.left = '0';
+    textLayer.style.top = '0';
+    textLayer.style.width = canvas.width + 'px';
+    textLayer.style.height = canvas.height + 'px';
+    textLayer.style.zIndex = '2';
+    textLayer.style.pointerEvents = 'auto';
+
+    const textContent = await page.getTextContent();
+    const scaleX = canvas.width / viewport.width;
+    const scaleY = canvas.height / viewport.height;
+    for (const item of textContent.items) {
+      if (!item.str) continue;
+      const word = document.createElement('span');
+      word.className = 'pdf-word';
+      const text = item.str; 
+      const bounds = item.transform;
+      const left = bounds[4] * scaleX;
+      const top = bounds[5] * scaleY;
+      const fontSize = Math.abs(bounds[3]) * scaleY;
+      word.textContent = text;
+      word.style.position = 'absolute';
+      word.style.left = left + 'px';
+      word.style.top = (top - fontSize) + 'px';
+      word.style.fontSize = Math.max(8, fontSize) + 'px';
+      word.style.lineHeight = '1';
+      word.style.whiteSpace = 'pre';
+      word.style.color = 'transparent';
+      word.style.cursor = 'pointer';
+      word.style.userSelect = 'none';
+      word.style.pointerEvents = 'auto';
+      word.addEventListener('click', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        const value = (text || '').replace(/[^A-Za-z’'-]/g, '').toLowerCase();
+        if (!value) return;
+        const fakeRange = document.createRange();
+        const node = document.createTextNode(text);
+        fakeRange.selectNodeContents(node);
+        showWord({ word: value, range: fakeRange });
+      });
+      textLayer.appendChild(word);
+    }
+
+    wrapper.append(canvas, textLayer);
+    pageEl.append(pageLabel, wrapper);
     reader.append(pageEl);
     pageObserver.observe(pageEl);
 
@@ -224,6 +278,7 @@ function hidePopup() {
 }
 
 function place(range) {
+  if (!range || !range.getBoundingClientRect) return;
   if (matchMedia('(max-width: 640px)').matches) { popup.style.left = popup.style.top = ''; return; }
   const r = range.getBoundingClientRect(), w = popup.offsetWidth;
   popup.style.left = Math.max(12, Math.min(scrollX + r.left, scrollX + innerWidth - w - 12)) + 'px';
