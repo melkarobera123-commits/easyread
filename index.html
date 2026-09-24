@@ -52,15 +52,27 @@
 
   <section id="reader-wrap" class="reader-wrap" hidden>
     <div class="bar">
-      <strong id="file-name"></strong>
+      <button id="contents-btn" class="btn" type="button" aria-expanded="false" aria-controls="contents">Contents</button>
+      <span id="page-now"></span>
       <span id="progress"></span>
       <button id="smaller" class="btn" type="button" aria-label="Smaller text">A−</button>
       <button id="larger" class="btn" type="button" aria-label="Larger text">A+</button>
-      <button id="again" class="btn" type="button">Open another file</button>
+      <button id="again" class="btn" type="button">New file</button>
     </div>
+    <header class="doc-head">
+      <p id="file-name" class="doc-title"></p>
+      <p id="doc-meta"></p>
+    </header>
     <article id="reader" class="sheet readable"></article>
   </section>
 </main>
+
+<aside id="contents" class="contents" aria-label="Contents">
+  <div class="contents-head"><h2>Contents</h2><button id="contents-close" class="btn" type="button">Close</button></div>
+  <label class="jump">Go to page <input id="jump" type="number" min="1" inputmode="numeric" placeholder="12"></label>
+  <ol id="outline"></ol>
+  <p id="outline-empty">No chapter titles found in this file.</p>
+</aside>
 
 <aside id="popup" role="dialog" aria-live="polite" hidden></aside>
 
