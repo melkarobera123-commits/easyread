@@ -120,6 +120,8 @@
       <button id="bookmark-btn" class="btn" type="button">Bookmark</button>
       <button id="export-btn" class="btn" type="button">Export</button>
       <button id="flashcards-btn" class="btn" type="button">Flashcards</button>
+      <button id="speak-page-btn" class="btn" type="button">Read aloud</button>
+      <button id="stop-speech-btn" class="btn" type="button">Stop voice</button>
       <button id="autoscroll-btn" class="btn" type="button">Auto-scroll</button>
       <button id="line-focus-btn" class="btn" type="button">Line focus</button>
       <button id="pdf-mode-btn" class="btn" type="button" hidden>Page view</button>
@@ -219,6 +221,15 @@
   <div class="shortcut-row"><kbd>T</kbd><span>Toggle light and dark mode</span></div>
   <div class="shortcut-row"><kbd>?</kbd><span>Open this panel</span></div>
   <div class="shortcut-row"><kbd>Esc</kbd><span>Close panels and popups</span></div>
+</aside>
+
+<aside id="onboarding" class="onboarding-panel" hidden>
+  <div class="onboarding-mark">—</div>
+  <p class="eyebrow">Welcome to EasyRead</p>
+  <h2>A calmer way into difficult books.</h2>
+  <p>Open a book, tap an unfamiliar word, and build a private reading space that remembers your progress.</p>
+  <div class="onboarding-steps"><span><b>01</b> Open your book</span><span><b>02</b> Tap any word</span><span><b>03</b> Keep your words</span></div>
+  <button id="onboarding-start" class="btn account-action" type="button">Start reading</button>
 </aside>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>

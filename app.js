@@ -36,7 +36,7 @@ const pageObserver = new IntersectionObserver(entries => {
 const saveScroll = () => {
   if (!currentFileKey || readerWrap.hidden) return;
   const stats = store.get(statsKey, {});
-  stats[currentFileKey] = { ...(stats[currentFileKey] || {}), scroll: scrollY, seconds: (stats[currentFileKey]?.seconds || 0) + Math.max(0, Math.round((Date.now() - readingStarted) / 1000)) };
+  stats[currentFileKey] = { ...(stats[currentFileKey] || {}), day: new Date().toISOString().slice(0, 10), scroll: scrollY, seconds: (stats[currentFileKey]?.seconds || 0) + Math.max(0, Math.round((Date.now() - readingStarted) / 1000)) };
   store.set(statsKey, stats); readingStarted = Date.now(); queueCloudSync();
   clearTimeout(bookProgressTimer);
   bookProgressTimer = setTimeout(async () => { const book = await libraryRequest('readonly', books => books.get(currentFileKey)); if (book) await libraryRequest('readwrite', books => books.put({ ...book, opened: Date.now(), progress: Math.min(100, Math.max(0, Math.round((scrollY / Math.max(document.documentElement.scrollHeight - innerHeight, 1)) * 100)))})); }, 800);
@@ -72,6 +72,8 @@ $('#home-library-sort').addEventListener('change', event => { $('#library-sort')
 $('#bookmark-btn').addEventListener('click', saveBookmark);
 $('#export-btn').addEventListener('click', exportReadingData);
 $('#flashcards-btn').addEventListener('click', showFlashcards);
+$('#speak-page-btn').addEventListener('click', speakCurrentPage);
+$('#stop-speech-btn').addEventListener('click', () => speechSynthesis.cancel());
 $('#learning-close').addEventListener('click', () => togglePanel('learning', false));
 $('#autoscroll-btn').addEventListener('click', () => { if (autoScrollTimer) { clearInterval(autoScrollTimer); autoScrollTimer = null; $('#autoscroll-btn').textContent = 'Auto-scroll'; } else { autoScrollTimer = setInterval(() => scrollBy({ top: 1, behavior: 'auto' }), 35); $('#autoscroll-btn').textContent = 'Stop scroll'; } });
 $('#line-focus-btn').addEventListener('click', () => { document.body.classList.toggle('line-focus'); $('#line-focus-btn').textContent = document.body.classList.contains('line-focus') ? 'Full page' : 'Line focus'; });
@@ -96,6 +98,7 @@ $('#shortcuts-link').addEventListener('click', () => togglePanel('shortcuts'));
 $('#shortcuts-close').addEventListener('click', () => togglePanel('shortcuts', false));
 $('#export-all').addEventListener('click', exportAllData);
 $('#delete-all').addEventListener('click', deleteAllLocalData);
+$('#onboarding-start').addEventListener('click', () => { store.set('er-onboarding-done', true); $('#onboarding').hidden = true; goToUpload(); });
 $('#contact-send').addEventListener('click', () => {
   const email = window.EASYREAD_DEVELOPER_EMAIL, message = $('#contact-message').value.trim();
   if (!email) return ($('#contact-status').textContent = 'Set EASYREAD_DEVELOPER_EMAIL in firebase-config.js first.');
@@ -107,6 +110,7 @@ setContact('contact-telegram', 'contact-telegram-label', contact.telegram, 'http
 setContact('contact-phone', 'contact-phone-label', contact.phone, 'tel:' + contact.phone);
 setContact('contact-email', 'contact-email-label', contact.email, 'mailto:' + contact.email);
 if (!store.get('er-welcome-seen', false)) $('#welcome-signin').hidden = false;
+if (!store.get('er-onboarding-done', false)) setTimeout(() => { $('#onboarding').hidden = false; }, 450);
 $('.brand').addEventListener('click', event => { event.preventDefault(); setView('about'); });
 const aboutControls = ['about-nav', 'sidebar-about', 'mobile-about'];
 const readerControls = ['reader-nav', 'sidebar-reader', 'mobile-reader'];
@@ -222,7 +226,7 @@ async function renderLibrary() {
 }
 function bookCover(book) { const cover = el('span', 'book-cover ' + (book.type || 'file')); cover.append(el('small', '', (book.type || 'file').toUpperCase()), el('strong', '', (book.title || book.name).slice(0, 26))); return cover; }
 function bookProgress(book) { const wrap = el('span', 'book-progress'), bar = el('span'); bar.style.width = Math.min(100, Math.max(0, book.progress || 0)) + '%'; wrap.append(bar); return wrap; }
-function bookRow(book) { const row = el('div', 'library-row'), info = el('div', 'library-row-info'), actions = el('div', 'library-row-actions'), open = el('button', 'btn', 'Open'), favorite = el('button', 'icon-btn', book.favorite ? '★' : '☆'), remove = el('button', 'icon-btn', '×'); info.append(bookCover(book), el('span', 'library-row-copy', (book.title || book.name).replace(/\.[^.]+$/, '')), bookProgress(book)); open.onclick = () => { openFile(new File([book.file], book.name, { type: book.file.type, lastModified: book.modified })); togglePanel('library', false); }; favorite.title = 'Toggle favorite'; favorite.onclick = () => updateBook(book.key, { favorite: !book.favorite }); remove.title = 'Remove book'; remove.onclick = async () => { await libraryRequest('readwrite', booksStore => booksStore.delete(book.key)); renderLibrary(); }; actions.append(open, favorite, remove); row.append(info, actions); return row; }
+function bookRow(book) { const row = el('div', 'library-row'), info = el('div', 'library-row-info'), actions = el('div', 'library-row-actions'), open = el('button', 'btn', 'Open'), rename = el('button', 'icon-btn', '✎'), favorite = el('button', 'icon-btn', book.favorite ? '★' : '☆'), remove = el('button', 'icon-btn', '×'); info.append(bookCover(book), el('span', 'library-row-copy', (book.title || book.name).replace(/\.[^.]+$/, '')), bookProgress(book)); open.onclick = () => { openFile(new File([book.file], book.name, { type: book.file.type, lastModified: book.modified })); togglePanel('library', false); }; rename.title = 'Rename book'; rename.onclick = () => { const title = prompt('Book title', book.title || book.name); if (title?.trim()) updateBook(book.key, { title: title.trim() }); }; favorite.title = 'Toggle favorite'; favorite.onclick = () => updateBook(book.key, { favorite: !book.favorite }); remove.title = 'Remove book'; remove.onclick = async () => { await libraryRequest('readwrite', booksStore => booksStore.delete(book.key)); renderLibrary(); }; actions.append(open, rename, favorite, remove); row.append(info, actions); return row; }
 function bookCard(book) { const card = el('article', 'book-card'), open = el('button', 'book-open'); open.type = 'button'; open.append(bookCover(book), el('strong', '', (book.title || book.name).replace(/\.[^.]+$/, '')), bookProgress(book), el('small', '', Math.round(book.progress || 0) + '% complete')); open.onclick = () => openFile(new File([book.file], book.name, { type: book.file.type, lastModified: book.modified })); const favorite = el('button', 'icon-btn book-favorite', book.favorite ? '★' : '☆'); favorite.onclick = () => updateBook(book.key, { favorite: !book.favorite }); card.append(open, favorite); return card; }
 
 /* ---------- Opening files ---------- */
@@ -428,7 +432,8 @@ function renderVocabulary() {
 }
 function renderStats() {
   const stats = Object.values(store.get(statsKey, {})), seconds = stats.reduce((n, s) => n + (s.seconds || 0), 0);
-  $('#stats-content').innerHTML = `<p><strong>${Math.round(seconds / 60)}</strong> minutes read</p><p><strong>${store.get(vocabKey, []).length}</strong> saved words</p><p>Progress is stored privately in this browser.</p>`;
+  const days = new Set(Object.values(store.get(statsKey, {})).filter(item => item.seconds).map(item => item.day || 'reading-day'));
+  $('#stats-content').innerHTML = `<div class="stats-grid"><p><strong>${Math.round(seconds / 60)}</strong><small>minutes read</small></p><p><strong>${store.get(vocabKey, []).length}</strong><small>saved words</small></p><p><strong>${days.size}</strong><small>reading days</small></p></div><p class="note">Your progress stays private in this browser and syncs only when you choose Google sync.</p>`;
 }
 function renderSavedItems() {
   const bookmarks = store.get('er-bookmarks', []), notes = store.get('er-notes', []), highlights = store.get('er-highlights', []);
@@ -475,6 +480,7 @@ function saveWord(word, definition) {
   showToast('Word saved to your vocabulary.');
 }
 function speakWord(word) { if ('speechSynthesis' in window) speechSynthesis.speak(new SpeechSynthesisUtterance(word)); }
+function speakCurrentPage() { if (!('speechSynthesis' in window)) return showToast('Text-to-speech is not available in this browser.'); const source = reader.querySelector('.page:not([hidden])') || reader; const text = [...source.querySelectorAll('p, h2')].map(node => node.textContent).join(' '); if (!text) return showToast('Open a readable document first.'); speechSynthesis.cancel(); speechSynthesis.speak(new SpeechSynthesisUtterance(text)); showToast('Reading aloud.'); }
 async function translateWord(word, target = 'es') {
   const language = $('#translation-language')?.value || target;
   const res = await fetch('https://api.mymemory.translated.net/get?q=' + encodeURIComponent(word) + '&langpair=en|' + language);

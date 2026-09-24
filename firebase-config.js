@@ -8,5 +8,5 @@ window.EASYREAD_FIREBASE_CONFIG = {
   appId: "1:624145809987:web:2577e06816b8a779270af6",
   measurementId: "G-PXSZ0YVV0N"
 };
-window.EASYREAD_DEVELOPER_EMAIL = '';
-window.EASYREAD_CONTACT = { telegram: '', phone: '', email: '' };
+window.EASYREAD_DEVELOPER_EMAIL = 'melkarobera123@gmail.com';
+window.EASYREAD_CONTACT = { telegram: '@Believe_In_Christ79', phone: '0979265550', email: 'melkarobera123@gmail.com' };
