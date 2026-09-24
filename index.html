@@ -3,8 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Read PDF, DOCX and text files more easily by looking up unfamiliar words.">
 <title>EasyRead: tap any word to understand it</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;800&family=Literata:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
@@ -17,9 +19,9 @@
       <p class="lead">Open a PDF, Word or text file. Tap any word and see its meaning in simple English.</p>
       <label class="drop" id="drop">Choose a file or drop it here
         <small>PDF, DOCX or TXT. Your file stays on your device; only tapped words are looked up online.</small>
-        <input id="file" type="file" accept=".pdf,.docx,.txt">
+        <input id="file" type="file" accept=".pdf,application/pdf,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.txt,text/plain" aria-label="Choose a PDF, DOCX or TXT file">
       </label>
-      <p id="status" role="status"></p>
+      <p id="status" role="status" aria-live="polite"></p>
     </div>
     <figure class="sheet">
       <p class="readable">The lighthouse keeper was reluctant to abandon his post, even as the storm grew ominous and the waves relentlessly battered the rocks.</p>
@@ -30,14 +32,14 @@
   <section id="reader-wrap" class="reader-wrap" hidden>
     <div class="bar">
       <strong id="file-name"></strong>
-      <span id="progress"></span>
+      <span id="progress" role="status" aria-live="polite"></span>
       <button id="again" type="button">Open another file</button>
     </div>
     <article id="reader" class="sheet readable"></article>
   </section>
 </main>
 
-<aside id="popup" role="dialog" aria-live="polite" hidden></aside>
+<aside id="popup" role="dialog" aria-label="Word definition" aria-live="polite" hidden></aside>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
