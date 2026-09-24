@@ -76,6 +76,12 @@ $('#account-close').addEventListener('click', () => togglePanel('account', false
 $('#google-signin').addEventListener('click', signInWithGoogle);
 $('#sync-now').addEventListener('click', syncCloud);
 $('#signout').addEventListener('click', () => auth?.signOut());
+$('#about-nav').addEventListener('click', () => setView('about'));
+$('.brand').addEventListener('click', event => { event.preventDefault(); setView('about'); });
+$('#reader-nav').addEventListener('click', () => {
+  if (readerWrap.hidden) { setStatus('Choose a book to open the Reader.'); return setView('about'); }
+  setView('reader');
+});
 addEventListener('online', updateNetworkStatus);
 addEventListener('offline', updateNetworkStatus);
 updateNetworkStatus();
@@ -107,6 +113,12 @@ function updateNetworkStatus() {
   const banner = $('#network-status'); banner.hidden = navigator.onLine;
   banner.textContent = navigator.onLine ? '' : 'You are offline. Changes will sync automatically when you reconnect.';
   if (currentUser) updateSyncMeta();
+}
+function setView(view) {
+  document.body.dataset.view = view;
+  $('#about-nav').classList.toggle('active', view === 'about');
+  $('#reader-nav').classList.toggle('active', view === 'reader');
+  if (view === 'reader') readerWrap.scrollIntoView({ behavior: 'smooth', block: 'start' }); else scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 function updateAccount(user) {
@@ -175,7 +187,7 @@ fileInput.addEventListener('change', () => {
   if (ev === 'drop' && e.dataTransfer.files[0]) openFile(e.dataTransfer.files[0]);
 }));
 $('#again').addEventListener('click', () => {
-  readerWrap.hidden = true; hidePopup(); toggleContents(false); window.scrollTo({ top: 0 });
+  readerWrap.hidden = true; hidePopup(); toggleContents(false); setView('about');
 });
 
 function setStatus(msg, isError) {
@@ -188,6 +200,7 @@ function reveal(name) {
   revealed = true;
   $('#file-name').textContent = name.replace(/\.[^.]+$/, '');
   readerWrap.hidden = false;
+  setView('reader');
   setStatus('');
   readerWrap.scrollIntoView();
   const saved = store.get(statsKey, {})[currentFileKey]?.scroll;
