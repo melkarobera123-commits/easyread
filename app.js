@@ -21,10 +21,9 @@ fileInput.addEventListener('change', () => {
 }));
 $('#again').addEventListener('click', () => {
   readerWrap.hidden = true; hidePopup(); window.scrollTo({ top: 0 });
-  fileInput.focus();
 });
 
-function setStatus(msg, isError = false) {
+function setStatus(msg, isError) {
   statusEl.textContent = msg;
   statusEl.className = isError ? 'err' : '';
 }
@@ -35,12 +34,12 @@ function reveal(name) {
   $('#file-name').textContent = name;
   readerWrap.hidden = false;
   setStatus('');
-  readerWrap.scrollIntoView({ block: 'start' });
+  readerWrap.scrollIntoView();
 }
 
 async function openFile(file) {
   const my = ++openToken, name = file.name.toLowerCase();
-  revealed = false; hidePopup(); reader.replaceChildren(); progress.textContent = '';
+  revealed = false; hidePopup(); reader.textContent = ''; progress.textContent = '';
   try {
     setStatus('Opening ' + file.name + '…');
     if (name.endsWith('.pdf')) await readPdf(file, my);
@@ -52,10 +51,8 @@ async function openFile(file) {
     reveal(file.name);
     progress.textContent = '';
   } catch (e) {
-    if (my !== openToken) return;
     console.error(e);
     setStatus('Could not read this file. Try another one.', true);
-    progress.textContent = '';
   }
 }
 
@@ -91,6 +88,7 @@ async function readPdf(file, my) {
       lines[lines.length - 1].t += it.str;
       lastY = y;
     }
+    // A gap much bigger than the usual line spacing starts a new paragraph.
     const gaps = lines.slice(1).map((l, i) => lines[i].y - l.y).filter(g => g > 0).sort((a, b) => a - b);
     const med = gaps[Math.floor(gaps.length / 2)] || 12;
     const paras = [];
@@ -98,10 +96,10 @@ async function readPdf(file, my) {
     lines.forEach((l, i) => {
       const t = l.t.trim();
       if (!t) return;
-      if (i && lines[i - 1].y - l.y > med * 1.5) { if (text) paras.push(text); text = ''; }
-      text = /[a-z]-$/i.test(text) ? text.slice(0, -1) + t : text ? text + ' ' + t : t;
+      if (i && lines[i - 1].y - l.y > med * 1.5) { paras.push(text); text = ''; }
+      text = /[a-z]-$/i.test(text) ? text.slice(0, -1) + t : text + ' ' + t;
     });
-    if (/[.!?”"’)]\s*$/.test(text)) { if (text) paras.push(text); carry = ''; } else carry = text;
+    if (/[.!?”"’)]\s*$/.test(text)) { paras.push(text); carry = ''; } else carry = text;
     addParagraphs(paras);
     if (reader.firstChild) reveal(file.name);
     progress.textContent = n < pdf.numPages ? `Loading page ${n} of ${pdf.numPages}…` : '';
@@ -126,7 +124,7 @@ function wordAt(x, y) {
     const r = document.caretRangeFromPoint(x, y);
     node = r && r.startContainer; off = r && r.startOffset;
   }
-  if (!node || node.nodeType !== 3 || typeof off !== 'number') return null;
+  if (!node || node.nodeType !== 3) return null;
   const s = node.data, ch = /[A-Za-z’']/;
   let a = off, b = off;
   while (a > 0 && ch.test(s[a - 1])) a--;
@@ -176,32 +174,82 @@ function candidates(word) {
   if (/s$/.test(w)) add(w.slice(0, -1));
   if (/ly$/.test(w)) add(w.slice(0, -2));
   const stem = w.replace(/(ing|ed)$/, '');
-  if (stem !== w) { add(stem); add(stem + 'e'); if (/(.)\1$/.test(stem)) add(stem.slice(0, -1)); }
+  if (stem !== w) {
+    add(stem); add(stem + 'e');
+    if (/(.)\1$/.test(stem)) add(stem.slice(0, -1));
+  }
   return c;
+}
+
+/* Three free dictionaries are asked at the same time; the first answer wins. */
+async function get(url) {
+  const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 7000);
+  try { return await fetch(url, { signal: ctl.signal }); } finally { clearTimeout(t); }
+}
+
+async function fromDictionaryApi(w) {
+  const res = await get('https://api.dictionaryapi.dev/api/v2/entries/en/' + encodeURIComponent(w));
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(res.status);
+  const e = (await res.json())[0];
+  return { entry: {
+    word: e.word,
+    phonetic: e.phonetic || (e.phonetics.find(p => p.text) || {}).text,
+    meanings: e.meanings.slice(0, 3).map(m => ({
+      partOfSpeech: m.partOfSpeech, definition: m.definitions[0].definition, example: m.definitions[0].example
+    }))
+  } };
+}
+
+async function fromWiktionary(w) {
+  const res = await get('https://en.wiktionary.org/api/rest_v1/page/definition/' + encodeURIComponent(w));
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(res.status);
+  const list = (await res.json()).en;
+  if (!list) return null;
+  const text = h => new DOMParser().parseFromString(h, 'text/html').body.textContent.trim();
+  const meanings = list.slice(0, 3).map(m => {
+    const d = m.definitions[0];
+    return { partOfSpeech: m.partOfSpeech.toLowerCase(), definition: text(d.definition),
+      example: d.examples && d.examples[0] ? text(d.examples[0]) : '' };
+  }).filter(m => m.definition);
+  return meanings.length ? { entry: { word: w, meanings } } : null;
+}
+
+async function fromDatamuse(w) {
+  const res = await get('https://api.datamuse.com/words?md=d&max=1&sp=' + encodeURIComponent(w));
+  if (!res.ok) throw new Error(res.status);
+  const hit = (await res.json())[0];
+  if (!hit || hit.word !== w || !hit.defs) return null;
+  const names = { n: 'noun', v: 'verb', adj: 'adjective', adv: 'adverb', u: 'word' };
+  const meanings = hit.defs.slice(0, 3).map(d => {
+    const [p, ...t] = d.split('\t');
+    return { partOfSpeech: names[p] || p, definition: t.join(' ') };
+  });
+  return { entry: { word: w, meanings } };
+}
+
+const SOURCES = [fromDictionaryApi, fromWiktionary, fromDatamuse];
+
+async function lookup(w) {
+  let reached = false;
+  const ask = src => src(w).then(
+    r => { reached = true; return r || Promise.reject(); },
+    () => Promise.reject()
+  );
+  try { return { result: await Promise.any(SOURCES.map(ask)), reached: true }; }
+  catch { return { result: null, reached }; }
 }
 
 async function define(word) {
   if (cache.has(word)) return cache.get(word);
-  for (const w of candidates(word)) {
-    try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 8000);
-      const res = await fetch(API + encodeURIComponent(w), { signal: controller.signal });
-      clearTimeout(timer);
-      if (!res.ok) continue;
-      const data = await res.json();
-      if (!Array.isArray(data) || !data[0]) continue;
-      const result = { entry: data[0] };
-      cache.set(word, result);
-      return result;
-    } catch (e) {
-      if (e.name === 'AbortError') return { offline: true };
-      return { offline: true };
-    }
+  let reached = false;
+  for (const w of candidates(word).slice(0, 4)) {
+    const r = await lookup(w);
+    reached = reached || r.reached;
+    if (r.result) { cache.set(word, r.result); return r.result; }
   }
-  const result = { missing: true };
-  cache.set(word, result);
-  return result;
+  return reached ? { missing: true } : { offline: true };
 }
 
 function el(tag, cls, text) {
@@ -213,7 +261,7 @@ function el(tag, cls, text) {
 
 function closeBtn() {
   const b = el('button', 'close', '×');
-  b.type = 'button'; b.setAttribute('aria-label', 'Close definition');
+  b.type = 'button'; b.setAttribute('aria-label', 'Close');
   b.addEventListener('click', hidePopup);
   return b;
 }
@@ -221,22 +269,18 @@ function closeBtn() {
 function render(result, asked) {
   const kids = [closeBtn()];
   if (result.offline) {
-    kids.push(el('h2', '', asked), el('p', 'note', 'Cannot reach the dictionary. Check your internet, then tap the word again.'));
-  } else if (result.missing || !result.entry) {
+    kids.push(el('h2', '', asked), el('p', 'note', 'Cannot reach any dictionary right now. Check your internet, then tap the word again.'));
+  } else if (result.missing) {
     kids.push(el('h2', '', asked), el('p', 'note', 'No meaning found. Try tapping a nearby word.'));
   } else {
     const e = result.entry;
-    kids.push(el('h2', '', e.word || asked));
-    const phonetics = Array.isArray(e.phonetics) ? e.phonetics : [];
-    const ph = e.phonetic || (phonetics.find(p => p && p.text) || {}).text;
-    if (ph) kids.push(el('p', 'ph', ph));
-    (Array.isArray(e.meanings) ? e.meanings : []).slice(0, 3).forEach(m => {
-      const d = m.definitions && m.definitions[0];
-      if (!d) return;
-      kids.push(el('p', 'pos', m.partOfSpeech || 'Definition'), el('p', 'def', d.definition || ''));
-      if (d.example) kids.push(el('p', 'ex', '“' + d.example + '”'));
+    kids.push(el('h2', '', e.word));
+    if (e.phonetic) kids.push(el('p', 'ph', e.phonetic));
+    e.meanings.forEach(m => {
+      kids.push(el('p', 'pos', m.partOfSpeech), el('p', 'def', m.definition));
+      if (m.example) kids.push(el('p', 'ex', '“' + m.example + '”'));
     });
-    if (e.word && e.word.toLowerCase() !== asked) kids.push(el('p', 'note', `Showing the meaning of “${e.word}”.`));
+    if (e.word.toLowerCase() !== asked) kids.push(el('p', 'note', `Showing the meaning of “${e.word}”.`));
   }
   popup.replaceChildren(...kids);
 }
