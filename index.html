@@ -12,19 +12,72 @@
 <body>
 <div id="meter" aria-hidden="true"></div>
 <header class="top">
-  <a class="brand" href="#top"><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="7" fill="currentColor"/><path d="M6.5 15.5h11M6.5 12h11M6.5 8.5h7" stroke="var(--marker)" stroke-width="3.2" stroke-linecap="round"/></svg> EasyRead</a>
-  <button id="theme" class="icon" type="button" aria-label="Switch between light and dark theme"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="7" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M9 2a7 7 0 0 1 0 14z" fill="currentColor"/></svg></button>
+  <a class="brand" href="#top">
+    <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="7" fill="currentColor"/><path d="M6.5 15.5h11" stroke="var(--marker)" stroke-width="3.2" stroke-linecap="round"/></svg>
+    EasyRead
+  </a>
+  <button id="theme" class="icon" type="button" aria-label="Switch between light and dark theme">
+    <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="7" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M9 2a7 7 0 0 1 0 14z" fill="currentColor"/></svg>
+  </button>
 </header>
+
 <main id="top">
-  <section class="hero"><div class="copy"><p class="eyebrow">Focused reading made elegant</p><h1>Read every page with calm, clarity, and confidence.</h1><p class="lead">Open a PDF, Word, or text document and enjoy a refined reading experience designed for deep focus, clear comprehension, and effortless word lookup.</p><label class="drop" id="drop"><svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 19V6M9 11l5-5 5 5M5 21.5h18"/></svg><span class="drop-title">Choose a document or drag it here</span><small>PDF, DOCX, or TXT files. Your content stays on your device while definitions appear as you read.</small><input id="file" type="file" accept=".pdf,.docx,.txt"></label><p id="status" role="status"></p></div><figure class="stack"><div class="sheet"><p class="readable">The lighthouse keeper was reluctant to abandon his post, even as the storm grew ominous and the waves relentlessly battered the rocks.</p></div><figcaption>Try it: choose a file or tap a word to explore its meaning.</figcaption></figure></section>
-  <section class="steps" aria-label="How it works"><ol><li><h2>Open your file</h2><p>Upload a PDF, doc, or text document in seconds.</p></li><li><h2>Read naturally</h2><p>Move through each page in a clean, distraction-free layout.</p></li><li><h2>Understand instantly</h2><p>Tap any word to reveal a quick, reader-friendly definition.</p></li></ol></section>
-  <section id="reader-wrap" class="reader-wrap" hidden><div class="bar"><button id="contents-btn" class="btn" type="button" aria-expanded="false" aria-controls="contents">Contents</button><span id="page-now"></span><span id="progress"></span><button id="smaller" class="btn" type="button" aria-label="Smaller text">A−</button><button id="larger" class="btn" type="button" aria-label="Larger text">A+</button><button id="again" class="btn" type="button">New file</button></div><header class="doc-head"><p id="file-name" class="doc-title"></p><p id="doc-meta"></p></header><article id="reader" class="sheet readable"></article></section>
+  <section class="hero">
+    <div class="copy">
+      <h1>Read any book. Tap a word to understand it.</h1>
+      <p class="lead">Open a PDF, Word or text file. Tap any word and see its meaning in simple English, right where you are reading.</p>
+      <label class="drop" id="drop">
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 19V6M9 11l5-5 5 5M6 22h16"/></svg>
+        <span class="drop-title">Choose a file or drop it here</span>
+        <small>PDF, DOCX or TXT. Your file stays on your device; only tapped words are looked up online.</small>
+        <input id="file" type="file" accept=".pdf,.docx,.txt">
+      </label>
+      <p id="status" role="status"></p>
+    </div>
+    <figure class="stack">
+      <div class="sheet">
+        <p class="readable">The lighthouse keeper was reluctant to abandon his post, even as the storm grew ominous and the waves relentlessly battered the rocks.</p>
+      </div>
+      <figcaption>Try it: tap any word above.</figcaption>
+    </figure>
+  </section>
+
+  <section class="steps" aria-label="How it works">
+    <ol>
+      <li><h2>Open your book</h2><p>Choose a PDF, Word or text file from your device.</p></li>
+      <li><h2>Tap any word</h2><p>A short meaning and an example appear beside the word.</p></li>
+      <li><h2>Keep reading</h2><p>Tap somewhere else and carry on. Nothing gets in your way.</p></li>
+    </ol>
+  </section>
+
+  <section id="reader-wrap" class="reader-wrap" hidden>
+    <div class="bar">
+      <button id="contents-btn" class="btn" type="button" aria-expanded="false" aria-controls="contents">Contents</button>
+      <span id="page-now"></span>
+      <span id="progress"></span>
+      <button id="smaller" class="btn" type="button" aria-label="Smaller text">A−</button>
+      <button id="larger" class="btn" type="button" aria-label="Larger text">A+</button>
+      <button id="again" class="btn" type="button">New file</button>
+    </div>
+    <header class="doc-head">
+      <p id="file-name" class="doc-title"></p>
+      <p id="doc-meta"></p>
+    </header>
+    <article id="reader" class="sheet readable"></article>
+  </section>
 </main>
-<aside id="contents" class="contents" aria-label="Contents"><div class="contents-head"><h2>Contents</h2><button id="contents-close" class="btn" type="button">Close</button></div><label class="jump">Go to page <input id="jump" type="number" min="1" inputmode="numeric" placeholder="12"></label><ol id="outline"></ol><p id="outline-empty">No chapter titles found in this file.</p></aside>
+
+<aside id="contents" class="contents" aria-label="Contents">
+  <div class="contents-head"><h2>Contents</h2><button id="contents-close" class="btn" type="button">Close</button></div>
+  <label class="jump">Go to page <input id="jump" type="number" min="1" inputmode="numeric" placeholder="12"></label>
+  <ol id="outline"></ol>
+  <p id="outline-empty">No chapter titles found in this file.</p>
+</aside>
+
 <aside id="popup" role="dialog" aria-live="polite" hidden></aside>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
-<script src="pdf-text-layer.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

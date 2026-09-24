@@ -14,6 +14,7 @@ const pageObserver = new IntersectionObserver(entries => {
   for (const e of entries) if (e.isIntersecting) pageNow.textContent = `Page ${e.target.dataset.page} of ${totalPages}`;
 }, { rootMargin: '-40% 0px -55% 0px' });
 
+/* ---------- Opening files ---------- */
 fileInput.addEventListener('change', () => {
   const f = fileInput.files[0];
   if (f) openFile(f);
@@ -44,7 +45,7 @@ function reveal(name) {
 
 async function openFile(file) {
   const my = ++openToken, name = file.name.toLowerCase();
-  revealed = false; hidePopup(); reader.replaceChildren(); progress.textContent = ''; resetOutline();
+  revealed = false; hidePopup(); reader.textContent = ''; progress.textContent = ''; resetOutline();
   try {
     setStatus('Opening ' + file.name + '…');
     if (name.endsWith('.pdf')) await readPdf(file, my);
@@ -52,8 +53,7 @@ async function openFile(file) {
     else if (name.endsWith('.txt')) addParagraphs((await file.text()).split(/\n\s*\n/));
     else return setStatus('Use a PDF, DOCX or TXT file. For an old .doc file, save it as .docx first.', true);
     if (my !== openToken) return;
-    const hasPdfCanvas = !!reader.querySelector('.pdf-page canvas');
-    if (!reader.textContent.trim() && !hasPdfCanvas) return setStatus('No text found. This file may be scanned images.', true);
+    if (!reader.textContent.trim()) return setStatus('No text found. This file may be scanned images.', true);
     reveal(file.name);
     progress.textContent = '';
     showMeta();
@@ -63,24 +63,22 @@ async function openFile(file) {
   }
 }
 
-function addParagraphs(list) {
-  const paragraphs = list.map(text => ({ text })).filter(b => b.text.trim());
-  const chunkSize = 8;
-  totalPages = Math.max(1, Math.ceil(paragraphs.length / chunkSize));
-  for (let i = 0; i < paragraphs.length; i += chunkSize) addBlocks(paragraphs.slice(i, i + chunkSize), Math.floor(i / chunkSize) + 1);
-}
+/* ---------- Building the reading view ---------- */
+function addParagraphs(list) { addBlocks(list.map(text => ({ text })), 0); }
 
+// blocks: [{ text, heading? }]. page 0 means the file has no pages (Word, text).
 function addBlocks(blocks, page) {
   const sec = document.createElement('section');
   if (page) {
-    sec.className = 'page'; sec.id = 'p' + page; sec.dataset.page = page; sec.append(el('div', 'page-mark', 'Page ' + page));
+    sec.className = 'page'; sec.id = 'p' + page; sec.dataset.page = page;
+    sec.append(el('div', 'page-mark', 'Page ' + page));
   }
   for (const b of blocks) {
     const text = b.text.replace(/\s+/g, ' ').trim();
     if (!text) continue;
     if (b.heading) {
       const key = text.toLowerCase();
-      if (seenHeadings.has(key)) continue;
+      if (seenHeadings.has(key)) continue;          // repeated on many pages: a running header
       seenHeadings.add(key);
       const h = el('h2', '', text);
       h.id = 'h' + (++headingCount);
@@ -90,10 +88,7 @@ function addBlocks(blocks, page) {
       sec.append(el('p', '', text));
     }
   }
-  if (sec.children.length > (page ? 1 : 0)) {
-    reader.append(sec);
-    if (page) pageObserver.observe(sec);
-  }
+  if (sec.children.length > (page ? 1 : 0)) { reader.append(sec); if (page) pageObserver.observe(sec); }
 }
 
 function outlineAdd(title, id, page) {
@@ -134,7 +129,7 @@ outlineList.addEventListener('click', e => {
 $('#jump').addEventListener('keydown', e => {
   if (e.key !== 'Enter') return;
   let n = Math.min(parseInt(e.target.value, 10) || 1, totalPages || 1), target;
-  while (n > 0 && !(target = document.getElementById('p' + n))) n--;
+  while (n > 0 && !(target = document.getElementById('p' + n))) n--;   // nearest page that is loaded
   if (target) { target.scrollIntoView({ behavior: 'smooth' }); toggleContents(false); }
 });
 
@@ -146,89 +141,54 @@ async function readDocx(file) {
 async function readPdf(file, my) {
   const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
   totalPages = pdf.numPages;
-
+  const weight = new Map();               // font size -> amount of text, to find the body size
+  let carry = '';
   for (let n = 1; n <= pdf.numPages; n++) {
     if (my !== openToken) return;
-    const page = await pdf.getPage(n);
-    const viewport = page.getViewport({ scale: 1.2 });
-    const pageEl = document.createElement('section');
-    pageEl.className = 'page pdf-page';
-    pageEl.id = 'p' + n;
-    pageEl.dataset.page = n;
-
-    const pageLabel = document.createElement('div');
-    pageLabel.className = 'page-mark';
-    pageLabel.textContent = 'Page ' + n;
-
-    const wrapper = document.createElement('div');
-    wrapper.className = 'pdf-page-wrap';
-    wrapper.style.position = 'relative';
-    wrapper.style.display = 'inline-block';
-    wrapper.style.width = viewport.width + 'px';
-    wrapper.style.maxWidth = '100%';
-
-    const canvas = document.createElement('canvas');
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
-    const ctx = canvas.getContext('2d');
-    await page.render({ canvasContext: ctx, viewport }).promise;
-
-    const textLayer = document.createElement('div');
-    textLayer.className = 'pdf-text-layer';
-    textLayer.style.position = 'absolute';
-    textLayer.style.left = '0';
-    textLayer.style.top = '0';
-    textLayer.style.width = canvas.width + 'px';
-    textLayer.style.height = canvas.height + 'px';
-    textLayer.style.zIndex = '2';
-    textLayer.style.pointerEvents = 'auto';
-
-    const textContent = await page.getTextContent();
-    const scaleX = canvas.width / viewport.width;
-    const scaleY = canvas.height / viewport.height;
-    for (const item of textContent.items) {
-      if (!item.str) continue;
-      const word = document.createElement('span');
-      word.className = 'pdf-word';
-      const text = item.str; 
-      const bounds = item.transform;
-      const left = bounds[4] * scaleX;
-      const top = bounds[5] * scaleY;
-      const fontSize = Math.abs(bounds[3]) * scaleY;
-      word.textContent = text;
-      word.style.position = 'absolute';
-      word.style.left = left + 'px';
-      word.style.top = (top - fontSize) + 'px';
-      word.style.fontSize = Math.max(8, fontSize) + 'px';
-      word.style.lineHeight = '1';
-      word.style.whiteSpace = 'pre';
-      word.style.color = 'transparent';
-      word.style.cursor = 'pointer';
-      word.style.userSelect = 'none';
-      word.style.pointerEvents = 'auto';
-      word.addEventListener('click', e => {
-        e.preventDefault();
-        e.stopPropagation();
-        const value = (text || '').replace(/[^A-Za-z’'-]/g, '').toLowerCase();
-        if (!value) return;
-        const fakeRange = document.createRange();
-        const node = document.createTextNode(text);
-        fakeRange.selectNodeContents(node);
-        showWord({ word: value, range: fakeRange });
-      });
-      textLayer.appendChild(word);
+    const { items } = await (await pdf.getPage(n)).getTextContent();
+    const lines = [];
+    let lastY = null;
+    for (const it of items) {
+      if (!it.str) continue;
+      const y = it.transform[5], size = Math.abs(it.transform[3]) || it.height || 0;
+      if (lastY === null || Math.abs(y - lastY) > 2) lines.push({ y, t: '', size: 0 });
+      const l = lines[lines.length - 1];
+      l.t += it.str; l.size = Math.max(l.size, size);
+      lastY = y;
     }
+    lines.forEach(l => { const k = Math.round(l.size); weight.set(k, (weight.get(k) || 0) + l.t.length); });
+    const top = [...weight].sort((a, b) => b[1] - a[1])[0];
+    const bodySize = top ? top[0] : 0;
 
-    wrapper.append(canvas, textLayer);
-    pageEl.append(pageLabel, wrapper);
-    reader.append(pageEl);
-    pageObserver.observe(pageEl);
-
+    const gaps = lines.slice(1).map((l, i) => lines[i].y - l.y).filter(g => g > 0).sort((a, b) => a - b);
+    const med = gaps[Math.floor(gaps.length / 2)] || 12;
+    const blocks = [];
+    let text = carry;
+    const flush = () => { if (text.trim()) blocks.push({ text }); text = ''; };
+    lines.forEach((l, i) => {
+      const t = l.t.trim();
+      if (!t) return;
+      const gapBreak = i && lines[i - 1].y - l.y > med * 1.5;
+      // Clearly larger, short, and not a sentence: treat as a heading.
+      const heading = bodySize > 0 && l.size >= bodySize * 1.25 && t.length <= 90 && !/[.,;]$/.test(t);
+      if (heading) {
+        flush();
+        const last = blocks[blocks.length - 1];
+        if (last && last.heading && !gapBreak) last.text += ' ' + t; else blocks.push({ text: t, heading: true });
+        return;
+      }
+      if (gapBreak) flush();
+      text = /[a-z]-$/i.test(text) ? text.slice(0, -1) + t : text + ' ' + t;
+    });
+    if (/[.!?”"’)]\s*$/.test(text)) { flush(); carry = ''; } else carry = text;
+    addBlocks(blocks, n);
     if (reader.firstChild) reveal(file.name);
-    progress.textContent = n < pdf.numPages ? `Rendering page ${n} of ${pdf.numPages}…` : '';
+    progress.textContent = n < pdf.numPages ? `Loading page ${n} of ${pdf.numPages}…` : '';
   }
+  if (carry) addBlocks([{ text: carry }], pdf.numPages);
 }
 
+/* ---------- Tap a word ---------- */
 document.addEventListener('click', e => {
   if (e.target.closest('#popup')) return;
   const hit = e.target.closest('.readable') && wordAt(e.clientX, e.clientY);
@@ -278,13 +238,13 @@ function hidePopup() {
 }
 
 function place(range) {
-  if (!range || !range.getBoundingClientRect) return;
   if (matchMedia('(max-width: 640px)').matches) { popup.style.left = popup.style.top = ''; return; }
   const r = range.getBoundingClientRect(), w = popup.offsetWidth;
   popup.style.left = Math.max(12, Math.min(scrollX + r.left, scrollX + innerWidth - w - 12)) + 'px';
   popup.style.top = scrollY + r.bottom + 10 + 'px';
 }
 
+/* ---------- Dictionary ---------- */
 function candidates(word) {
   const c = [word];
   const add = x => { if (x.length > 2 && !c.includes(x)) c.push(x); };
@@ -302,6 +262,7 @@ function candidates(word) {
   return c;
 }
 
+/* Three free dictionaries are asked at the same time; the first answer wins. */
 async function get(url) {
   const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 7000);
   try { return await fetch(url, { signal: ctl.signal }); } finally { clearTimeout(t); }
@@ -330,7 +291,8 @@ async function fromWiktionary(w) {
   const text = h => new DOMParser().parseFromString(h, 'text/html').body.textContent.trim();
   const meanings = list.slice(0, 3).map(m => {
     const d = m.definitions[0];
-    return { partOfSpeech: m.partOfSpeech.toLowerCase(), definition: text(d.definition), example: d.examples && d.examples[0] ? text(d.examples[0]) : '' };
+    return { partOfSpeech: m.partOfSpeech.toLowerCase(), definition: text(d.definition),
+      example: d.examples && d.examples[0] ? text(d.examples[0]) : '' };
   }).filter(m => m.definition);
   return meanings.length ? { entry: { word: w, meanings } } : null;
 }
