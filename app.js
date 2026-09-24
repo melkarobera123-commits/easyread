@@ -112,7 +112,7 @@ const aboutControls = ['about-nav', 'sidebar-about', 'mobile-about'];
 const readerControls = ['reader-nav', 'sidebar-reader', 'mobile-reader'];
 aboutControls.forEach(id => $('#' + id).addEventListener('click', () => setView('about')));
 readerControls.forEach(id => $('#' + id).addEventListener('click', () => {
-  if (readerWrap.hidden) { setStatus('Choose a book to open the Reader.'); return setView('about'); }
+  if (readerWrap.hidden) return goToUpload();
   setView('reader');
 }));
 ['sidebar-library', 'mobile-library'].forEach(id => $('#' + id).addEventListener('click', () => togglePanel('library')));
@@ -158,6 +158,11 @@ function setView(view) {
   [...aboutControls].forEach(id => $('#' + id)?.classList.toggle('active', view === 'about'));
   [...readerControls].forEach(id => $('#' + id)?.classList.toggle('active', view === 'reader'));
   if (view === 'reader') readerWrap.scrollIntoView({ behavior: 'smooth', block: 'start' }); else scrollTo({ top: 0, behavior: 'smooth' });
+}
+function goToUpload() {
+  setView('about');
+  setStatus('Choose a book to open the Reader.');
+  requestAnimationFrame(() => { drop.scrollIntoView({ behavior: 'smooth', block: 'center' }); drop.focus({ preventScroll: true }); drop.classList.add('guide-focus'); setTimeout(() => drop.classList.remove('guide-focus'), 1100); });
 }
 
 function updateAccount(user) {

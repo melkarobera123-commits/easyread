@@ -82,6 +82,7 @@ h1 { max-width: 10ch; font: 300 clamp(3rem, 7vw, 6.4rem)/.96 var(--display); let
   border-radius: 18px; box-shadow: var(--shadow); transition: transform .2s, background .2s, border-color .2s, box-shadow .2s;
 }
 .drop:hover, .drop.over, .drop:focus-within { background: var(--accent-soft); border-color: var(--accent); transform: translateY(-3px); box-shadow: 0 18px 34px -22px color-mix(in srgb, var(--accent) 55%, transparent); }
+.drop.guide-focus { animation: guide-pulse .9s ease-out; }
 .drop:focus-within { outline: 3px solid var(--accent); outline-offset: 3px; }
 .drop-title { font: 600 1.1rem var(--ui); color: var(--ink); }
 .drop small { font: 400 .9rem/1.45 var(--ui); color: var(--muted); max-width: 40ch; }
@@ -281,6 +282,7 @@ button.saved-item:hover { background: var(--accent-soft); }
 @keyframes pop { from { opacity: 0; transform: translateY(6px) scale(.98); } }
 @keyframes shimmer { to { background-position: -220% 0; } }
 @keyframes toast-in { from { opacity: 0; transform: translateY(8px); } }
+@keyframes guide-pulse { 0%, 100% { box-shadow: var(--shadow); } 45% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--accent) 20%, transparent), 0 22px 42px -22px var(--accent); } }
 @media (prefers-reduced-motion: reduce) { *, ::before, ::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
 
 @media (max-width: 820px) { .steps ol { grid-template-columns: 1fr; } }
