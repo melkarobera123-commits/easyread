@@ -13,6 +13,7 @@ const store = {
 let openToken = 0, lookupToken = 0, revealed = false, totalPages = 0, headingCount = 0;
 let currentFileKey = '', currentRange = null, searchMatches = [], searchIndex = -1, readingStarted = 0;
 let autoScrollTimer = null;
+let cloudSyncTimer = null;
 let auth = null, cloud = null, currentUser = null;
 const seenHeadings = new Set();
 const contents = $('#contents'), outlineList = $('#outline'), outlineEmpty = $('#outline-empty');
@@ -97,7 +98,9 @@ function togglePanel(id, open = true) { const panel = $('#' + id); panel.hidden 
 
 function updateAccount(user) {
   $('#account-signed-out').hidden = !!user; $('#account-signed-in').hidden = !user;
-  $('#account-btn').textContent = user ? (user.displayName?.split(' ')[0] || 'Account') : 'Sign in';
+  $('#account-label').textContent = user ? (user.displayName?.split(' ')[0] || 'Account') : 'Sign in';
+  $('#account-avatar').hidden = !user; $('#account-photo').hidden = !user;
+  if (user?.photoURL) { $('#account-avatar').src = user.photoURL; $('#account-photo').src = user.photoURL; }
   if (user) $('#account-name').textContent = user.email ? `${user.displayName || 'Signed in'} · ${user.email}` : user.displayName || 'Signed in with Google';
 }
 async function signInWithGoogle() {
@@ -116,8 +119,7 @@ async function syncCloud() {
     $('#sync-status').textContent = 'Synced just now.';
   } catch (error) { $('#sync-status').textContent = 'Sync failed: ' + error.message; }
 }
-  function queueCloudSync() { if (currentUser) setTimeout(() => syncCloud(), 250); }
-  queueCloudSync();
+function queueCloudSync() { if (!currentUser) return; clearTimeout(cloudSyncTimer); cloudSyncTimer = setTimeout(() => syncCloud(), 500); }
 function mergeItems(remote = [], local = [], key) { const items = [...remote, ...local], seen = new Set(); return items.filter(item => { const id = item[key] || JSON.stringify(item); if (seen.has(id)) return false; seen.add(id); return true; }).slice(-500); }
 
 async function libraryRequest(mode, action) {
@@ -345,7 +347,6 @@ function saveWord(word, definition) {
   const words = store.get(vocabKey, []);
   if (!words.some(item => item.word === word)) words.unshift({ word, definition });
   store.set(vocabKey, words.slice(0, 300));
-  queueCloudSync();
   queueCloudSync();
 }
 function speakWord(word) { if ('speechSynthesis' in window) speechSynthesis.speak(new SpeechSynthesisUtterance(word)); }
