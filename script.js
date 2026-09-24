@@ -14,11 +14,18 @@
     const $ = id => document.getElementById(id);
 
     // Light / dark theme
+    const updateThemeLabel = () => {
+      const dark = root.dataset.theme === 'dark';
+      $('theme-label').textContent = dark ? 'Light mode' : 'Dark mode';
+      $('theme').setAttribute('aria-label', dark ? 'Switch to light mode' : 'Switch to dark mode');
+    };
     $('theme').addEventListener('click', () => {
       const next = root.dataset.theme === 'dark' ? 'light' : 'dark';
       root.dataset.theme = next;
       store.set('er-theme', next);
+      updateThemeLabel();
     });
+    updateThemeLabel();
 
     // Reading text size
     let size = parseFloat(store.get('er-size')) || 1.25;

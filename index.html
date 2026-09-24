@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>EasyRead: tap any word to understand it</title>
+<title>EasyRead - a calmer way to read</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@300;500&family=Literata:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
@@ -19,9 +19,7 @@
     <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="7" fill="currentColor"/><path d="M6.5 15.5h11" stroke="var(--marker)" stroke-width="3.2" stroke-linecap="round"/></svg>
     EasyRead
   </a>
-  <button id="theme" class="icon" type="button" aria-label="Switch between light and dark theme">
-    <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="7" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M9 2a7 7 0 0 1 0 14z" fill="currentColor"/></svg>
-  </button>
+  <button id="theme" class="theme-toggle" type="button" aria-label="Switch to dark mode"><span class="theme-icon">◐</span><span id="theme-label">Dark mode</span></button>
   <nav class="nav-links" aria-label="Primary navigation">
     <button id="about-nav" class="nav-link active" type="button">About</button>
     <button id="reader-nav" class="nav-link" type="button">Reader</button>
@@ -33,14 +31,16 @@
 <main id="top">
   <section class="hero">
     <div class="copy">
-      <h1>Read any book. Tap a word to understand it.</h1>
-      <p class="lead">Open a PDF, Word or text file. Tap any word and see its meaning in simple English, right where you are reading.</p>
+      <p class="welcome-kicker">A little help for big reading days</p>
+      <h1>Open a book. Feel at home in every word.</h1>
+      <p class="lead">EasyRead makes difficult pages feel lighter. Open your book, tap anything unfamiliar, and keep going without breaking your flow.</p>
       <label class="drop" id="drop">
         <svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 19V6M9 11l5-5 5 5M6 22h16"/></svg>
         <span class="drop-title">Choose a file or drop it here</span>
-        <small>PDF, DOCX, EPUB, TXT or images. Your files stay on your device; lookups and translation use the internet.</small>
-        <input id="file" type="file" accept=".pdf,.docx,.txt,.epub,.png,.jpg,.jpeg">
+        <small>PDF, DOCX, PPTX, EPUB, TXT or images. Your files stay on your device; lookups and translation use the internet.</small>
+        <input id="file" type="file" accept=".pdf,.docx,.ppt,.pptx,.txt,.epub,.png,.jpg,.jpeg">
       </label>
+      <div id="welcome-signin" class="welcome-signin" hidden><span>Want your words and progress everywhere?</span><button id="welcome-signin-btn" class="btn" type="button">Sign in with Google</button><button id="welcome-dismiss" class="text-button" type="button">Maybe later</button></div>
       <p id="status" role="status"></p>
     </div>
     <figure class="stack">
@@ -102,7 +102,7 @@
   </section>
 </main>
 
-<footer class="site-footer">Rob_Era (Abiti) <span>Made with love</span></footer>
+<footer class="site-footer"><span>Rob_Era (Abiti) Made with love</span><a id="contact-link" href="#contact">Contact developer</a></footer>
 
 <aside id="contents" class="contents" aria-label="Contents">
   <div class="contents-head"><h2>Contents</h2><button id="contents-close" class="btn" type="button">Close</button></div>
@@ -160,6 +160,15 @@
     <button id="sync-now" class="btn account-action" type="button">Sync now</button>
     <button id="signout" class="btn account-action" type="button">Sign out</button>
   </div>
+</aside>
+
+<aside id="contact" class="panel contact-panel" hidden>
+  <div class="contents-head"><h2>Say hello</h2><button id="contact-close" class="btn" type="button">Close</button></div>
+  <p>Found a rough edge or have an idea? Leave a note for the developer.</p>
+  <div class="contact-cards"><a id="contact-telegram" class="contact-card" target="_blank" rel="noreferrer"><span class="contact-symbol">↗</span><span><strong>Telegram</strong><small id="contact-telegram-label">Add handle</small></span></a><a id="contact-phone" class="contact-card"><span class="contact-symbol">⌕</span><span><strong>Phone</strong><small id="contact-phone-label">Add number</small></span></a><a id="contact-email" class="contact-card"><span class="contact-symbol">@</span><span><strong>Email</strong><small id="contact-email-label">Add address</small></span></a></div>
+  <label>Your message <textarea id="contact-message" rows="6" placeholder="Tell me what would make EasyRead better..."></textarea></label>
+  <button id="contact-send" class="btn account-action" type="button">Prepare email</button>
+  <p id="contact-status" class="note">The developer email can be set in firebase-config.js.</p>
 </aside>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>

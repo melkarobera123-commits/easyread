@@ -76,6 +76,21 @@ $('#account-close').addEventListener('click', () => togglePanel('account', false
 $('#google-signin').addEventListener('click', signInWithGoogle);
 $('#sync-now').addEventListener('click', syncCloud);
 $('#signout').addEventListener('click', () => auth?.signOut());
+$('#welcome-signin-btn').addEventListener('click', () => { store.set('er-welcome-seen', true); $('#welcome-signin').hidden = true; togglePanel('account'); });
+$('#welcome-dismiss').addEventListener('click', () => { store.set('er-welcome-seen', true); $('#welcome-signin').hidden = true; });
+$('#contact-link').addEventListener('click', event => { event.preventDefault(); togglePanel('contact'); });
+$('#contact-close').addEventListener('click', () => togglePanel('contact', false));
+$('#contact-send').addEventListener('click', () => {
+  const email = window.EASYREAD_DEVELOPER_EMAIL, message = $('#contact-message').value.trim();
+  if (!email) return ($('#contact-status').textContent = 'Set EASYREAD_DEVELOPER_EMAIL in firebase-config.js first.');
+  location.href = `mailto:${email}?subject=EasyRead feedback&body=${encodeURIComponent(message || 'I have feedback about EasyRead.')}`;
+});
+const contact = window.EASYREAD_CONTACT || {};
+const setContact = (id, labelId, value, href) => { const link = $('#' + id), label = $('#' + labelId); if (!value) { link.classList.add('unavailable'); link.removeAttribute('href'); } else { link.href = href; label.textContent = value; } };
+setContact('contact-telegram', 'contact-telegram-label', contact.telegram, 'https://t.me/' + String(contact.telegram).replace(/^@/, ''));
+setContact('contact-phone', 'contact-phone-label', contact.phone, 'tel:' + contact.phone);
+setContact('contact-email', 'contact-email-label', contact.email, 'mailto:' + contact.email);
+if (!store.get('er-welcome-seen', false)) $('#welcome-signin').hidden = false;
 $('#about-nav').addEventListener('click', () => setView('about'));
 $('.brand').addEventListener('click', event => { event.preventDefault(); setView('about'); });
 $('#reader-nav').addEventListener('click', () => {
@@ -216,6 +231,8 @@ async function openFile(file) {
     setStatus('Opening ' + file.name + '…');
     if (name.endsWith('.pdf')) await readPdf(file, my);
     else if (name.endsWith('.docx')) await readDocx(file);
+    else if (name.endsWith('.pptx')) await readPptx(file);
+    else if (name.endsWith('.ppt')) return setStatus('Old .ppt files are not readable in the browser yet. Save it as .pptx in PowerPoint, then try again.', true);
     else if (name.endsWith('.epub')) await readEpub(file);
     else if (/\.(png|jpe?g)$/i.test(name)) await readImage(file);
     else if (name.endsWith('.txt')) addParagraphs((await file.text()).split(/\n\s*\n/));
@@ -305,6 +322,16 @@ $('#jump').addEventListener('keydown', e => {
 async function readDocx(file) {
   const { value } = await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() });
   addParagraphs(value.split(/\n\s*\n/));
+}
+
+async function readPptx(file) {
+  const zip = await JSZip.loadAsync(await file.arrayBuffer()), slides = Object.keys(zip.files).filter(name => /^ppt\/slides\/slide\d+\.xml$/.test(name)).sort((a, b) => parseInt(a.match(/slide(\d+)/)[1], 10) - parseInt(b.match(/slide(\d+)/)[1], 10));
+  totalPages = slides.length;
+  for (let index = 0; index < slides.length; index++) {
+    const xml = new DOMParser().parseFromString(await zip.file(slides[index]).async('text'), 'application/xml');
+    const text = [...xml.getElementsByTagName('a:t')].map(node => node.textContent).join(' ').replace(/\s+/g, ' ').trim();
+    if (text) addBlocks([{ text: 'Slide ' + (index + 1), heading: true }, { text }], index + 1);
+  }
 }
 
 async function readEpub(file) {
