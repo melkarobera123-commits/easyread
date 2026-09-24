@@ -336,10 +336,12 @@ function searchInBook() {
   searchMatches = []; searchIndex = -1;
   if (CSS.highlights) CSS.highlights.delete('search');
   if (query) {
-    const walker = document.createTreeWalker(reader, NodeFilter.SHOW_TEXT);
-    while (walker.nextNode()) {
-      const node = walker.currentNode, text = node.data.toLowerCase(); let from = 0, at;
-      while ((at = text.indexOf(query, from)) >= 0) { const range = new Range(); range.setStart(node, at); range.setEnd(node, at + query.length); searchMatches.push(range); from = at + query.length; }
+    for (const source of [reader, $('#pdf-pages')]) {
+      const walker = document.createTreeWalker(source, NodeFilter.SHOW_TEXT);
+      while (walker.nextNode()) {
+        const node = walker.currentNode, text = node.data.toLowerCase(); let from = 0, at;
+        while ((at = text.indexOf(query, from)) >= 0) { const range = new Range(); range.setStart(node, at); range.setEnd(node, at + query.length); searchMatches.push(range); from = at + query.length; }
+      }
     }
     if (CSS.highlights) CSS.highlights.set('search', new Highlight(...searchMatches));
     if (searchMatches.length) moveSearch(1);
@@ -405,7 +407,7 @@ function showFlashcards() {
 
 async function readPdf(file, my) {
   const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
-  activePdf = pdf; $('#pdf-mode-btn').hidden = false; renderPdfPages(pdf);
+  activePdf = pdf; pdfVisualMode = true; $('#pdf-mode-btn').hidden = false; $('#pdf-mode-btn').textContent = 'Text view'; $('#pdf-pages').hidden = false; $('#reader').hidden = true; renderPdfPages(pdf);
   totalPages = pdf.numPages;
   const weight = new Map();               // font size -> amount of text, to find the body size
   let carry = '';
@@ -458,8 +460,14 @@ async function renderPdfPages(pdf) {
   const pages = $('#pdf-pages'); pages.replaceChildren();
   for (let number = 1; number <= pdf.numPages; number++) {
     const page = await pdf.getPage(number), viewport = page.getViewport({ scale: Math.min(1.35, (innerWidth - 48) / page.getViewport({ scale: 1 }).width) });
-    const frame = el('figure', 'pdf-page'), canvas = document.createElement('canvas'); canvas.width = viewport.width; canvas.height = viewport.height; frame.append(canvas, el('figcaption', '', 'Page ' + number)); pages.append(frame);
+    const frame = el('figure', 'pdf-page readable'), canvas = document.createElement('canvas'); canvas.width = viewport.width; canvas.height = viewport.height; frame.append(canvas);
+    const textLayer = el('div', 'textLayer'); frame.append(textLayer, el('figcaption', '', 'Page ' + number)); pages.append(frame);
     await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+    try {
+      const textContent = await page.getTextContent();
+      const task = pdfjsLib.renderTextLayer({ textContent, container: textLayer, viewport, textDivs: [] });
+      if (task?.promise) await task.promise;
+    } catch (error) { console.warn('PDF text layer unavailable', error); }
   }
 }
 function togglePdfMode() {
