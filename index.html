@@ -21,6 +21,7 @@
   <button id="theme" class="icon" type="button" aria-label="Switch between light and dark theme">
     <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="7" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M9 2a7 7 0 0 1 0 14z" fill="currentColor"/></svg>
   </button>
+  <button id="library-btn" class="btn top-library" type="button">My library</button>
 </header>
 
 <main id="top">
@@ -52,6 +53,11 @@
     </ol>
   </section>
 
+  <section id="library-home" class="library-home" aria-labelledby="library-title">
+    <div class="section-heading"><div><p class="eyebrow">Your reading shelf</p><h2 id="library-title">Pick up where you left off</h2></div><button id="library-home-btn" class="btn" type="button">Open library</button></div>
+    <div id="library-preview" class="library-grid"><p class="note">Your imported books will appear here.</p></div>
+  </section>
+
   <section id="reader-wrap" class="reader-wrap" hidden>
     <div class="bar">
       <button id="contents-btn" class="btn" type="button" aria-expanded="false" aria-controls="contents">Contents</button>
@@ -77,6 +83,12 @@
       <button id="highlight-btn" class="btn" type="button">Highlight</button>
       <button id="vocab-btn" class="btn" type="button">Vocabulary</button>
       <button id="stats-btn" class="btn" type="button">Stats</button>
+      <button id="bookmark-btn" class="btn" type="button">Bookmark</button>
+      <button id="export-btn" class="btn" type="button">Export</button>
+      <button id="summary-btn" class="btn" type="button">Summarize</button>
+      <button id="flashcards-btn" class="btn" type="button">Flashcards</button>
+      <button id="autoscroll-btn" class="btn" type="button">Auto-scroll</button>
+      <button id="line-focus-btn" class="btn" type="button">Line focus</button>
     </div>
     <article id="reader" class="sheet readable"></article>
   </section>
@@ -97,6 +109,7 @@
   <label>Line spacing <input id="spacing" type="range" min="1.5" max="2.3" step=".1" value="1.9"></label>
   <label>Page width <input id="width" type="range" min="620" max="980" step="20" value="780"></label>
   <label class="check"><input id="contrast" type="checkbox"> High contrast</label>
+  <label>Translation language <select id="translation-language"><option value="am">Amharic</option><option value="es">Spanish</option><option value="fr">French</option><option value="de">German</option></select></label>
 </aside>
 
 <aside id="vocab" class="panel vocab-panel" hidden>
@@ -107,6 +120,17 @@
 <aside id="stats" class="panel stats-panel" hidden>
   <div class="contents-head"><h2>Reading progress</h2><button id="stats-close" class="btn" type="button">Close</button></div>
   <div id="stats-content"></div>
+</aside>
+
+<aside id="library" class="panel library-panel" hidden>
+  <div class="contents-head"><h2>My library</h2><button id="library-close" class="btn" type="button">Close</button></div>
+  <p class="note">Files are stored only in this browser.</p>
+  <div id="library-list"></div>
+</aside>
+
+<aside id="learning" class="panel learning-panel" hidden>
+  <div class="contents-head"><h2 id="learning-title">Learning</h2><button id="learning-close" class="btn" type="button">Close</button></div>
+  <div id="learning-content"></div>
 </aside>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>

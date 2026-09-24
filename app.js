@@ -12,10 +12,17 @@ const store = {
 };
 let openToken = 0, lookupToken = 0, revealed = false, totalPages = 0, headingCount = 0;
 let currentFileKey = '', currentRange = null, searchMatches = [], searchIndex = -1, readingStarted = 0;
+let autoScrollTimer = null;
 const seenHeadings = new Set();
 const contents = $('#contents'), outlineList = $('#outline'), outlineEmpty = $('#outline-empty');
 const pageNow = $('#page-now'), docMeta = $('#doc-meta');
 const vocabKey = 'er-vocabulary', statsKey = 'er-stats';
+const libraryDB = new Promise((resolve, reject) => {
+  const request = indexedDB.open('easyread-library', 1);
+  request.onupgradeneeded = () => request.result.createObjectStore('books', { keyPath: 'key' });
+  request.onsuccess = () => resolve(request.result);
+  request.onerror = () => reject(request.error);
+});
 const pageObserver = new IntersectionObserver(entries => {
   for (const e of entries) if (e.isIntersecting) pageNow.textContent = `Page ${e.target.dataset.page} of ${totalPages}`;
 }, { rootMargin: '-40% 0px -55% 0px' });
@@ -48,6 +55,16 @@ $('#highlight-btn').addEventListener('click', () => {
 });
 $('#vocab-btn').addEventListener('click', () => togglePanel('vocab'));
 $('#stats-btn').addEventListener('click', () => togglePanel('stats'));
+$('#library-btn').addEventListener('click', () => togglePanel('library'));
+$('#library-home-btn').addEventListener('click', () => togglePanel('library'));
+$('#library-close').addEventListener('click', () => togglePanel('library', false));
+$('#bookmark-btn').addEventListener('click', saveBookmark);
+$('#export-btn').addEventListener('click', exportReadingData);
+$('#summary-btn').addEventListener('click', showSummary);
+$('#flashcards-btn').addEventListener('click', showFlashcards);
+$('#learning-close').addEventListener('click', () => togglePanel('learning', false));
+$('#autoscroll-btn').addEventListener('click', () => { if (autoScrollTimer) { clearInterval(autoScrollTimer); autoScrollTimer = null; $('#autoscroll-btn').textContent = 'Auto-scroll'; } else { autoScrollTimer = setInterval(() => scrollBy({ top: 1, behavior: 'auto' }), 35); $('#autoscroll-btn').textContent = 'Stop scroll'; } });
+$('#line-focus-btn').addEventListener('click', () => { document.body.classList.toggle('line-focus'); $('#line-focus-btn').textContent = document.body.classList.contains('line-focus') ? 'Full page' : 'Line focus'; });
 $('#focus-btn').addEventListener('click', () => document.body.classList.toggle('focus-mode'));
 $('#fullscreen-btn').addEventListener('click', () => readerWrap.requestFullscreen?.());
 $('#settings-btn').addEventListener('click', () => togglePanel('settings'));
@@ -59,9 +76,32 @@ $('#spacing').addEventListener('input', e => rootStyle('--reader-leading', e.tar
 $('#width').addEventListener('input', e => rootStyle('--reader-width', e.target.value + 'px'));
 $('#contrast').addEventListener('change', e => document.body.classList.toggle('high-contrast', e.target.checked));
 if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+renderLibrary();
 
 function rootStyle(name, value) { document.documentElement.style.setProperty(name, value); }
-function togglePanel(id, open = true) { const panel = $('#' + id); panel.hidden = open === false ? true : !panel.hidden; if (id === 'vocab' && !panel.hidden) renderVocabulary(); if (id === 'stats' && !panel.hidden) renderStats(); }
+function togglePanel(id, open = true) { const panel = $('#' + id); panel.hidden = open === false ? true : !panel.hidden; if (id === 'vocab' && !panel.hidden) renderVocabulary(); if (id === 'stats' && !panel.hidden) renderStats(); if (id === 'library' && !panel.hidden) renderLibrary(); }
+
+async function libraryRequest(mode, action) {
+  try { const db = await libraryDB; return await new Promise((resolve, reject) => { const tx = db.transaction('books', mode), request = action(tx.objectStore('books')); request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); }); } catch { return null; }
+}
+async function saveBook(file) {
+  await libraryRequest('readwrite', books => books.put({ key: currentFileKey, name: file.name, size: file.size, modified: file.lastModified, added: Date.now(), file }));
+  renderLibrary();
+}
+async function getBooks() { return (await libraryRequest('readonly', books => books.getAll())) || []; }
+async function renderLibrary() {
+  const books = (await getBooks()).sort((a, b) => b.added - a.added), targets = [$('#library-list'), $('#library-preview')];
+  targets.forEach(target => { if (target) target.replaceChildren(); });
+  if (!books.length) { $('#library-list').append(el('p', 'note', 'Choose a book to start your shelf.')); $('#library-preview').append(el('p', 'note', 'Your imported books will appear here.')); return; }
+  books.forEach(book => {
+    const row = el('div', 'library-row'), title = el('div'), open = el('button', 'btn', 'Open'), remove = el('button', 'btn', 'Remove');
+    title.append(el('strong', '', book.name.replace(/\.[^.]+$/, '')), el('small', '', new Date(book.added).toLocaleDateString()));
+    open.onclick = () => { openFile(new File([book.file], book.name, { type: book.file.type, lastModified: book.modified })); togglePanel('library', false); };
+    remove.onclick = async () => { await libraryRequest('readwrite', booksStore => booksStore.delete(book.key)); renderLibrary(); };
+    row.append(title, open, remove); $('#library-list').append(row);
+    const card = el('button', 'book-card'); card.type = 'button'; card.append(el('strong', '', book.name.replace(/\.[^.]+$/, '')), el('small', '', new Date(book.added).toLocaleDateString()), el('span', '', 'Continue reading →')); card.onclick = open.onclick; $('#library-preview').append(card);
+  });
+}
 
 /* ---------- Opening files ---------- */
 fileInput.addEventListener('change', () => {
@@ -112,6 +152,7 @@ async function openFile(file) {
     reveal(file.name);
     progress.textContent = '';
     showMeta();
+    saveBook(file);
   } catch (e) {
     console.error(e);
     setStatus('Could not read this file. Try another one.', true);
@@ -248,6 +289,19 @@ function renderStats() {
   $('#stats-content').innerHTML = `<p><strong>${Math.round(seconds / 60)}</strong> minutes read</p><p><strong>${store.get(vocabKey, []).length}</strong> saved words</p><p>Progress is stored privately in this browser.</p>`;
 }
 
+function saveBookmark() {
+  if (!currentFileKey || readerWrap.hidden) return;
+  const bookmarks = store.get('er-bookmarks', []);
+  bookmarks.unshift({ file: currentFileKey, name: $('#file-name').textContent, scroll: scrollY, created: Date.now() });
+  store.set('er-bookmarks', bookmarks.slice(0, 100));
+  $('#bookmark-btn').textContent = 'Bookmarked';
+}
+function exportReadingData() {
+  const data = { vocabulary: store.get(vocabKey, []), notes: store.get('er-notes', []), highlights: store.get('er-highlights', []), bookmarks: store.get('er-bookmarks', []) };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }), link = document.createElement('a');
+  link.href = URL.createObjectURL(blob); link.download = 'easyread-notes.json'; link.click(); URL.revokeObjectURL(link.href);
+}
+
 function saveWord(word, definition) {
   const words = store.get(vocabKey, []);
   if (!words.some(item => item.word === word)) words.unshift({ word, definition });
@@ -255,8 +309,26 @@ function saveWord(word, definition) {
 }
 function speakWord(word) { if ('speechSynthesis' in window) speechSynthesis.speak(new SpeechSynthesisUtterance(word)); }
 async function translateWord(word, target = 'es') {
-  const res = await fetch('https://api.mymemory.translated.net/get?q=' + encodeURIComponent(word) + '&langpair=en|' + target);
+  const language = $('#translation-language')?.value || target;
+  const res = await fetch('https://api.mymemory.translated.net/get?q=' + encodeURIComponent(word) + '&langpair=en|' + language);
   const data = await res.json(); return data.responseData?.translatedText || 'Translation unavailable';
+}
+
+async function requestAI(prompt) {
+  const res = await fetch('/api/ai', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt }) });
+  if (!res.ok) throw new Error('AI backend unavailable');
+  const data = await res.json(); return data.text || data.output || data.message;
+}
+async function showSummary() {
+  togglePanel('learning'); $('#learning-title').textContent = 'Chapter summary'; const target = $('#learning-content'); target.replaceChildren(el('p', 'note', 'Creating a summary…'));
+  const text = [...reader.querySelectorAll('p')].slice(0, 8).map(p => p.textContent).join(' ');
+  try { target.replaceChildren(el('p', '', await requestAI('Summarize this reading in simple English in five short bullet points:\n' + text.slice(0, 12000)))); }
+  catch { target.replaceChildren(el('p', '', text ? text.split(/(?<=[.!?])\s+/).slice(0, 3).join(' ') : 'Open a book to create a summary.'), el('p', 'note', 'AI summaries need a secure /api/ai backend.')); }
+}
+function showFlashcards() {
+  togglePanel('learning'); $('#learning-title').textContent = 'Vocabulary flashcards'; const target = $('#learning-content'), words = store.get(vocabKey, []); target.replaceChildren();
+  if (!words.length) return target.append(el('p', 'note', 'Save words while reading to build flashcards.'));
+  words.slice(0, 20).forEach(item => { const card = el('button', 'flashcard'); card.type = 'button'; card.append(el('strong', '', item.word), el('span', '', 'Tap to reveal')); card.onclick = () => { card.replaceChildren(el('strong', '', item.word), el('span', '', item.definition || 'No definition saved')); }; target.append(card); });
 }
 
 async function readPdf(file, my) {
