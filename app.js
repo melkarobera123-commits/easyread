@@ -11,11 +11,12 @@ const store = {
   set(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* storage blocked */ } }
 };
 let openToken = 0, lookupToken = 0, revealed = false, totalPages = 0, headingCount = 0;
-let currentFileKey = '', currentRange = null, searchMatches = [], searchIndex = -1, readingStarted = 0;
+let currentFileKey = '', currentDocumentTitle = '', currentRange = null, searchMatches = [], searchIndex = -1, readingStarted = 0;
 let autoScrollTimer = null;
 let cloudSyncTimer = null;
+let bookProgressTimer = null;
 let auth = null, cloud = null, currentUser = null;
-let activePdf = null, pdfVisualMode = false;
+let activePdf = null, pdfVisualMode = false, pdfCurrentPage = 1, pdfScale = 1.25, pdfFrames = [];
 let syncConflictCount = 0;
 const seenHeadings = new Set();
 const contents = $('#contents'), outlineList = $('#outline'), outlineEmpty = $('#outline-empty');
@@ -37,6 +38,8 @@ const saveScroll = () => {
   const stats = store.get(statsKey, {});
   stats[currentFileKey] = { ...(stats[currentFileKey] || {}), scroll: scrollY, seconds: (stats[currentFileKey]?.seconds || 0) + Math.max(0, Math.round((Date.now() - readingStarted) / 1000)) };
   store.set(statsKey, stats); readingStarted = Date.now(); queueCloudSync();
+  clearTimeout(bookProgressTimer);
+  bookProgressTimer = setTimeout(async () => { const book = await libraryRequest('readonly', books => books.get(currentFileKey)); if (book) await libraryRequest('readwrite', books => books.put({ ...book, opened: Date.now(), progress: Math.min(100, Math.max(0, Math.round((scrollY / Math.max(document.documentElement.scrollHeight - innerHeight, 1)) * 100)))})); }, 800);
 };
 addEventListener('scroll', () => { if (!readerWrap.hidden) saveScroll(); }, { passive: true });
 addEventListener('beforeunload', saveScroll);
@@ -64,6 +67,8 @@ $('#saved-btn').addEventListener('click', () => { renderSavedItems(); toggleCont
 $('#library-btn').addEventListener('click', () => togglePanel('library'));
 $('#library-home-btn').addEventListener('click', () => togglePanel('library'));
 $('#library-close').addEventListener('click', () => togglePanel('library', false));
+$('#library-sort').addEventListener('change', renderLibrary);
+$('#home-library-sort').addEventListener('change', event => { $('#library-sort').value = event.target.value; renderLibrary(); });
 $('#bookmark-btn').addEventListener('click', saveBookmark);
 $('#export-btn').addEventListener('click', exportReadingData);
 $('#flashcards-btn').addEventListener('click', showFlashcards);
@@ -71,6 +76,11 @@ $('#learning-close').addEventListener('click', () => togglePanel('learning', fal
 $('#autoscroll-btn').addEventListener('click', () => { if (autoScrollTimer) { clearInterval(autoScrollTimer); autoScrollTimer = null; $('#autoscroll-btn').textContent = 'Auto-scroll'; } else { autoScrollTimer = setInterval(() => scrollBy({ top: 1, behavior: 'auto' }), 35); $('#autoscroll-btn').textContent = 'Stop scroll'; } });
 $('#line-focus-btn').addEventListener('click', () => { document.body.classList.toggle('line-focus'); $('#line-focus-btn').textContent = document.body.classList.contains('line-focus') ? 'Full page' : 'Line focus'; });
 $('#pdf-mode-btn').addEventListener('click', togglePdfMode);
+$('#pdf-prev').addEventListener('click', () => goToPdfPage(pdfCurrentPage - 1));
+$('#pdf-next').addEventListener('click', () => goToPdfPage(pdfCurrentPage + 1));
+$('#pdf-zoom-out').addEventListener('click', () => changePdfZoom(-.15));
+$('#pdf-zoom-in').addEventListener('click', () => changePdfZoom(.15));
+$('#pdf-fullscreen').addEventListener('click', () => $('#pdf-pages').requestFullscreen?.());
 $('#account-btn').addEventListener('click', () => togglePanel('account'));
 $('#account-close').addEventListener('click', () => togglePanel('account', false));
 $('#google-signin').addEventListener('click', signInWithGoogle);
@@ -80,6 +90,12 @@ $('#welcome-signin-btn').addEventListener('click', () => { store.set('er-welcome
 $('#welcome-dismiss').addEventListener('click', () => { store.set('er-welcome-seen', true); $('#welcome-signin').hidden = true; });
 $('#contact-link').addEventListener('click', event => { event.preventDefault(); togglePanel('contact'); });
 $('#contact-close').addEventListener('click', () => togglePanel('contact', false));
+$('#privacy-link').addEventListener('click', () => togglePanel('privacy'));
+$('#privacy-close').addEventListener('click', () => togglePanel('privacy', false));
+$('#shortcuts-link').addEventListener('click', () => togglePanel('shortcuts'));
+$('#shortcuts-close').addEventListener('click', () => togglePanel('shortcuts', false));
+$('#export-all').addEventListener('click', exportAllData);
+$('#delete-all').addEventListener('click', deleteAllLocalData);
 $('#contact-send').addEventListener('click', () => {
   const email = window.EASYREAD_DEVELOPER_EMAIL, message = $('#contact-message').value.trim();
   if (!email) return ($('#contact-status').textContent = 'Set EASYREAD_DEVELOPER_EMAIL in firebase-config.js first.');
@@ -91,12 +107,17 @@ setContact('contact-telegram', 'contact-telegram-label', contact.telegram, 'http
 setContact('contact-phone', 'contact-phone-label', contact.phone, 'tel:' + contact.phone);
 setContact('contact-email', 'contact-email-label', contact.email, 'mailto:' + contact.email);
 if (!store.get('er-welcome-seen', false)) $('#welcome-signin').hidden = false;
-$('#about-nav').addEventListener('click', () => setView('about'));
 $('.brand').addEventListener('click', event => { event.preventDefault(); setView('about'); });
-$('#reader-nav').addEventListener('click', () => {
+const aboutControls = ['about-nav', 'sidebar-about', 'mobile-about'];
+const readerControls = ['reader-nav', 'sidebar-reader', 'mobile-reader'];
+aboutControls.forEach(id => $('#' + id).addEventListener('click', () => setView('about')));
+readerControls.forEach(id => $('#' + id).addEventListener('click', () => {
   if (readerWrap.hidden) { setStatus('Choose a book to open the Reader.'); return setView('about'); }
   setView('reader');
-});
+}));
+['sidebar-library', 'mobile-library'].forEach(id => $('#' + id).addEventListener('click', () => togglePanel('library')));
+['sidebar-account', 'mobile-account'].forEach(id => $('#' + id).addEventListener('click', () => togglePanel('account')));
+$('#sidebar-theme').addEventListener('click', () => $('#theme').click());
 addEventListener('online', updateNetworkStatus);
 addEventListener('offline', updateNetworkStatus);
 updateNetworkStatus();
@@ -127,19 +148,24 @@ function togglePanel(id, open = true) { const panel = $('#' + id); panel.hidden 
 function updateNetworkStatus() {
   const banner = $('#network-status'); banner.hidden = navigator.onLine;
   banner.textContent = navigator.onLine ? '' : 'You are offline. Changes will sync automatically when you reconnect.';
+  if (!navigator.onLine) showToast('Offline mode on. Your changes are safe here.');
   if (currentUser) updateSyncMeta();
 }
+let toastTimer = null;
+function showToast(message) { const toast = $('#toast'); toast.textContent = message; toast.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { toast.hidden = true; }, 3200); }
 function setView(view) {
   document.body.dataset.view = view;
-  $('#about-nav').classList.toggle('active', view === 'about');
-  $('#reader-nav').classList.toggle('active', view === 'reader');
+  [...aboutControls].forEach(id => $('#' + id)?.classList.toggle('active', view === 'about'));
+  [...readerControls].forEach(id => $('#' + id)?.classList.toggle('active', view === 'reader'));
   if (view === 'reader') readerWrap.scrollIntoView({ behavior: 'smooth', block: 'start' }); else scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 function updateAccount(user) {
   $('#account-signed-out').hidden = !!user; $('#account-signed-in').hidden = !user;
-  $('#account-label').textContent = user ? (user.displayName?.split(' ')[0] || 'Account') : 'Sign in';
+  const label = user ? (user.displayName?.split(' ')[0] || 'Account') : 'Sign in';
+  $('#account-label').textContent = label; $('#sidebar-account-label').textContent = label; $('#sidebar-account-meta').textContent = user ? (user.email || 'Google account') : 'Sync your reading';
   $('#account-avatar').hidden = !user; $('#account-photo').hidden = !user;
+  $('#sidebar-avatar').src = user?.photoURL || '';
   if (user?.photoURL) { $('#account-avatar').src = user.photoURL; $('#account-photo').src = user.photoURL; }
   if (user) { $('#account-name').textContent = user.displayName || 'Signed in with Google'; $('#account-email').textContent = user.email || ''; updateSyncMeta(); }
 }
@@ -150,7 +176,7 @@ async function signInWithGoogle() {
 }
 async function syncCloud() {
   if (!currentUser || !cloud) return;
-  if (!navigator.onLine) { queueSyncState('offline'); return; }
+  if (!navigator.onLine) { queueSyncState('offline'); showToast('Saved locally. Sync will resume when you are online.'); return; }
   $('#sync-label').textContent = 'Syncing…';
   try {
     const ref = cloud.collection('users').doc(currentUser.uid), snapshot = await ref.get(), local = { vocabulary: store.get(vocabKey, []), notes: store.get('er-notes', []), highlights: store.get('er-highlights', []), bookmarks: store.get('er-bookmarks', []), stats: store.get(statsKey, {}) };
@@ -159,8 +185,8 @@ async function syncCloud() {
     await ref.set(merged, { merge: true });
     store.set(vocabKey, merged.vocabulary); store.set('er-notes', merged.notes); store.set('er-highlights', merged.highlights); store.set('er-bookmarks', merged.bookmarks); store.set(statsKey, merged.stats);
     store.set(syncMetaKey, { lastSynced: Date.now(), pending: false, conflicts: syncConflictCount });
-    $('#sync-label').textContent = 'Synced just now'; updateSyncMeta();
-  } catch (error) { queueSyncState('error', error.message); }
+    $('#sync-label').textContent = 'Synced just now'; updateSyncMeta(); showToast('Your reading history is synced.');
+  } catch (error) { queueSyncState('error', error.message); showToast('Sync needs attention. Your local data is safe.'); }
 }
 function queueCloudSync() { if (!currentUser) return; store.set(syncMetaKey, { ...store.get(syncMetaKey, {}), pending: true }); updateSyncMeta(); clearTimeout(cloudSyncTimer); cloudSyncTimer = setTimeout(() => syncCloud(), 500); }
 function queueSyncState(state, message = '') { store.set(syncMetaKey, { ...store.get(syncMetaKey, {}), pending: true, state, message }); updateSyncMeta(); }
@@ -172,23 +198,27 @@ async function libraryRequest(mode, action) {
   try { const db = await libraryDB; return await new Promise((resolve, reject) => { const tx = db.transaction('books', mode), request = action(tx.objectStore('books')); request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); }); } catch { return null; }
 }
 async function saveBook(file) {
-  await libraryRequest('readwrite', books => books.put({ key: currentFileKey, name: file.name, size: file.size, modified: file.lastModified, added: Date.now(), file }));
+  const previous = await libraryRequest('readonly', books => books.get(currentFileKey));
+  await libraryRequest('readwrite', books => books.put({ ...(previous || {}), key: currentFileKey, name: file.name, title: currentDocumentTitle || file.name.replace(/\.[^.]+$/, ''), type: file.name.split('.').pop().toLowerCase(), size: file.size, modified: file.lastModified, added: previous?.added || Date.now(), opened: Date.now(), progress: previous?.progress || 0, favorite: previous?.favorite || false, file }));
   renderLibrary();
 }
+async function updateBook(key, patch) { const book = await libraryRequest('readonly', books => books.get(key)); if (book) { await libraryRequest('readwrite', books => books.put({ ...book, ...patch })); renderLibrary(); } }
 async function getBooks() { return (await libraryRequest('readonly', books => books.getAll())) || []; }
 async function renderLibrary() {
-  const books = (await getBooks()).sort((a, b) => b.added - a.added), targets = [$('#library-list'), $('#library-preview')];
-  targets.forEach(target => { if (target) target.replaceChildren(); });
-  if (!books.length) { $('#library-list').append(el('p', 'note', 'Choose a book to start your shelf.')); $('#library-preview').append(el('p', 'note', 'Your imported books will appear here.')); return; }
-  books.forEach(book => {
-    const row = el('div', 'library-row'), title = el('div'), open = el('button', 'btn', 'Open'), remove = el('button', 'btn', 'Remove');
-    title.append(el('strong', '', book.name.replace(/\.[^.]+$/, '')), el('small', '', new Date(book.added).toLocaleDateString()));
-    open.onclick = () => { openFile(new File([book.file], book.name, { type: book.file.type, lastModified: book.modified })); togglePanel('library', false); };
-    remove.onclick = async () => { await libraryRequest('readwrite', booksStore => booksStore.delete(book.key)); renderLibrary(); };
-    row.append(title, open, remove); $('#library-list').append(row);
-    const card = el('button', 'book-card'); card.type = 'button'; card.append(el('strong', '', book.name.replace(/\.[^.]+$/, '')), el('small', '', new Date(book.added).toLocaleDateString()), el('span', '', 'Continue reading →')); card.onclick = open.onclick; $('#library-preview').append(card);
-  });
+  const books = await getBooks(), sort = $('#library-sort')?.value || $('#home-library-sort')?.value || 'recent';
+  books.sort((a, b) => sort === 'title' ? (a.title || a.name).localeCompare(b.title || b.name) : sort === 'progress' ? (b.progress || 0) - (a.progress || 0) : (b.opened || b.added) - (a.opened || a.added));
+  const targets = [$('#library-list'), $('#library-favorites'), $('#library-preview')]; targets.forEach(target => target?.replaceChildren());
+  if (!books.length) { $('#library-list')?.append(el('p', 'note', 'Choose a book to start your shelf.')); $('#library-preview')?.append(el('p', 'note', 'Your imported books will appear here.')); return; }
+  const favorites = books.filter(book => book.favorite), recent = books.slice(0, 6);
+  if (!favorites.length) $('#library-favorites')?.append(el('p', 'note', 'Favorite books will appear here.'));
+  favorites.forEach(book => $('#library-favorites')?.append(bookRow(book)));
+  recent.forEach(book => $('#library-list')?.append(bookRow(book)));
+  recent.slice(0, 4).forEach(book => $('#library-preview')?.append(bookCard(book)));
 }
+function bookCover(book) { const cover = el('span', 'book-cover ' + (book.type || 'file')); cover.append(el('small', '', (book.type || 'file').toUpperCase()), el('strong', '', (book.title || book.name).slice(0, 26))); return cover; }
+function bookProgress(book) { const wrap = el('span', 'book-progress'), bar = el('span'); bar.style.width = Math.min(100, Math.max(0, book.progress || 0)) + '%'; wrap.append(bar); return wrap; }
+function bookRow(book) { const row = el('div', 'library-row'), info = el('div', 'library-row-info'), actions = el('div', 'library-row-actions'), open = el('button', 'btn', 'Open'), favorite = el('button', 'icon-btn', book.favorite ? '★' : '☆'), remove = el('button', 'icon-btn', '×'); info.append(bookCover(book), el('span', 'library-row-copy', (book.title || book.name).replace(/\.[^.]+$/, '')), bookProgress(book)); open.onclick = () => { openFile(new File([book.file], book.name, { type: book.file.type, lastModified: book.modified })); togglePanel('library', false); }; favorite.title = 'Toggle favorite'; favorite.onclick = () => updateBook(book.key, { favorite: !book.favorite }); remove.title = 'Remove book'; remove.onclick = async () => { await libraryRequest('readwrite', booksStore => booksStore.delete(book.key)); renderLibrary(); }; actions.append(open, favorite, remove); row.append(info, actions); return row; }
+function bookCard(book) { const card = el('article', 'book-card'), open = el('button', 'book-open'); open.type = 'button'; open.append(bookCover(book), el('strong', '', (book.title || book.name).replace(/\.[^.]+$/, '')), bookProgress(book), el('small', '', Math.round(book.progress || 0) + '% complete')); open.onclick = () => openFile(new File([book.file], book.name, { type: book.file.type, lastModified: book.modified })); const favorite = el('button', 'icon-btn book-favorite', book.favorite ? '★' : '☆'); favorite.onclick = () => updateBook(book.key, { favorite: !book.favorite }); card.append(open, favorite); return card; }
 
 /* ---------- Opening files ---------- */
 fileInput.addEventListener('change', () => {
@@ -225,8 +255,9 @@ function reveal(name) {
 async function openFile(file) {
   const my = ++openToken, name = file.name.toLowerCase();
   currentFileKey = file.name + ':' + file.size + ':' + file.lastModified;
+  currentDocumentTitle = file.name.replace(/\.[^.]+$/, '');
   readingStarted = Date.now();
-  revealed = false; activePdf = null; pdfVisualMode = false; $('#pdf-pages').replaceChildren(); $('#pdf-pages').hidden = true; $('#reader').hidden = false; $('#pdf-mode-btn').hidden = true; hidePopup(); reader.textContent = ''; progress.textContent = ''; resetOutline();
+  revealed = false; activePdf = null; pdfVisualMode = false; pdfCurrentPage = 1; pdfScale = 1.25; pdfFrames = []; $('#loading-skeleton').hidden = false; $('#pdf-pages').replaceChildren(); $('#pdf-thumbs').replaceChildren(); $('#pdf-pages').hidden = true; $('#pdf-thumbs').hidden = true; $('#pdf-controls').hidden = true; $('#reader').hidden = false; $('#pdf-mode-btn').hidden = true; hidePopup(); reader.textContent = ''; progress.textContent = ''; resetOutline();
   try {
     setStatus('Opening ' + file.name + '…');
     if (name.endsWith('.pdf')) await readPdf(file, my);
@@ -240,11 +271,13 @@ async function openFile(file) {
     if (my !== openToken) return;
     if (!reader.textContent.trim()) return setStatus('No text found. This file may be scanned images.', true);
     reveal(file.name);
+    $('#loading-skeleton').hidden = true;
     progress.textContent = '';
     showMeta();
     saveBook(file);
   } catch (e) {
     console.error(e);
+    $('#loading-skeleton').hidden = true;
     setStatus('Could not read this file. Try another one.', true);
   }
 }
@@ -341,6 +374,8 @@ async function readEpub(file) {
   if (!rootfile) throw new Error('Invalid EPUB');
   const base = rootfile.includes('/') ? rootfile.slice(0, rootfile.lastIndexOf('/') + 1) : '';
   const opf = new DOMParser().parseFromString(await zip.file(rootfile).async('text'), 'application/xml');
+  const titleNode = opf.getElementsByTagNameNS('*', 'title')[0];
+  if (titleNode?.textContent.trim()) currentDocumentTitle = titleNode.textContent.trim();
   const items = new Map([...opf.querySelectorAll('manifest item')].map(item => [item.id, item.getAttribute('href')]));
   for (const ref of opf.querySelectorAll('spine itemref')) {
     const href = items.get(ref.getAttribute('idref'));
@@ -405,12 +440,26 @@ function saveBookmark() {
   const bookmarks = store.get('er-bookmarks', []);
   bookmarks.unshift({ file: currentFileKey, name: $('#file-name').textContent, scroll: scrollY, created: Date.now() });
   store.set('er-bookmarks', bookmarks.slice(0, 100));
+  queueCloudSync();
   $('#bookmark-btn').textContent = 'Bookmarked';
+  showToast('Bookmark saved.');
 }
 function exportReadingData() {
   const data = { vocabulary: store.get(vocabKey, []), notes: store.get('er-notes', []), highlights: store.get('er-highlights', []), bookmarks: store.get('er-bookmarks', []) };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }), link = document.createElement('a');
   link.href = URL.createObjectURL(blob); link.download = 'easyread-notes.json'; link.click(); URL.revokeObjectURL(link.href);
+  showToast('Your reading notes were exported.');
+}
+
+async function exportAllData() {
+  const books = await getBooks();
+  const data = { exportedAt: new Date().toISOString(), vocabulary: store.get(vocabKey, []), notes: store.get('er-notes', []), highlights: store.get('er-highlights', []), bookmarks: store.get('er-bookmarks', []), stats: store.get(statsKey, {}), books: books.map(book => ({ key: book.key, name: book.name, title: book.title, type: book.type, progress: book.progress, favorite: book.favorite })) };
+  const link = document.createElement('a'); link.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })); link.download = 'easyread-private-data.json'; link.click(); URL.revokeObjectURL(link.href); $('#privacy-status').textContent = 'Export created.'; showToast('All available reading data was exported.');
+}
+async function deleteAllLocalData() {
+  if (!confirm('Delete local books, notes, vocabulary, highlights, bookmarks, and progress? This cannot be undone.')) return;
+  localStorage.clear(); await new Promise(resolve => { const request = indexedDB.deleteDatabase('easyread-library'); request.onsuccess = request.onerror = request.onblocked = resolve; });
+  $('#privacy-status').textContent = 'Local data deleted. Reload to start fresh.'; showToast('Local data deleted.');
 }
 
 function saveWord(word, definition) {
@@ -418,6 +467,7 @@ function saveWord(word, definition) {
   if (!words.some(item => item.word === word)) words.unshift({ word, definition });
   store.set(vocabKey, words.slice(0, 300));
   queueCloudSync();
+  showToast('Word saved to your vocabulary.');
 }
 function speakWord(word) { if ('speechSynthesis' in window) speechSynthesis.speak(new SpeechSynthesisUtterance(word)); }
 async function translateWord(word, target = 'es') {
@@ -434,7 +484,7 @@ function showFlashcards() {
 
 async function readPdf(file, my) {
   const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
-  activePdf = pdf; pdfVisualMode = true; $('#pdf-mode-btn').hidden = false; $('#pdf-mode-btn').textContent = 'Text view'; $('#pdf-pages').hidden = false; $('#reader').hidden = true; renderPdfPages(pdf);
+  activePdf = pdf; pdfVisualMode = true; pdfCurrentPage = 1; pdfScale = 1; $('#pdf-mode-btn').hidden = false; $('#pdf-mode-btn').textContent = 'Text view'; $('#pdf-controls').hidden = false; $('#pdf-thumbs').hidden = false; $('#pdf-pages').hidden = false; $('#reader').hidden = true; updatePdfLabel(); renderPdfPages(pdf);
   totalPages = pdf.numPages;
   const weight = new Map();               // font size -> amount of text, to find the body size
   let carry = '';
@@ -484,10 +534,10 @@ async function readPdf(file, my) {
 }
 
 async function renderPdfPages(pdf) {
-  const pages = $('#pdf-pages'); pages.replaceChildren();
+  const pages = $('#pdf-pages'), thumbs = $('#pdf-thumbs'); pages.replaceChildren(); thumbs.replaceChildren(); pdfFrames = [];
   for (let number = 1; number <= pdf.numPages; number++) {
     const page = await pdf.getPage(number), viewport = page.getViewport({ scale: Math.min(1.35, (innerWidth - 48) / page.getViewport({ scale: 1 }).width) });
-    const frame = el('figure', 'pdf-page readable'), canvas = document.createElement('canvas'); canvas.width = viewport.width; canvas.height = viewport.height; frame.append(canvas);
+    const frame = el('figure', 'pdf-page readable'), canvas = document.createElement('canvas'); canvas.width = viewport.width; canvas.height = viewport.height; frame.dataset.page = number; frame.append(canvas);
     const textLayer = el('div', 'textLayer'); frame.append(textLayer, el('figcaption', '', 'Page ' + number)); pages.append(frame);
     await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
     try {
@@ -495,12 +545,16 @@ async function renderPdfPages(pdf) {
       const task = pdfjsLib.renderTextLayer({ textContent, container: textLayer, viewport, textDivs: [] });
       if (task?.promise) await task.promise;
     } catch (error) { console.warn('PDF text layer unavailable', error); }
+    const thumb = document.createElement('canvas'), thumbButton = el('button', 'pdf-thumb'); thumbButton.type = 'button'; thumb.width = 72; thumb.height = Math.round(72 * viewport.height / viewport.width); thumb.getContext('2d').drawImage(canvas, 0, 0, thumb.width, thumb.height); thumbButton.append(thumb, el('span', '', String(number))); thumbButton.onclick = () => goToPdfPage(number); thumbs.append(thumbButton); pdfFrames.push(frame);
   }
 }
 function togglePdfMode() {
   if (!activePdf) return;
-  pdfVisualMode = !pdfVisualMode; $('#pdf-pages').hidden = !pdfVisualMode; $('#reader').hidden = pdfVisualMode; $('#pdf-mode-btn').textContent = pdfVisualMode ? 'Text view' : 'Page view';
+  pdfVisualMode = !pdfVisualMode; $('#pdf-pages').hidden = !pdfVisualMode; $('#pdf-thumbs').hidden = !pdfVisualMode; $('#pdf-controls').hidden = !pdfVisualMode; $('#reader').hidden = pdfVisualMode; $('#pdf-mode-btn').textContent = pdfVisualMode ? 'Text view' : 'Page view';
 }
+function updatePdfLabel() { $('#pdf-page-label').textContent = `Page ${pdfCurrentPage} of ${activePdf?.numPages || 0}`; }
+function goToPdfPage(number) { if (!activePdf || !pdfFrames.length) return; pdfCurrentPage = Math.min(activePdf.numPages, Math.max(1, number)); pdfFrames[pdfCurrentPage - 1]?.scrollIntoView({ behavior: 'smooth', block: 'start' }); updatePdfLabel(); }
+function changePdfZoom(amount) { pdfScale = Math.min(1.8, Math.max(.75, pdfScale + amount)); $('#pdf-pages').style.setProperty('--pdf-zoom', pdfScale); }
 
 /* ---------- Tap a word ---------- */
 document.addEventListener('click', e => {
@@ -508,7 +562,14 @@ document.addEventListener('click', e => {
   const hit = e.target.closest('.readable') && wordAt(e.clientX, e.clientY);
   hit ? showWord(hit) : hidePopup();
 });
-document.addEventListener('keydown', e => { if (e.key === 'Escape') { hidePopup(); toggleContents(false); } });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { hidePopup(); toggleContents(false); ['privacy', 'shortcuts', 'contact'].forEach(id => togglePanel(id, false)); }
+  if (e.target.matches('input, textarea, select')) return;
+  if (e.key === '/') { e.preventDefault(); if (!readerWrap.hidden) { setView('reader'); $('#reader-tools').hidden = false; $('#search-input').focus(); } }
+  if (e.key.toLowerCase() === 'f' && !readerWrap.hidden) { document.body.classList.toggle('focus-mode'); $('#focus-btn').textContent = document.body.classList.contains('focus-mode') ? 'Exit focus' : 'Focus'; }
+  if (e.key.toLowerCase() === 't') $('#theme').click();
+  if (e.key === '?') togglePanel('shortcuts');
+});
 
 function wordAt(x, y) {
   let node, off;

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#F4F1EA"/>
+  <path d="M0 0h1200v630H0z" fill="url(#wash)"/>
+  <rect x="82" y="90" width="76" height="76" rx="18" fill="#234A9F"/>
+  <path d="M101 137h38" stroke="#E5B93F" stroke-linecap="round" stroke-width="10"/>
+  <text x="190" y="152" fill="#182333" font-family="Georgia,serif" font-size="54">EasyRead</text>
+  <text x="84" y="300" fill="#182333" font-family="Georgia,serif" font-size="78">Feel at home</text>
+  <text x="84" y="390" fill="#234A9F" font-family="Georgia,serif" font-size="78">in every word.</text>
+  <text x="86" y="480" fill="#667080" font-family="Arial,sans-serif" font-size="27">A calmer way to read, understand, and keep going.</text>
+  <defs><linearGradient id="wash" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#E8EEF9" stop-opacity=".9"/><stop offset="1" stop-color="#F4F1EA" stop-opacity="0"/></linearGradient></defs>
+</svg>

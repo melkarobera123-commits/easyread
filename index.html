@@ -9,11 +9,30 @@
 <link rel="stylesheet" href="style.css">
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#2F3FE0">
+<meta name="description" content="EasyRead helps you understand books without losing your reading flow.">
+<meta property="og:title" content="EasyRead - a calmer way to read">
+<meta property="og:description" content="Open a book, tap a word, and keep going.">
+<meta property="og:image" content="og-image.svg">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
 <script src="script.js"></script>
 </head>
 <body data-view="about">
 <div id="meter" aria-hidden="true"></div>
 <div id="network-status" class="network-status" role="status" hidden></div>
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+<aside id="app-sidebar" class="app-sidebar" aria-label="App navigation">
+  <a class="sidebar-brand" href="#top"><span class="sidebar-mark">—</span><span>EasyRead</span></a>
+  <p class="sidebar-caption">Your calmer reading room</p>
+  <nav class="sidebar-nav">
+    <button id="sidebar-about" class="shell-nav active" type="button"><span class="nav-icon">⌂</span><span>About</span></button>
+    <button id="sidebar-reader" class="shell-nav" type="button"><span class="nav-icon">▤</span><span>Reader</span></button>
+    <button id="sidebar-library" class="shell-nav" type="button"><span class="nav-icon">▥</span><span>Library</span></button>
+  </nav>
+  <div class="sidebar-bottom">
+    <button id="sidebar-account" class="profile-entry" type="button"><span class="profile-avatar"><img id="sidebar-avatar" alt=""></span><span><strong id="sidebar-account-label">Sign in</strong><small id="sidebar-account-meta">Sync your reading</small></span></button>
+    <button id="sidebar-theme" class="shell-nav" type="button"><span class="nav-icon">◐</span><span>Appearance</span></button>
+  </div>
+</aside>
 <header class="top">
   <a class="brand" href="#top">
     <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="7" fill="currentColor"/><path d="M6.5 15.5h11" stroke="var(--marker)" stroke-width="3.2" stroke-linecap="round"/></svg>
@@ -27,6 +46,13 @@
   <button id="library-btn" class="btn top-library" type="button">My library</button>
   <button id="account-btn" class="btn account-trigger" type="button"><img id="account-avatar" alt="" hidden><span id="account-label">Sign in</span></button>
 </header>
+
+<nav id="mobile-nav" class="mobile-nav" aria-label="Mobile navigation">
+  <button id="mobile-about" class="shell-nav active" type="button"><span class="nav-icon">⌂</span><span>About</span></button>
+  <button id="mobile-reader" class="shell-nav" type="button"><span class="nav-icon">▤</span><span>Reader</span></button>
+  <button id="mobile-library" class="shell-nav" type="button"><span class="nav-icon">▥</span><span>Library</span></button>
+  <button id="mobile-account" class="shell-nav" type="button"><span class="nav-icon">◉</span><span>Profile</span></button>
+</nav>
 
 <main id="top">
   <section class="hero">
@@ -61,6 +87,7 @@
 
   <section id="library-home" class="library-home" aria-labelledby="library-title">
     <div class="section-heading"><div><p class="eyebrow">Your reading shelf</p><h2 id="library-title">Pick up where you left off</h2></div><button id="library-home-btn" class="btn" type="button">Open library</button></div>
+    <div class="library-subheading"><span>Recently opened</span><select id="home-library-sort" aria-label="Sort recent books"><option value="recent">Last opened</option><option value="title">Title</option><option value="progress">Progress</option></select></div>
     <div id="library-preview" class="library-grid"><p class="note">Your imported books will appear here.</p></div>
   </section>
 
@@ -96,13 +123,16 @@
       <button id="autoscroll-btn" class="btn" type="button">Auto-scroll</button>
       <button id="line-focus-btn" class="btn" type="button">Line focus</button>
       <button id="pdf-mode-btn" class="btn" type="button" hidden>Page view</button>
+      <span id="pdf-controls" class="pdf-controls" hidden><button id="pdf-prev" class="icon-btn" type="button" aria-label="Previous PDF page">‹</button><span id="pdf-page-label">Page 1</span><button id="pdf-next" class="icon-btn" type="button" aria-label="Next PDF page">›</button><button id="pdf-zoom-out" class="icon-btn" type="button" aria-label="Zoom out">−</button><button id="pdf-zoom-in" class="icon-btn" type="button" aria-label="Zoom in">+</button><button id="pdf-fullscreen" class="btn" type="button">Full document</button></span>
     </div>
+    <div id="pdf-thumbs" class="pdf-thumbs" hidden></div>
     <div id="pdf-pages" class="pdf-pages" hidden></div>
+    <div id="loading-skeleton" class="loading-skeleton" hidden aria-label="Loading document"><span></span><span></span><span></span></div>
     <article id="reader" class="sheet readable"></article>
   </section>
 </main>
 
-<footer class="site-footer"><span>Rob_Era (Abiti) Made with love</span><a id="contact-link" href="#contact">Contact developer</a></footer>
+<footer class="site-footer"><span>Rob_Era (Abiti) Made with love</span><span class="footer-links"><a id="contact-link" href="#contact">Contact developer</a><button id="privacy-link" class="footer-button" type="button">Privacy</button><button id="shortcuts-link" class="footer-button" type="button">Shortcuts</button></span></footer>
 
 <aside id="contents" class="contents" aria-label="Contents">
   <div class="contents-head"><h2>Contents</h2><button id="contents-close" class="btn" type="button">Close</button></div>
@@ -136,7 +166,9 @@
 <aside id="library" class="panel library-panel" hidden>
   <div class="contents-head"><h2>My library</h2><button id="library-close" class="btn" type="button">Close</button></div>
   <p class="note">Files are stored only in this browser.</p>
-  <div id="library-list"></div>
+  <label class="library-sort">Sort by <select id="library-sort"><option value="recent">Last opened</option><option value="title">Title</option><option value="progress">Progress</option></select></label>
+  <h3 class="library-section-title">Favorites</h3><div id="library-favorites"></div>
+  <h3 class="library-section-title">Recently opened</h3><div id="library-list"></div>
 </aside>
 
 <aside id="learning" class="panel learning-panel" hidden>
@@ -169,6 +201,24 @@
   <label>Your message <textarea id="contact-message" rows="6" placeholder="Tell me what would make EasyRead better..."></textarea></label>
   <button id="contact-send" class="btn account-action" type="button">Prepare email</button>
   <p id="contact-status" class="note">The developer email can be set in firebase-config.js.</p>
+</aside>
+
+<aside id="privacy" class="panel privacy-panel" hidden>
+  <div class="contents-head"><h2>Privacy center</h2><button id="privacy-close" class="btn" type="button">Close</button></div>
+  <div class="privacy-block"><span class="privacy-check">✓</span><div><strong>Local-first by default</strong><p>Your books stay in this browser. Online services are used only when you ask for a lookup, translation, or sync.</p></div></div>
+  <div class="privacy-block"><span class="privacy-check">✓</span><div><strong>Cloud sync is optional</strong><p>Google sync stores your reading data in your private Firestore user record after sign-in.</p></div></div>
+  <button id="export-all" class="btn account-action" type="button">Export all my data</button>
+  <button id="delete-all" class="btn danger-action" type="button">Delete all local data</button>
+  <p id="privacy-status" class="note"></p>
+</aside>
+
+<aside id="shortcuts" class="panel shortcuts-panel" hidden>
+  <div class="contents-head"><h2>Keyboard shortcuts</h2><button id="shortcuts-close" class="btn" type="button">Close</button></div>
+  <div class="shortcut-row"><kbd>/</kbd><span>Search in the current book</span></div>
+  <div class="shortcut-row"><kbd>F</kbd><span>Toggle focus mode</span></div>
+  <div class="shortcut-row"><kbd>T</kbd><span>Toggle light and dark mode</span></div>
+  <div class="shortcut-row"><kbd>?</kbd><span>Open this panel</span></div>
+  <div class="shortcut-row"><kbd>Esc</kbd><span>Close panels and popups</span></div>
 </aside>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
