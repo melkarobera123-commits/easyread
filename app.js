@@ -13,6 +13,7 @@ const store = {
 let openToken = 0, lookupToken = 0, revealed = false, totalPages = 0, headingCount = 0;
 let currentFileKey = '', currentRange = null, searchMatches = [], searchIndex = -1, readingStarted = 0;
 let autoScrollTimer = null;
+let auth = null, cloud = null, currentUser = null;
 const seenHeadings = new Set();
 const contents = $('#contents'), outlineList = $('#outline'), outlineEmpty = $('#outline-empty');
 const pageNow = $('#page-now'), docMeta = $('#doc-meta');
@@ -31,7 +32,7 @@ const saveScroll = () => {
   if (!currentFileKey || readerWrap.hidden) return;
   const stats = store.get(statsKey, {});
   stats[currentFileKey] = { ...(stats[currentFileKey] || {}), scroll: scrollY, seconds: (stats[currentFileKey]?.seconds || 0) + Math.max(0, Math.round((Date.now() - readingStarted) / 1000)) };
-  store.set(statsKey, stats); readingStarted = Date.now();
+  store.set(statsKey, stats); readingStarted = Date.now(); queueCloudSync();
 };
 addEventListener('scroll', () => { if (!readerWrap.hidden) saveScroll(); }, { passive: true });
 addEventListener('beforeunload', saveScroll);
@@ -60,11 +61,24 @@ $('#library-home-btn').addEventListener('click', () => togglePanel('library'));
 $('#library-close').addEventListener('click', () => togglePanel('library', false));
 $('#bookmark-btn').addEventListener('click', saveBookmark);
 $('#export-btn').addEventListener('click', exportReadingData);
-$('#summary-btn').addEventListener('click', showSummary);
 $('#flashcards-btn').addEventListener('click', showFlashcards);
 $('#learning-close').addEventListener('click', () => togglePanel('learning', false));
 $('#autoscroll-btn').addEventListener('click', () => { if (autoScrollTimer) { clearInterval(autoScrollTimer); autoScrollTimer = null; $('#autoscroll-btn').textContent = 'Auto-scroll'; } else { autoScrollTimer = setInterval(() => scrollBy({ top: 1, behavior: 'auto' }), 35); $('#autoscroll-btn').textContent = 'Stop scroll'; } });
 $('#line-focus-btn').addEventListener('click', () => { document.body.classList.toggle('line-focus'); $('#line-focus-btn').textContent = document.body.classList.contains('line-focus') ? 'Full page' : 'Line focus'; });
+$('#account-btn').addEventListener('click', () => togglePanel('account'));
+$('#account-close').addEventListener('click', () => togglePanel('account', false));
+$('#google-signin').addEventListener('click', signInWithGoogle);
+$('#sync-now').addEventListener('click', syncCloud);
+$('#signout').addEventListener('click', () => auth?.signOut());
+
+if (window.firebase && window.EASYREAD_FIREBASE_CONFIG?.apiKey) {
+  firebase.initializeApp(window.EASYREAD_FIREBASE_CONFIG);
+  auth = firebase.auth(); cloud = firebase.firestore();
+  auth.useDeviceLanguage();
+  auth.onAuthStateChanged(user => { currentUser = user; updateAccount(user); if (user) syncCloud(); });
+} else {
+  $('#auth-status').textContent = 'Add your Firebase web configuration to enable Google sign-in.';
+}
 $('#focus-btn').addEventListener('click', () => document.body.classList.toggle('focus-mode'));
 $('#fullscreen-btn').addEventListener('click', () => readerWrap.requestFullscreen?.());
 $('#settings-btn').addEventListener('click', () => togglePanel('settings'));
@@ -80,6 +94,31 @@ renderLibrary();
 
 function rootStyle(name, value) { document.documentElement.style.setProperty(name, value); }
 function togglePanel(id, open = true) { const panel = $('#' + id); panel.hidden = open === false ? true : !panel.hidden; if (id === 'vocab' && !panel.hidden) renderVocabulary(); if (id === 'stats' && !panel.hidden) renderStats(); if (id === 'library' && !panel.hidden) renderLibrary(); }
+
+function updateAccount(user) {
+  $('#account-signed-out').hidden = !!user; $('#account-signed-in').hidden = !user;
+  $('#account-btn').textContent = user ? (user.displayName?.split(' ')[0] || 'Account') : 'Sign in';
+  if (user) $('#account-name').textContent = user.email ? `${user.displayName || 'Signed in'} · ${user.email}` : user.displayName || 'Signed in with Google';
+}
+async function signInWithGoogle() {
+  if (!auth) return ($('#auth-status').textContent = 'Firebase is not configured yet.');
+  try { await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()); }
+  catch (error) { $('#auth-status').textContent = error.code === 'auth/popup-blocked' ? 'Allow popups for this site, then try again.' : error.message; }
+}
+async function syncCloud() {
+  if (!currentUser || !cloud) return;
+  $('#sync-status').textContent = 'Syncing…';
+  try {
+    const ref = cloud.collection('users').doc(currentUser.uid), snapshot = await ref.get(), local = { vocabulary: store.get(vocabKey, []), notes: store.get('er-notes', []), highlights: store.get('er-highlights', []), bookmarks: store.get('er-bookmarks', []), stats: store.get(statsKey, {}) };
+    const remote = snapshot.exists ? snapshot.data() : {}, merged = { vocabulary: mergeItems(remote.vocabulary, local.vocabulary, 'word'), notes: mergeItems(remote.notes, local.notes, 'text'), highlights: mergeItems(remote.highlights, local.highlights, 'text'), bookmarks: mergeItems(remote.bookmarks, local.bookmarks, 'scroll'), stats: { ...(remote.stats || {}), ...local.stats } };
+    await ref.set(merged, { merge: true });
+    store.set(vocabKey, merged.vocabulary); store.set('er-notes', merged.notes); store.set('er-highlights', merged.highlights); store.set('er-bookmarks', merged.bookmarks); store.set(statsKey, merged.stats);
+    $('#sync-status').textContent = 'Synced just now.';
+  } catch (error) { $('#sync-status').textContent = 'Sync failed: ' + error.message; }
+}
+  function queueCloudSync() { if (currentUser) setTimeout(() => syncCloud(), 250); }
+  queueCloudSync();
+function mergeItems(remote = [], local = [], key) { const items = [...remote, ...local], seen = new Set(); return items.filter(item => { const id = item[key] || JSON.stringify(item); if (seen.has(id)) return false; seen.add(id); return true; }).slice(-500); }
 
 async function libraryRequest(mode, action) {
   try { const db = await libraryDB; return await new Promise((resolve, reject) => { const tx = db.transaction('books', mode), request = action(tx.objectStore('books')); request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); }); } catch { return null; }
@@ -306,6 +345,8 @@ function saveWord(word, definition) {
   const words = store.get(vocabKey, []);
   if (!words.some(item => item.word === word)) words.unshift({ word, definition });
   store.set(vocabKey, words.slice(0, 300));
+  queueCloudSync();
+  queueCloudSync();
 }
 function speakWord(word) { if ('speechSynthesis' in window) speechSynthesis.speak(new SpeechSynthesisUtterance(word)); }
 async function translateWord(word, target = 'es') {
@@ -314,17 +355,6 @@ async function translateWord(word, target = 'es') {
   const data = await res.json(); return data.responseData?.translatedText || 'Translation unavailable';
 }
 
-async function requestAI(prompt) {
-  const res = await fetch('/api/ai', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt }) });
-  if (!res.ok) throw new Error('AI backend unavailable');
-  const data = await res.json(); return data.text || data.output || data.message;
-}
-async function showSummary() {
-  togglePanel('learning'); $('#learning-title').textContent = 'Chapter summary'; const target = $('#learning-content'); target.replaceChildren(el('p', 'note', 'Creating a summary…'));
-  const text = [...reader.querySelectorAll('p')].slice(0, 8).map(p => p.textContent).join(' ');
-  try { target.replaceChildren(el('p', '', await requestAI('Summarize this reading in simple English in five short bullet points:\n' + text.slice(0, 12000)))); }
-  catch { target.replaceChildren(el('p', '', text ? text.split(/(?<=[.!?])\s+/).slice(0, 3).join(' ') : 'Open a book to create a summary.'), el('p', 'note', 'AI summaries need a secure /api/ai backend.')); }
-}
 function showFlashcards() {
   togglePanel('learning'); $('#learning-title').textContent = 'Vocabulary flashcards'; const target = $('#learning-content'), words = store.get(vocabKey, []); target.replaceChildren();
   if (!words.length) return target.append(el('p', 'note', 'Save words while reading to build flashcards.'));
@@ -554,7 +584,7 @@ function render(result, asked) {
     const save = el('button', 'btn', 'Save'); save.onclick = () => { saveWord(e.word, e.meanings[0]?.definition); save.textContent = 'Saved'; };
     const speak = el('button', 'btn', 'Listen'); speak.onclick = () => speakWord(e.word);
     const translate = el('button', 'btn', 'Translate'); translate.onclick = async () => { translate.textContent = '…'; translate.title = await translateWord(e.word); translate.textContent = translate.title; };
-    const note = el('button', 'btn', 'Note'); note.onclick = () => { const text = prompt('Add a note for “' + e.word + '”'); if (text?.trim()) { const notes = store.get('er-notes', []); notes.unshift({ file: currentFileKey, word: e.word, text: text.trim() }); store.set('er-notes', notes.slice(0, 300)); note.textContent = 'Noted'; } };
+    const note = el('button', 'btn', 'Note'); note.onclick = () => { const text = prompt('Add a note for “' + e.word + '”'); if (text?.trim()) { const notes = store.get('er-notes', []); notes.unshift({ file: currentFileKey, word: e.word, text: text.trim() }); store.set('er-notes', notes.slice(0, 300)); queueCloudSync(); note.textContent = 'Noted'; } };
     actions.append(save, speak, translate, note); kids.push(actions);
     if (e.phonetic) kids.push(el('p', 'ph', e.phonetic));
     e.meanings.forEach(m => {

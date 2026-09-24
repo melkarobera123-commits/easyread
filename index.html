@@ -22,6 +22,7 @@
     <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="7" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M9 2a7 7 0 0 1 0 14z" fill="currentColor"/></svg>
   </button>
   <button id="library-btn" class="btn top-library" type="button">My library</button>
+  <button id="account-btn" class="btn" type="button">Sign in</button>
 </header>
 
 <main id="top">
@@ -85,7 +86,6 @@
       <button id="stats-btn" class="btn" type="button">Stats</button>
       <button id="bookmark-btn" class="btn" type="button">Bookmark</button>
       <button id="export-btn" class="btn" type="button">Export</button>
-      <button id="summary-btn" class="btn" type="button">Summarize</button>
       <button id="flashcards-btn" class="btn" type="button">Flashcards</button>
       <button id="autoscroll-btn" class="btn" type="button">Auto-scroll</button>
       <button id="line-focus-btn" class="btn" type="button">Line focus</button>
@@ -133,10 +133,29 @@
   <div id="learning-content"></div>
 </aside>
 
+<aside id="account" class="panel account-panel" hidden>
+  <div class="contents-head"><h2>Your account</h2><button id="account-close" class="btn" type="button">Close</button></div>
+  <div id="account-signed-out">
+    <p>Sign in with Google to sync vocabulary, notes, bookmarks, and reading progress across your devices.</p>
+    <button id="google-signin" class="btn account-action" type="button">Continue with Google</button>
+    <p id="auth-status" class="note"></p>
+  </div>
+  <div id="account-signed-in" hidden>
+    <p id="account-name"></p>
+    <button id="sync-now" class="btn account-action" type="button">Sync now</button>
+    <button id="signout" class="btn account-action" type="button">Sign out</button>
+    <p id="sync-status" class="note"></p>
+  </div>
+</aside>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.0.4/tesseract.min.js"></script>
+<script src="firebase-config.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

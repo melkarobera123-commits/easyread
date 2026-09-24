@@ -4,20 +4,13 @@
 
 The app works without an account. Imported books, vocabulary, notes, highlights, bookmarks, and progress stay in the browser's local storage and IndexedDB.
 
-## AI summaries
+## Enable Google login and sync
 
-The optional Node server keeps the model key out of the browser. In PowerShell, set the key directly in your terminal, then start the server:
+1. Create a Firebase project at https://console.firebase.google.com.
+2. Add a Web app to the project.
+3. Enable **Authentication > Sign-in method > Google**.
+4. Create a **Firestore Database** in production or test mode.
+5. Copy the Firebase web configuration into `firebase-config.js`.
+6. Add `localhost` to **Authentication > Settings > Authorized domains**.
 
-```powershell
-$env:OPENAI_API_KEY = "paste-your-key-here"
-node server.js
-```
-
-Optional settings:
-
-```powershell
-$env:OPENAI_BASE_URL = "https://api.openai.com/v1"
-$env:OPENAI_MODEL = "gpt-4o-mini"
-```
-
-Never put the key in `app.js`, `index.html`, or a committed file. For another OpenAI-compatible provider, set `OPENAI_BASE_URL` to its `/v1` endpoint and use its model name.
+The app stores vocabulary, notes, highlights, bookmarks, and reading statistics in `users/{userId}` in Firestore after Google sign-in. Local browser storage remains available when signed out.
