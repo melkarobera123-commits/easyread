@@ -38,10 +38,10 @@ h1 { font: 800 clamp(2.2rem, 5vw, 3.8rem)/1.02 var(--ui); letter-spacing: -.035e
   position: sticky; top: 0; z-index: 5; display: flex; gap: 12px; align-items: center;
   padding: 12px 0; background: var(--desk); font: .95rem var(--ui);
 }
-.bar strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bar strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #progress { color: var(--muted); flex: 1; }
 #again, .close { font: 600 .9rem var(--ui); cursor: pointer; }
-#again { padding: 8px 14px; background: #fff; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); }
+#again { flex: 0 0 auto; padding: 8px 14px; background: #fff; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); }
 #reader { font-size: 1.25rem; line-height: 1.9; }
 #reader p { margin: 0 0 1.1em; }
 
@@ -66,5 +66,7 @@ h1 { font: 800 clamp(2.2rem, 5vw, 3.8rem)/1.02 var(--ui); letter-spacing: -.035e
 
 @media (max-width: 640px) {
   .hero { grid-template-columns: 1fr; }
+  .bar { flex-wrap: wrap; }
+  #progress { order: 3; flex-basis: 100%; }
   #popup { position: fixed; left: 0; right: 0; bottom: 0; width: auto; max-height: 60vh; overflow: auto; border-radius: 16px 16px 0 0; }
 }
