@@ -195,6 +195,9 @@
     <p id="pending-sync" class="note"></p>
     <p id="sync-conflicts" class="note"></p>
     <button id="sync-now" class="btn account-action" type="button">Sync now</button>
+    <button id="backup-books" class="btn account-action" type="button">Back up original books</button>
+    <button id="restore-books" class="btn account-action" type="button">Restore backed-up books</button>
+    <p id="book-backup-status" class="note"></p>
     <button id="signout" class="btn account-action" type="button">Sign out</button>
   </div>
 </aside>
@@ -238,6 +241,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>

@@ -17,8 +17,10 @@ let currentFileKey = '', currentDocumentTitle = '', currentRange = null, searchM
 let autoScrollTimer = null;
 let cloudSyncTimer = null;
 let bookProgressTimer = null;
-let auth = null, cloud = null, currentUser = null;
+let auth = null, cloud = null, cloudStorage = null, currentUser = null;
 let activePdf = null, pdfVisualMode = false, pdfCurrentPage = 1, pdfScale = 1.25, pdfFrames = [];
+let pdfRenderObserver = null;
+const pdfRenderJobs = new Map();
 let syncConflictCount = 0;
 let scrollSaveFrame = null;
 let lastScrollSave = 0;
@@ -102,6 +104,8 @@ $('#account-btn').addEventListener('click', () => togglePanel('account'));
 $('#account-close').addEventListener('click', () => togglePanel('account', false));
 $('#google-signin').addEventListener('click', signInWithGoogle);
 $('#sync-now').addEventListener('click', syncCloud);
+$('#backup-books').addEventListener('click', backupOriginalBooks);
+$('#restore-books').addEventListener('click', restoreOriginalBooks);
 $('#signout').addEventListener('click', () => auth?.signOut());
 $('#welcome-signin-btn').addEventListener('click', () => { store.set('er-welcome-seen', true); $('#welcome-signin').hidden = true; togglePanel('account'); });
 $('#welcome-dismiss').addEventListener('click', () => { store.set('er-welcome-seen', true); $('#welcome-signin').hidden = true; });
@@ -143,7 +147,7 @@ updateNetworkStatus();
 
 if (window.firebase && window.EASYREAD_FIREBASE_CONFIG?.apiKey) {
   firebase.initializeApp(window.EASYREAD_FIREBASE_CONFIG);
-  auth = firebase.auth(); cloud = firebase.firestore();
+  auth = firebase.auth(); cloud = firebase.firestore(); cloudStorage = firebase.storage?.();
   auth.useDeviceLanguage();
   auth.onAuthStateChanged(user => { currentUser = user; updateAccount(user); if (user) syncCloud(); });
 } else {
@@ -249,6 +253,36 @@ async function syncCloud() {
   } catch (error) { queueSyncState('error', error.message); showToast('Sync needs attention. Your local data is safe.'); }
 }
 function queueCloudSync() { if (!currentUser) return; store.set(syncMetaKey, { ...store.get(syncMetaKey, {}), pending: true }); updateSyncMeta(); clearTimeout(cloudSyncTimer); cloudSyncTimer = setTimeout(() => syncCloud(), 500); }
+async function backupOriginalBooks() {
+  const status = $('#book-backup-status');
+  if (!currentUser || !cloudStorage) return (status.textContent = 'Sign in and enable Firebase Storage to back up original books.');
+  const books = await getBooks(); if (!books.length) return (status.textContent = 'There are no imported books to back up.');
+  status.textContent = `Backing up 0 of ${books.length} books...`;
+  try {
+    for (let index = 0; index < books.length; index++) {
+      const book = books[index], ref = cloudStorage.ref(`users/${currentUser.uid}/books/${encodeURIComponent(book.key)}`);
+      await ref.put(book.file, { contentType: book.file.type || 'application/octet-stream', customMetadata: { name: book.name, title: book.title || '', modified: String(book.modified || 0), key: book.key } });
+      status.textContent = `Backing up ${index + 1} of ${books.length} books...`;
+    }
+    status.textContent = `${books.length} original book${books.length === 1 ? '' : 's'} backed up privately.`; showToast('Original book backup complete.');
+  } catch (error) { status.textContent = 'Backup failed. Check Firebase Storage setup and try again.'; console.error(error); }
+}
+async function restoreOriginalBooks() {
+  const status = $('#book-backup-status');
+  if (!currentUser || !cloudStorage) return (status.textContent = 'Sign in and enable Firebase Storage to restore books.');
+  try {
+    const list = await cloudStorage.ref(`users/${currentUser.uid}/books`).listAll();
+    if (!list.items.length) return (status.textContent = 'No backed-up books were found.');
+    status.textContent = `Restoring 0 of ${list.items.length} books...`;
+    for (let index = 0; index < list.items.length; index++) {
+      const ref = list.items[index], metadata = await ref.getMetadata(), blob = await ref.getBlob(), custom = metadata.customMetadata || {}, name = custom.name || metadata.name || `Restored book ${index + 1}`;
+      const file = new File([blob], name, { type: metadata.contentType || blob.type, lastModified: Number(custom.modified) || Date.now() }), key = custom.key || `${name}:${file.size}:${file.lastModified}`;
+      await libraryRequest('readwrite', books => books.put({ key, name, title: custom.title || name.replace(/\.[^.]+$/, ''), type: name.split('.').pop().toLowerCase(), size: file.size, modified: file.lastModified, added: Date.now(), opened: Date.now(), progress: 0, favorite: false, file }));
+      status.textContent = `Restoring ${index + 1} of ${list.items.length} books...`;
+    }
+    await renderLibrary(); status.textContent = `${list.items.length} original book${list.items.length === 1 ? '' : 's'} restored.`; showToast('Book restore complete.');
+  } catch (error) { status.textContent = 'Restore failed. Check Firebase Storage setup and try again.'; console.error(error); }
+}
 function queueSyncState(state, message = '') { store.set(syncMetaKey, { ...store.get(syncMetaKey, {}), pending: true, state, message }); updateSyncMeta(); }
 function updateSyncMeta() { const meta = store.get(syncMetaKey, {}); if ($('#last-synced')) $('#last-synced').textContent = meta.lastSynced ? 'Last synced ' + new Date(meta.lastSynced).toLocaleString() : 'No cloud sync completed yet.'; if ($('#pending-sync')) $('#pending-sync').textContent = meta.pending ? 'Pending local changes will sync automatically.' : ''; if ($('#sync-conflicts')) $('#sync-conflicts').textContent = meta.conflicts ? `${meta.conflicts} conflict${meta.conflicts === 1 ? '' : 's'} kept as separate items.` : ''; if ($('#sync-label') && meta.state === 'offline') $('#sync-label').textContent = 'Offline'; if ($('#sync-label') && meta.state === 'error') $('#sync-label').textContent = 'Sync needs attention'; }
 addEventListener('online', () => { if (currentUser) syncCloud(); });
@@ -325,7 +359,7 @@ async function openFile(file) {
   revealed = false; activePdf = null; pdfVisualMode = false; pdfCurrentPage = 1; pdfScale = 1.25; pdfFrames = []; $('#loading-skeleton').hidden = false; $('#pdf-pages').replaceChildren(); $('#pdf-thumbs').replaceChildren(); $('#pdf-pages').hidden = true; $('#pdf-thumbs').hidden = true; $('#pdf-controls').hidden = true; $('#reader').hidden = false; $('#pdf-mode-btn').hidden = true; hidePopup(); reader.textContent = ''; progress.textContent = ''; resetOutline();
   try {
     setStatus('Opening ' + file.name + '…');
-    if (name.endsWith('.pdf')) await readPdf(file, my);
+    if (name.endsWith('.pdf')) await readPdfLazy(file, my);
     else if (name.endsWith('.docx')) await readDocx(file);
     else if (name.endsWith('.pptx')) await readPptx(file);
     else if (name.endsWith('.epub')) await readEpub(file);
@@ -428,7 +462,7 @@ async function readPptx(file) {
   for (let index = 0; index < slides.length; index++) {
     const xml = new DOMParser().parseFromString(await zip.file(slides[index]).async('text'), 'application/xml');
     const text = [...xml.getElementsByTagName('a:t')].map(node => node.textContent).join(' ').replace(/\s+/g, ' ').trim();
-    if (text) addBlocks([{ text: 'Slide ' + (index + 1), heading: true }, { text }], index + 1);
+    if (text) { const before = reader.children.length; addBlocks([{ text: 'Slide ' + (index + 1), heading: true }, { text }], index + 1); reader.children[before]?.classList.add('ppt-slide'); }
   }
 }
 
@@ -584,6 +618,49 @@ function showFlashcards() {
   words.slice(0, 20).forEach(item => { const card = el('button', 'flashcard'); card.type = 'button'; card.append(el('strong', '', item.word), el('span', '', 'Tap to reveal')); card.onclick = () => { card.replaceChildren(el('strong', '', item.word), el('span', '', item.definition || 'No definition saved')); }; target.append(card); });
 }
 
+async function readPdfLazy(file, my) {
+  const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
+  if (my !== openToken) return;
+  activePdf = pdf; pdfVisualMode = true; pdfCurrentPage = 1; pdfScale = 1; totalPages = pdf.numPages;
+  $('#pdf-mode-btn').hidden = false; $('#pdf-mode-btn').textContent = 'Text view'; $('#pdf-controls').hidden = false; $('#pdf-thumbs').hidden = false; $('#pdf-pages').hidden = false; $('#reader').hidden = true; updatePdfLabel();
+  renderPdfPagesLazy(pdf); reader.append(el('p', 'note', 'Preparing searchable text in the background...'));
+  extractPdfTextLazy(pdf, my);
+}
+async function extractPdfTextLazy(pdf, my) {
+  reader.textContent = '';
+  for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
+    if (my !== openToken) return;
+    const content = await (await pdf.getPage(pageNumber)).getTextContent();
+    const text = content.items.map(item => item.str).join(' ').replace(/\s+/g, ' ').trim();
+    if (text) addBlocks([{ text }], pageNumber);
+    progress.textContent = pageNumber < pdf.numPages ? `Preparing text ${pageNumber} of ${pdf.numPages}...` : '';
+    if (pageNumber % 3 === 0) await new Promise(resolve => setTimeout(resolve, 0));
+  }
+  if (my === openToken) { progress.textContent = ''; showMeta(); }
+}
+function renderPdfPagesLazy(pdf) {
+  const pages = $('#pdf-pages'), thumbs = $('#pdf-thumbs'); pages.replaceChildren(); thumbs.replaceChildren(); pdfFrames = []; pdfRenderJobs.clear(); pdfRenderObserver?.disconnect();
+  for (let number = 1; number <= pdf.numPages; number++) {
+    const frame = el('figure', 'pdf-page readable pdf-page-loading'), placeholder = el('div', 'pdf-render-placeholder', `Loading page ${number}`), textLayer = el('div', 'textLayer'), caption = el('figcaption', '', 'Page ' + number), thumbButton = el('button', 'pdf-thumb');
+    frame.dataset.page = number; frame.append(placeholder, textLayer, caption); pages.append(frame); pdfFrames.push(frame);
+    thumbButton.type = 'button'; thumbButton.dataset.page = number; thumbButton.append(el('span', '', String(number))); thumbButton.onclick = () => goToPdfPage(number); thumbs.append(thumbButton);
+  }
+  pdfRenderObserver = new IntersectionObserver(entries => entries.forEach(entry => { if (entry.isIntersecting) renderPdfPageLazy(Number(entry.target.dataset.page)); }), { rootMargin: '900px 0px' });
+  pdfFrames.forEach(frame => pdfRenderObserver.observe(frame)); renderPdfPageLazy(1); renderPdfPageLazy(2);
+}
+async function renderPdfPageLazy(number) {
+  if (!activePdf || pdfRenderJobs.has(number)) return pdfRenderJobs.get(number);
+  const job = (async () => {
+    const page = await activePdf.getPage(number), natural = page.getViewport({ scale: 1 }), viewport = page.getViewport({ scale: Math.min(1.35, Math.max(.75, (innerWidth - 48) / natural.width) });
+    const frame = pdfFrames[number - 1]; if (!frame) return;
+    const canvas = document.createElement('canvas'); canvas.width = viewport.width; canvas.height = viewport.height; await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+    frame.querySelector('.pdf-render-placeholder')?.replaceWith(canvas); frame.classList.remove('pdf-page-loading');
+    try { const content = await page.getTextContent(), layer = frame.querySelector('.textLayer'), task = pdfjsLib.renderTextLayer({ textContent: content, container: layer, viewport, textDivs: [] }); if (task?.promise) await task.promise; } catch (error) { console.warn('PDF text layer unavailable', error); }
+    const thumb = $('#pdf-thumbs').querySelector(`[data-page="${number}"]`); if (thumb && !thumb.querySelector('canvas')) { const preview = document.createElement('canvas'); preview.width = 72; preview.height = Math.round(72 * viewport.height / viewport.width); preview.getContext('2d').drawImage(canvas, 0, 0, preview.width, preview.height); thumb.prepend(preview); }
+  })();
+  pdfRenderJobs.set(number, job); try { await job; } catch (error) { console.error('PDF page render failed', error); } return job;
+}
+
 async function readPdf(file, my) {
   const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
   activePdf = pdf; pdfVisualMode = true; pdfCurrentPage = 1; pdfScale = 1; $('#pdf-mode-btn').hidden = false; $('#pdf-mode-btn').textContent = 'Text view'; $('#pdf-controls').hidden = false; $('#pdf-thumbs').hidden = false; $('#pdf-pages').hidden = false; $('#reader').hidden = true; updatePdfLabel(); renderPdfPages(pdf);
@@ -655,7 +732,7 @@ function togglePdfMode() {
   pdfVisualMode = !pdfVisualMode; $('#pdf-pages').hidden = !pdfVisualMode; $('#pdf-thumbs').hidden = !pdfVisualMode; $('#pdf-controls').hidden = !pdfVisualMode; $('#reader').hidden = pdfVisualMode; $('#pdf-mode-btn').textContent = pdfVisualMode ? 'Text view' : 'Page view';
 }
 function updatePdfLabel() { $('#pdf-page-label').textContent = `Page ${pdfCurrentPage} of ${activePdf?.numPages || 0}`; }
-function goToPdfPage(number) { if (!activePdf || !pdfFrames.length) return; pdfCurrentPage = Math.min(activePdf.numPages, Math.max(1, number)); pdfFrames[pdfCurrentPage - 1]?.scrollIntoView({ behavior: 'smooth', block: 'start' }); updatePdfLabel(); }
+function goToPdfPage(number) { if (!activePdf || !pdfFrames.length) return; pdfCurrentPage = Math.min(activePdf.numPages, Math.max(1, number)); renderPdfPageLazy(pdfCurrentPage).finally(() => pdfFrames[pdfCurrentPage - 1]?.scrollIntoView({ behavior: 'smooth', block: 'start' })); updatePdfLabel(); }
 function changePdfZoom(amount) { pdfScale = Math.min(1.8, Math.max(.75, pdfScale + amount)); $('#pdf-pages').style.setProperty('--pdf-zoom', pdfScale); }
 
 /* ---------- Tap a word ---------- */
@@ -881,12 +958,13 @@ async function richFromDictionaryApi(word, signal) {
   return meanings.length ? { word: first.word || word, phonetic: first.phonetic || (first.phonetics || []).find(item => item.text)?.text || '', audio: (first.phonetics || []).find(item => item.audio)?.audio || '', meanings, synonyms: dictionaryUnique(meanings.flatMap(item => item.synonyms)).slice(0, 12), antonyms: dictionaryUnique(meanings.flatMap(item => item.antonyms)).slice(0, 12), source: 'Free Dictionary API', sourceUrl: first.sourceUrls?.[0] || '' } : null;
 }
 async function richFromWiktionary(word, signal) {
-  const response = await dictionaryGet('https://en.wiktionary.org/api/rest_v1/page/definition/' + encodeURIComponent(word), signal);
+  const language = $('#source-language')?.value || 'en';
+  const response = await dictionaryGet(`https://${language}.wiktionary.org/api/rest_v1/page/definition/` + encodeURIComponent(word), signal);
   if (response.status === 404) return null;
   if (!response.ok) throw new Error(response.status);
-  const groups = (await response.json()).en || [];
+  const data = await response.json(), groups = data[language] || data.en || Object.values(data).find(value => Array.isArray(value)) || [];
   const meanings = groups.flatMap(group => (group.definitions || []).slice(0, 3).map(definition => ({ partOfSpeech: (group.partOfSpeech || 'meaning').toLowerCase(), definition: dictionaryText(definition.definition), example: dictionaryText(definition.examples?.[0] || '') }))).filter(item => item.definition).slice(0, 8);
-  return meanings.length ? { word, meanings, etymology: dictionaryText(groups.find(group => group.etymology)?.etymology || ''), source: 'Wiktionary', sourceUrl: 'https://en.wiktionary.org/wiki/' + encodeURIComponent(word) } : null;
+  return meanings.length ? { word, meanings, etymology: dictionaryText(groups.find(group => group.etymology)?.etymology || ''), source: 'Wiktionary', sourceUrl: `https://${language}.wiktionary.org/wiki/` + encodeURIComponent(word) } : null;
 }
 async function richFromDatamuse(word, signal) {
   const [definitionsResponse, synonymsResponse] = await Promise.all([dictionaryGet('https://api.datamuse.com/words?md=d&max=1&sp=' + encodeURIComponent(word), signal), dictionaryGet('https://api.datamuse.com/words?rel_syn=' + encodeURIComponent(word) + '&max=12', signal)]);
@@ -903,7 +981,8 @@ async function defineRich(word, signal) {
   const stored = readDictionaryCache(word); if (stored) { cache.set('rich:' + word, stored); return stored; }
   let reached = false;
   for (const form of dictionaryCandidates(word)) {
-    const responses = await Promise.allSettled([richFromDictionaryApi(form, signal), richFromWiktionary(form, signal), richFromDatamuse(form, signal)]);
+    const language = $('#source-language')?.value || 'en', sources = language === 'en' ? [richFromDictionaryApi(form, signal), richFromWiktionary(form, signal), richFromDatamuse(form, signal)] : [richFromWiktionary(form, signal)];
+    const responses = await Promise.allSettled(sources);
     if (signal?.aborted) throw new DOMException('Lookup cancelled', 'AbortError');
     reached = reached || responses.some(response => response.status === 'fulfilled');
     const entries = responses.filter(response => response.status === 'fulfilled' && response.value).map(response => response.value);

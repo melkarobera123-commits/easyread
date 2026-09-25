@@ -168,6 +168,7 @@ h1 { max-width: 10ch; font: 300 clamp(3rem, 7vw, 6.4rem)/.96 var(--display); let
 .pdf-page { position: relative; width: 100%; margin: 0; padding: 16px; background: var(--sheet); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); }
 .pdf-pages .pdf-page { zoom: var(--pdf-zoom); }
 .pdf-page canvas { display: block; width: 100%; height: auto; background: #fff; }
+.pdf-render-placeholder { display: grid; place-items: center; aspect-ratio: 8.5 / 11; color: var(--muted); background: linear-gradient(110deg, var(--accent-soft), var(--sheet), var(--accent-soft)); background-size: 220% 100%; border-radius: 4px; font: .82rem var(--ui); animation: shimmer 1.2s infinite; }
 .textLayer { position: absolute; z-index: 1; top: 16px; right: 16px; bottom: 38px; left: 16px; overflow: hidden; line-height: 1; transform-origin: 0 0; user-select: text; }
 .textLayer span { position: absolute; color: transparent; white-space: pre; cursor: text; transform-origin: 0 0; }
 .textLayer span::selection { background: color-mix(in srgb, var(--accent) 42%, transparent); }
@@ -182,6 +183,9 @@ h1 { max-width: 10ch; font: 300 clamp(3rem, 7vw, 6.4rem)/.96 var(--display); let
 #reader h2 { margin: 2.4rem 0 1.1rem; font: 500 clamp(1.6rem, 3.2vw, 2.15rem)/1.2 var(--display); letter-spacing: -.02em; scroll-margin-top: calc(var(--hdr) + 84px); }
 .page { scroll-margin-top: calc(var(--hdr) + 84px); }
 .page + .page { margin-top: 2.6rem; }
+.ppt-slide { min-height: min(62vw, 560px); padding: clamp(24px, 5vw, 58px); background: linear-gradient(145deg, color-mix(in srgb, var(--sheet) 94%, transparent), color-mix(in srgb, var(--accent-soft) 32%, var(--sheet))); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); }
+.ppt-slide .page-mark { margin-bottom: clamp(28px, 6vw, 68px); }
+.ppt-slide h2 { max-width: 16ch; }
 .page-mark { display: flex; align-items: center; gap: 14px; margin: 0 0 1.8rem; color: var(--muted); font: 600 .78rem var(--ui); }
 .page-mark::before, .page-mark::after { content: ""; flex: 1; height: 1px; background: var(--line); }
 
