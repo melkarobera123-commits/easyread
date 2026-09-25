@@ -149,7 +149,11 @@
   <label>Line spacing <input id="spacing" type="range" min="1.5" max="2.3" step=".1" value="1.9"></label>
   <label>Page width <input id="width" type="range" min="620" max="980" step="20" value="780"></label>
   <label class="check"><input id="contrast" type="checkbox"> High contrast</label>
+  <label>Daily reading goal <select id="reading-goal"><option value="0">No goal</option><option value="10">10 minutes</option><option value="20">20 minutes</option><option value="30">30 minutes</option><option value="45">45 minutes</option><option value="60">60 minutes</option></select></label>
+  <label>Reading language <select id="source-language"><option value="en">English</option><option value="am">Amharic</option><option value="es">Spanish</option><option value="fr">French</option><option value="de">German</option></select></label>
   <label>Translation language <select id="translation-language"><option value="am">Amharic</option><option value="es">Spanish</option><option value="fr">French</option><option value="de">German</option></select></label>
+  <label>Read-aloud speed <input id="speech-rate" type="range" min="0.7" max="1.4" step="0.1" value="1"><output id="speech-rate-value">1.0×</output></label>
+  <label>Voice <select id="speech-voice"><option value="">Browser default</option></select></label>
 </aside>
 
 <aside id="vocab" class="panel vocab-panel" hidden role="dialog" aria-modal="true" aria-labelledby="vocab-title">
@@ -165,6 +169,8 @@
 <aside id="library" class="panel library-panel" hidden role="dialog" aria-modal="true" aria-labelledby="library-panel-title">
   <div class="contents-head"><h2 id="library-panel-title">My library</h2><button id="library-close" class="btn" type="button">Close</button></div>
   <p class="note">Files are stored only in this browser.</p>
+  <label class="library-search">Find a book <input id="library-search" type="search" placeholder="Search your library"></label>
+  <label class="library-filter">Show <select id="library-filter"><option value="all">All files</option><option value="favorite">Favorites</option><option value="pdf">PDF</option><option value="docx">Word</option><option value="epub">EPUB</option><option value="txt">Text</option><option value="image">Images</option></select></label>
   <label class="library-sort">Sort by <select id="library-sort"><option value="recent">Last opened</option><option value="title">Title</option><option value="progress">Progress</option></select></label>
   <h3 class="library-section-title">Favorites</h3><div id="library-favorites"></div>
   <h3 class="library-section-title">Recently opened</h3><div id="library-list"></div>
