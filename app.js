@@ -648,18 +648,68 @@ function renderPdfPagesLazy(pdf) {
   pdfRenderObserver = new IntersectionObserver(entries => entries.forEach(entry => { if (entry.isIntersecting) renderPdfPageLazy(Number(entry.target.dataset.page)); }), { rootMargin: '900px 0px' });
   pdfFrames.forEach(frame => pdfRenderObserver.observe(frame)); renderPdfPageLazy(1); renderPdfPageLazy(2);
 }
+/* The canvas image and the invisible text layer must describe the exact same
+   coordinate space in CSS pixels, or a tap on a visible word resolves to a
+   different word underneath. `viewport` below IS that shared coordinate
+   space: the canvas is rasterised bigger (for crispness on high-DPI screens)
+   but always *displayed* at viewport's size via explicit style.width/height,
+   and the text layer is sized to that identical width/height rather than
+   being stretched to fit by CSS. */
 async function renderPdfPageLazy(number) {
   if (!activePdf || pdfRenderJobs.has(number)) return pdfRenderJobs.get(number);
   const job = (async () => {
-    const page = await activePdf.getPage(number), natural = page.getViewport({ scale: 1 }), viewport = page.getViewport({ scale: Math.min(1.35, Math.max(.75, (innerWidth - 48) / natural.width) });
+    const page = await activePdf.getPage(number), natural = page.getViewport({ scale: 1 });
     const frame = pdfFrames[number - 1]; if (!frame) return;
-    const canvas = document.createElement('canvas'); canvas.width = viewport.width; canvas.height = viewport.height; await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+    const available = Math.max(240, (frame.clientWidth || innerWidth - 48) - 32);
+    const displayScale = Math.min(1.35, Math.max(.4, available / natural.width));
+    const viewport = page.getViewport({ scale: displayScale });
+    const pixelRatio = Math.min(2.5, window.devicePixelRatio || 1);
+    const renderViewport = pixelRatio === 1 ? viewport : page.getViewport({ scale: displayScale * pixelRatio });
+
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(renderViewport.width); canvas.height = Math.round(renderViewport.height);
+    canvas.style.width = Math.round(viewport.width) + 'px'; canvas.style.height = Math.round(viewport.height) + 'px';
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport: renderViewport }).promise;
     frame.querySelector('.pdf-render-placeholder')?.replaceWith(canvas); frame.classList.remove('pdf-page-loading');
-    try { const content = await page.getTextContent(), layer = frame.querySelector('.textLayer'), task = pdfjsLib.renderTextLayer({ textContent: content, container: layer, viewport, textDivs: [] }); if (task?.promise) await task.promise; } catch (error) { console.warn('PDF text layer unavailable', error); }
+    frame.dataset.fitWidth = viewport.width;
+
+    try {
+      const content = await page.getTextContent(), layer = frame.querySelector('.textLayer');
+      layer.style.width = Math.round(viewport.width) + 'px'; layer.style.height = Math.round(viewport.height) + 'px';
+      layer.replaceChildren();
+      const task = pdfjsLib.renderTextLayer({ textContent: content, container: layer, viewport, textDivs: [] });
+      if (task?.promise) await task.promise;
+    } catch (error) { console.warn('PDF text layer unavailable', error); }
+
     const thumb = $('#pdf-thumbs').querySelector(`[data-page="${number}"]`); if (thumb && !thumb.querySelector('canvas')) { const preview = document.createElement('canvas'); preview.width = 72; preview.height = Math.round(72 * viewport.height / viewport.width); preview.getContext('2d').drawImage(canvas, 0, 0, preview.width, preview.height); thumb.prepend(preview); }
   })();
   pdfRenderJobs.set(number, job); try { await job; } catch (error) { console.error('PDF page render failed', error); } return job;
 }
+
+/* If the available width changes (resize, rotate, sidebar toggle) the
+   already-rendered pages would otherwise stay pinned to their old width
+   while CSS visually stretches the canvas to fit — reintroducing the same
+   tap/word mismatch. Re-render any page whose fit has drifted. */
+let pdfRefitTimer = null;
+function scheduleRefitPdfPages() {
+  if (!activePdf || !pdfVisualMode || !pdfFrames.length) return;
+  clearTimeout(pdfRefitTimer);
+  pdfRefitTimer = setTimeout(() => {
+    pdfFrames.forEach((frame, index) => {
+      if (!frame || frame.classList.contains('pdf-page-loading')) return;
+      const fitWidth = Number(frame.dataset.fitWidth || 0), available = Math.max(240, frame.clientWidth - 32);
+      if (!fitWidth || Math.abs(available - fitWidth) < 24) return;
+      const number = index + 1;
+      pdfRenderJobs.delete(number);
+      frame.querySelector('canvas')?.remove();
+      frame.querySelector('.textLayer')?.replaceChildren();
+      frame.prepend(el('div', 'pdf-render-placeholder', `Loading page ${number}`));
+      frame.classList.add('pdf-page-loading');
+      renderPdfPageLazy(number);
+    });
+  }, 300);
+}
+addEventListener('resize', scheduleRefitPdfPages);
 
 async function readPdf(file, my) {
   const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;

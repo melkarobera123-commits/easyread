@@ -167,9 +167,12 @@ h1 { max-width: 10ch; font: 300 clamp(3rem, 7vw, 6.4rem)/.96 var(--display); let
 .pdf-pages { --pdf-zoom: 1; }
 .pdf-page { position: relative; width: 100%; margin: 0; padding: 16px; background: var(--sheet); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); }
 .pdf-pages .pdf-page { zoom: var(--pdf-zoom); }
-.pdf-page canvas { display: block; width: 100%; height: auto; background: #fff; }
+.pdf-page canvas { display: block; max-width: 100%; height: auto; background: #fff; }
 .pdf-render-placeholder { display: grid; place-items: center; aspect-ratio: 8.5 / 11; color: var(--muted); background: linear-gradient(110deg, var(--accent-soft), var(--sheet), var(--accent-soft)); background-size: 220% 100%; border-radius: 4px; font: .82rem var(--ui); animation: shimmer 1.2s infinite; }
-.textLayer { position: absolute; z-index: 1; top: 16px; right: 16px; bottom: 38px; left: 16px; overflow: hidden; line-height: 1; transform-origin: 0 0; user-select: text; }
+/* Width/height are set inline in JS to match the exact CSS-pixel size the PDF.js
+   text layer was measured against, so tap coordinates line up with the glyphs
+   underneath instead of drifting onto a neighbouring word. */
+.textLayer { position: absolute; z-index: 1; top: 16px; left: 16px; overflow: hidden; line-height: 1; transform-origin: 0 0; user-select: text; }
 .textLayer span { position: absolute; color: transparent; white-space: pre; cursor: text; transform-origin: 0 0; }
 .textLayer span::selection { background: color-mix(in srgb, var(--accent) 42%, transparent); }
 .pdf-page figcaption { margin-top: 10px; color: var(--muted); text-align: center; font: .78rem var(--ui); }
