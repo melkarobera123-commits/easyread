@@ -6,6 +6,8 @@ const fileInput = $('#file'), drop = $('#drop'), statusEl = $('#status'), progre
 const reader = $('#reader'), readerWrap = $('#reader-wrap'), popup = $('#popup');
 const API = 'https://api.dictionaryapi.dev/api/v2/entries/en/';
 const cache = new Map();
+const dictionaryCacheKey = 'er-dictionary-cache';
+let dictionaryAbort = null;
 const store = {
   get(key, fallback) { try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; } },
   set(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* storage blocked */ } }
@@ -648,19 +650,25 @@ function wordAt(x, y) {
 
 async function showWord({ word, range }) {
   const my = ++lookupToken;
+  dictionaryAbort?.abort(); dictionaryAbort = new AbortController();
   currentRange = range;
   if (window.CSS && CSS.highlights) CSS.highlights.set('picked', new Highlight(range));
   popup.hidden = false;
   popup.replaceChildren(closeBtn(), el('h2', '', word), el('p', 'note', 'Looking up…'));
   place(range);
-  const result = await define(word);
-  if (my !== lookupToken) return;
-  render(result, word);
-  place(range);
+  try {
+    const result = await defineRich(word, dictionaryAbort.signal);
+    if (my !== lookupToken) return;
+    renderRich(result, word);
+    place(range);
+  } catch (error) {
+    if (error.name !== 'AbortError' && my === lookupToken) { renderRich({ offline: true }, word); place(range); }
+  }
 }
 
 function hidePopup() {
   lookupToken++;
+  dictionaryAbort?.abort(); dictionaryAbort = null;
   popup.hidden = true;
   if (window.CSS && CSS.highlights) CSS.highlights.delete('picked');
 }
@@ -669,7 +677,7 @@ function place(range) {
   if (matchMedia('(max-width: 640px)').matches) { popup.style.left = popup.style.top = ''; return; }
   const r = range.getBoundingClientRect(), w = popup.offsetWidth;
   popup.style.left = Math.max(12, Math.min(scrollX + r.left, scrollX + innerWidth - w - 12)) + 'px';
-  popup.style.top = scrollY + r.bottom + 10 + 'px';
+  popup.style.top = Math.max(scrollY + 12, Math.min(scrollY + r.bottom + 10, scrollY + innerHeight - popup.offsetHeight - 12)) + 'px';
 }
 
 /* ---------- Dictionary ---------- */
@@ -761,6 +769,81 @@ async function define(word) {
   return reached ? { missing: true } : { offline: true };
 }
 
+/* Rich dictionary: cached locally and resilient across three free sources. */
+function dictionaryText(value = '') { return new DOMParser().parseFromString(String(value), 'text/html').body.textContent.replace(/\s+/g, ' ').trim(); }
+function dictionaryUnique(items = []) { return [...new Set(items.filter(Boolean).map(value => String(value).trim()).filter(Boolean))]; }
+function dictionaryCandidates(word) {
+  const forms = [word], add = value => { if (value.length > 1 && !forms.includes(value)) forms.push(value); };
+  const base = word.replace(/'s$/, ''); add(base);
+  if (/ies$/.test(base)) add(base.slice(0, -3) + 'y');
+  if (/ves$/.test(base)) { add(base.slice(0, -3) + 'f'); add(base.slice(0, -3) + 'fe'); }
+  if (/es$/.test(base)) { add(base.slice(0, -2)); add(base.slice(0, -1)); }
+  if (/s$/.test(base)) add(base.slice(0, -1));
+  if (/ier$/.test(base)) add(base.slice(0, -3) + 'y');
+  const stem = base.replace(/(ing|ed|er|est)$/, '');
+  if (stem !== base && stem.length > 1) { add(stem); add(stem + 'e'); if (/(.)\1$/.test(stem)) add(stem.slice(0, -1)); }
+  return forms.slice(0, 7);
+}
+function readDictionaryCache(word) {
+  const record = store.get(dictionaryCacheKey, {})[word];
+  return record?.result && Date.now() - record.savedAt < 1000 * 60 * 60 * 24 * 90 ? { ...record.result, cached: true } : null;
+}
+function writeDictionaryCache(word, result) {
+  const records = store.get(dictionaryCacheKey, {}); records[word] = { savedAt: Date.now(), result };
+  store.set(dictionaryCacheKey, Object.fromEntries(Object.entries(records).sort((a, b) => b[1].savedAt - a[1].savedAt).slice(0, 500)));
+}
+async function dictionaryGet(url, signal) {
+  const controller = new AbortController(), timeout = setTimeout(() => controller.abort(), 5500), cancel = () => controller.abort();
+  signal?.addEventListener('abort', cancel, { once: true });
+  try { return await fetch(url, { signal: controller.signal, headers: { Accept: 'application/json' } }); }
+  finally { clearTimeout(timeout); signal?.removeEventListener('abort', cancel); }
+}
+async function richFromDictionaryApi(word, signal) {
+  const response = await dictionaryGet(API + encodeURIComponent(word), signal);
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(response.status);
+  const entries = await response.json(), first = entries[0];
+  const meanings = entries.flatMap(entry => entry.meanings || []).flatMap(group => (group.definitions || []).slice(0, 4).map(definition => ({
+    partOfSpeech: group.partOfSpeech || 'meaning', definition: dictionaryText(definition.definition), example: dictionaryText(definition.example || ''),
+    synonyms: dictionaryUnique([...(group.synonyms || []), ...(definition.synonyms || [])]), antonyms: dictionaryUnique([...(group.antonyms || []), ...(definition.antonyms || [])])
+  }))).filter(item => item.definition).slice(0, 8);
+  return meanings.length ? { word: first.word || word, phonetic: first.phonetic || (first.phonetics || []).find(item => item.text)?.text || '', audio: (first.phonetics || []).find(item => item.audio)?.audio || '', meanings, synonyms: dictionaryUnique(meanings.flatMap(item => item.synonyms)).slice(0, 12), antonyms: dictionaryUnique(meanings.flatMap(item => item.antonyms)).slice(0, 12), source: 'Free Dictionary API', sourceUrl: first.sourceUrls?.[0] || '' } : null;
+}
+async function richFromWiktionary(word, signal) {
+  const response = await dictionaryGet('https://en.wiktionary.org/api/rest_v1/page/definition/' + encodeURIComponent(word), signal);
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(response.status);
+  const groups = (await response.json()).en || [];
+  const meanings = groups.flatMap(group => (group.definitions || []).slice(0, 3).map(definition => ({ partOfSpeech: (group.partOfSpeech || 'meaning').toLowerCase(), definition: dictionaryText(definition.definition), example: dictionaryText(definition.examples?.[0] || '') }))).filter(item => item.definition).slice(0, 8);
+  return meanings.length ? { word, meanings, etymology: dictionaryText(groups.find(group => group.etymology)?.etymology || ''), source: 'Wiktionary', sourceUrl: 'https://en.wiktionary.org/wiki/' + encodeURIComponent(word) } : null;
+}
+async function richFromDatamuse(word, signal) {
+  const [definitionsResponse, synonymsResponse] = await Promise.all([dictionaryGet('https://api.datamuse.com/words?md=d&max=1&sp=' + encodeURIComponent(word), signal), dictionaryGet('https://api.datamuse.com/words?rel_syn=' + encodeURIComponent(word) + '&max=12', signal)]);
+  if (!definitionsResponse.ok) throw new Error(definitionsResponse.status);
+  const hit = (await definitionsResponse.json())[0];
+  if (!hit?.defs) return null;
+  const names = { n: 'noun', v: 'verb', adj: 'adjective', adv: 'adverb', u: 'word' };
+  const meanings = hit.defs.slice(0, 8).map(item => { const [part, ...definition] = item.split('\t'); return { partOfSpeech: names[part] || part, definition: dictionaryText(definition.join(' ')), example: '' }; });
+  const synonyms = synonymsResponse.ok ? dictionaryUnique((await synonymsResponse.json()).map(item => item.word)) : [];
+  return { word: hit.word || word, meanings, synonyms, source: 'Datamuse', sourceUrl: 'https://www.datamuse.com/api/' };
+}
+async function defineRich(word, signal) {
+  if (cache.has('rich:' + word)) return cache.get('rich:' + word);
+  const stored = readDictionaryCache(word); if (stored) { cache.set('rich:' + word, stored); return stored; }
+  let reached = false;
+  for (const form of dictionaryCandidates(word)) {
+    const responses = await Promise.allSettled([richFromDictionaryApi(form, signal), richFromWiktionary(form, signal), richFromDatamuse(form, signal)]);
+    if (signal?.aborted) throw new DOMException('Lookup cancelled', 'AbortError');
+    reached = reached || responses.some(response => response.status === 'fulfilled');
+    const entries = responses.filter(response => response.status === 'fulfilled' && response.value).map(response => response.value);
+    if (entries.length) {
+      const entry = entries.sort((a, b) => (b.meanings?.length || 0) - (a.meanings?.length || 0))[0];
+      const result = { entry, asked: word }; cache.set('rich:' + word, result); writeDictionaryCache(word, result); return result;
+    }
+  }
+  return reached ? { missing: true } : { offline: true };
+}
+
 function el(tag, cls, text) {
   const n = document.createElement(tag);
   if (cls) n.className = cls;
@@ -773,6 +856,50 @@ function closeBtn() {
   b.type = 'button'; b.setAttribute('aria-label', 'Close');
   b.addEventListener('click', hidePopup);
   return b;
+}
+
+function speakDictionaryEntry(entry) {
+  if (entry.audio) { const audio = new Audio(entry.audio); audio.play().catch(() => speakWord(entry.word)); }
+  else speakWord(entry.word);
+}
+function dictionaryRelated(label, words) {
+  if (!words?.length) return null;
+  const row = el('div', 'dictionary-related'), title = el('span', '', label), values = el('span', 'dictionary-chips');
+  words.slice(0, 10).forEach(word => values.append(el('span', 'dictionary-chip', word)));
+  row.append(title, values); return row;
+}
+function renderRich(result, asked) {
+  const kids = [closeBtn()];
+  if (result.offline) {
+    kids.push(el('h2', '', asked), el('p', 'note', 'No dictionary source is reachable right now. Previously opened words remain available offline.'));
+  } else if (result.missing) {
+    kids.push(el('h2', '', asked), el('p', 'note', 'No definition was found. Try the singular form, a nearby word, or check the spelling.'));
+  } else {
+    const entry = result.entry;
+    kids.push(el('h2', '', entry.word));
+    const actions = el('div', 'word-actions'), translation = el('p', 'dictionary-translation');
+    const save = el('button', 'btn', 'Save'); save.onclick = () => { saveWord(entry.word, entry.meanings[0]?.definition); save.textContent = 'Saved'; };
+    const listen = el('button', 'btn', 'Listen'); listen.onclick = () => speakDictionaryEntry(entry);
+    const translate = el('button', 'btn', 'Translate'); translate.onclick = async () => { translate.disabled = true; translate.textContent = 'Translating'; try { translation.textContent = await translateWord(entry.word); } catch { translation.textContent = 'Translation is unavailable right now.'; } finally { translate.disabled = false; translate.textContent = 'Translate'; } };
+    const copy = el('button', 'btn', 'Copy'); copy.onclick = async () => { const text = `${entry.word}: ${entry.meanings.map(item => item.definition).join(' ')}`; try { await navigator.clipboard.writeText(text); copy.textContent = 'Copied'; } catch { showToast('Copy is not available in this browser.'); } };
+    const note = el('button', 'btn', 'Note'); note.onclick = () => { const text = prompt('Add a note for ' + entry.word); if (text?.trim()) { const notes = store.get('er-notes', []); notes.unshift({ file: currentFileKey, word: entry.word, text: text.trim() }); store.set('er-notes', notes.slice(0, 300)); queueCloudSync(); note.textContent = 'Noted'; } };
+    actions.append(save, listen, translate, copy, note); kids.push(actions, translation);
+    if (entry.phonetic) kids.push(el('p', 'ph', entry.phonetic));
+    entry.meanings.forEach((meaning, index) => {
+      kids.push(el('p', 'pos', `${index + 1}. ${meaning.partOfSpeech}`), el('p', 'def', meaning.definition));
+      if (meaning.example) kids.push(el('p', 'ex', 'Example: ' + meaning.example));
+    });
+    const synonyms = dictionaryRelated('Synonyms', entry.synonyms), antonyms = dictionaryRelated('Antonyms', entry.antonyms);
+    if (synonyms) kids.push(synonyms); if (antonyms) kids.push(antonyms);
+    if (entry.etymology) { kids.push(el('p', 'dictionary-label', 'Word history'), el('p', 'note dictionary-etymology', entry.etymology)); }
+    const details = [];
+    if (entry.sourceUrl) { const link = el('a', 'dictionary-source', entry.source || 'Dictionary source'); link.href = entry.sourceUrl; link.target = '_blank'; link.rel = 'noreferrer'; details.push(link); }
+    else if (entry.source) details.push(el('span', 'dictionary-source', entry.source));
+    if (result.cached) details.push(el('span', 'dictionary-cache', 'Available offline'));
+    if (details.length) { const footer = el('p', 'dictionary-footer'); footer.append(...details); kids.push(footer); }
+    if (entry.word.toLowerCase() !== asked) kids.push(el('p', 'note', 'Showing the base form of ' + entry.word + '.'));
+  }
+  popup.replaceChildren(...kids);
 }
 
 function render(result, asked) {

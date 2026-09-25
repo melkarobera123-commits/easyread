@@ -288,7 +288,7 @@ button.saved-item:hover { background: var(--accent-soft); }
 ::highlight(picked) { background: var(--marker); color: var(--hl-ink); }
 
 #popup {
-  position: absolute; z-index: 50; width: min(350px, calc(100vw - 24px)); padding: 18px 44px 16px 20px;
+  position: absolute; z-index: 50; width: min(350px, calc(100vw - 24px)); max-height: min(620px, calc(100vh - 24px)); padding: 18px 44px 16px 20px; overflow: auto;
   background: var(--pop-bg); color: var(--pop-ink); border: 1px solid rgba(255, 255, 255, .08); border-radius: 14px;
   box-shadow: 0 20px 48px -12px rgba(0, 0, 0, .5); font: 1rem/1.5 var(--ui); animation: pop .18s ease-out;
 }
@@ -299,6 +299,16 @@ button.saved-item:hover { background: var(--accent-soft); }
 #popup .def { margin: 0; }
 #popup .ex { margin: 6px 0 0; color: var(--pop-soft); font-style: italic; }
 #popup .note { margin: 10px 0 0; color: var(--pop-soft); }
+.dictionary-translation { margin: 0; color: var(--marker); font: 600 .9rem/1.45 var(--ui); }
+.dictionary-related { display: grid; gap: 7px; margin-top: 14px; }
+.dictionary-related > span:first-child, .dictionary-label { color: var(--pop-mute); font: 700 .7rem var(--ui); letter-spacing: .08em; text-transform: uppercase; }
+.dictionary-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.dictionary-chip { padding: 3px 8px; color: var(--pop-soft); background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.12); border-radius: 999px; font: .78rem var(--ui); }
+.dictionary-label { margin: 15px 0 -5px !important; }
+.dictionary-etymology { font-size: .9rem; }
+.dictionary-footer { display: flex; flex-wrap: wrap; gap: 10px; margin: 16px 0 0; color: var(--pop-mute); font: .74rem var(--ui); }
+.dictionary-source { color: var(--pop-mute); text-decoration: underline; text-underline-offset: 3px; }
+.dictionary-cache { color: var(--marker); }
 .close { position: absolute; top: 10px; right: 12px; width: 30px; height: 30px; background: none; border: 0; border-radius: 50%; color: var(--pop-ink); font-size: 1.5rem; line-height: 1; cursor: pointer; }
 .close:hover { background: rgba(255, 255, 255, .12); }
 #popup :focus-visible { outline-color: var(--marker); }
