@@ -20,6 +20,9 @@
 <div id="meter" aria-hidden="true"></div>
 <div id="network-status" class="network-status" role="status" hidden></div>
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+<aside id="signin-modal" class="signin-modal" hidden role="dialog" aria-modal="true" aria-labelledby="signin-title">
+  <div class="signin-card"><button id="signin-modal-close" class="close signin-close" type="button" aria-label="Close sign-in prompt">×</button><div class="signin-mark">—</div><p class="eyebrow">Optional, always yours</p><h2 id="signin-title">Take your reading with you.</h2><p>Sign in with Google to keep your vocabulary, bookmarks, and progress available on your other devices.</p><button id="signin-modal-google" class="btn account-action" type="button">Continue with Google</button><button id="signin-modal-later" class="text-button" type="button">Maybe later</button></div>
+</aside>
 <aside id="app-sidebar" class="app-sidebar" aria-label="App navigation">
   <a class="sidebar-brand" href="#top"><span class="sidebar-mark">—</span><span>EasyRead</span></a>
   <p class="sidebar-caption">Your calmer reading room</p>
@@ -64,7 +67,7 @@
         <svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 19V6M9 11l5-5 5 5M6 22h16"/></svg>
         <span class="drop-title">Choose a file or drop it here</span>
         <small>PDF, DOCX, PPTX, EPUB, TXT or images. Your files stay on your device; lookups and translation use the internet.</small>
-        <input id="file" type="file" accept=".pdf,.docx,.ppt,.pptx,.txt,.epub,.png,.jpg,.jpeg">
+        <input id="file" type="file" accept=".pdf,.docx,.pptx,.txt,.epub,.png,.jpg,.jpeg">
       </label>
       <div id="welcome-signin" class="welcome-signin" hidden><span>Want your words and progress everywhere?</span><button id="welcome-signin-btn" class="btn" type="button">Sign in with Google</button><button id="welcome-dismiss" class="text-button" type="button">Maybe later</button></div>
       <p id="status" role="status"></p>
@@ -146,8 +149,8 @@
 
 <aside id="popup" role="dialog" aria-live="polite" hidden></aside>
 
-<aside id="settings" class="panel" hidden>
-  <div class="contents-head"><h2>Reader settings</h2><button id="settings-close" class="btn" type="button">Close</button></div>
+<aside id="settings" class="panel" hidden role="dialog" aria-modal="true" aria-labelledby="settings-title">
+  <div class="contents-head"><h2 id="settings-title">Reader settings</h2><button id="settings-close" class="btn" type="button">Close</button></div>
   <label>Font <select id="font-choice"><option value="literata">Literata</option><option value="serif">Classic serif</option><option value="dyslexic">OpenDyslexic</option></select></label>
   <label>Line spacing <input id="spacing" type="range" min="1.5" max="2.3" step=".1" value="1.9"></label>
   <label>Page width <input id="width" type="range" min="620" max="980" step="20" value="780"></label>
@@ -155,31 +158,31 @@
   <label>Translation language <select id="translation-language"><option value="am">Amharic</option><option value="es">Spanish</option><option value="fr">French</option><option value="de">German</option></select></label>
 </aside>
 
-<aside id="vocab" class="panel vocab-panel" hidden>
-  <div class="contents-head"><h2>My vocabulary</h2><button id="vocab-close" class="btn" type="button">Close</button></div>
+<aside id="vocab" class="panel vocab-panel" hidden role="dialog" aria-modal="true" aria-labelledby="vocab-title">
+  <div class="contents-head"><h2 id="vocab-title">My vocabulary</h2><button id="vocab-close" class="btn" type="button">Close</button></div>
   <div id="vocab-list"></div>
 </aside>
 
-<aside id="stats" class="panel stats-panel" hidden>
-  <div class="contents-head"><h2>Reading progress</h2><button id="stats-close" class="btn" type="button">Close</button></div>
+<aside id="stats" class="panel stats-panel" hidden role="dialog" aria-modal="true" aria-labelledby="stats-title">
+  <div class="contents-head"><h2 id="stats-title">Reading progress</h2><button id="stats-close" class="btn" type="button">Close</button></div>
   <div id="stats-content"></div>
 </aside>
 
-<aside id="library" class="panel library-panel" hidden>
-  <div class="contents-head"><h2>My library</h2><button id="library-close" class="btn" type="button">Close</button></div>
+<aside id="library" class="panel library-panel" hidden role="dialog" aria-modal="true" aria-labelledby="library-panel-title">
+  <div class="contents-head"><h2 id="library-panel-title">My library</h2><button id="library-close" class="btn" type="button">Close</button></div>
   <p class="note">Files are stored only in this browser.</p>
   <label class="library-sort">Sort by <select id="library-sort"><option value="recent">Last opened</option><option value="title">Title</option><option value="progress">Progress</option></select></label>
   <h3 class="library-section-title">Favorites</h3><div id="library-favorites"></div>
   <h3 class="library-section-title">Recently opened</h3><div id="library-list"></div>
 </aside>
 
-<aside id="learning" class="panel learning-panel" hidden>
+<aside id="learning" class="panel learning-panel" hidden role="dialog" aria-modal="true" aria-labelledby="learning-title">
   <div class="contents-head"><h2 id="learning-title">Learning</h2><button id="learning-close" class="btn" type="button">Close</button></div>
   <div id="learning-content"></div>
 </aside>
 
-<aside id="account" class="panel account-panel" hidden>
-  <div class="contents-head"><h2>Your account</h2><button id="account-close" class="btn" type="button">Close</button></div>
+<aside id="account" class="panel account-panel" hidden role="dialog" aria-modal="true" aria-labelledby="account-title">
+  <div class="contents-head"><h2 id="account-title">Your account</h2><button id="account-close" class="btn" type="button">Close</button></div>
   <div id="account-signed-out">
     <p>Sign in with Google to sync vocabulary, notes, bookmarks, and reading progress across your devices.</p>
     <button id="google-signin" class="btn account-action" type="button">Continue with Google</button>
@@ -196,8 +199,8 @@
   </div>
 </aside>
 
-<aside id="contact" class="panel contact-panel" hidden>
-  <div class="contents-head"><h2>Say hello</h2><button id="contact-close" class="btn" type="button">Close</button></div>
+<aside id="contact" class="panel contact-panel" hidden role="dialog" aria-modal="true" aria-labelledby="contact-title">
+  <div class="contents-head"><h2 id="contact-title">Say hello</h2><button id="contact-close" class="btn" type="button">Close</button></div>
   <p>Found a rough edge or have an idea? Leave a note for the developer.</p>
   <div class="contact-cards"><a id="contact-telegram" class="contact-card" target="_blank" rel="noreferrer"><span class="contact-symbol">↗</span><span><strong>Telegram</strong><small id="contact-telegram-label">Add handle</small></span></a><a id="contact-phone" class="contact-card"><span class="contact-symbol">⌕</span><span><strong>Phone</strong><small id="contact-phone-label">Add number</small></span></a><a id="contact-email" class="contact-card"><span class="contact-symbol">@</span><span><strong>Email</strong><small id="contact-email-label">Add address</small></span></a></div>
   <label>Your message <textarea id="contact-message" rows="6" placeholder="Tell me what would make EasyRead better..."></textarea></label>
@@ -205,8 +208,8 @@
   <p id="contact-status" class="note">The developer email can be set in firebase-config.js.</p>
 </aside>
 
-<aside id="privacy" class="panel privacy-panel" hidden>
-  <div class="contents-head"><h2>Privacy center</h2><button id="privacy-close" class="btn" type="button">Close</button></div>
+<aside id="privacy" class="panel privacy-panel" hidden role="dialog" aria-modal="true" aria-labelledby="privacy-title">
+  <div class="contents-head"><h2 id="privacy-title">Privacy center</h2><button id="privacy-close" class="btn" type="button">Close</button></div>
   <div class="privacy-block"><span class="privacy-check">✓</span><div><strong>Local-first by default</strong><p>Your books stay in this browser. Online services are used only when you ask for a lookup, translation, or sync.</p></div></div>
   <div class="privacy-block"><span class="privacy-check">✓</span><div><strong>Cloud sync is optional</strong><p>Google sync stores your reading data in your private Firestore user record after sign-in.</p></div></div>
   <button id="export-all" class="btn account-action" type="button">Export all my data</button>
@@ -214,8 +217,8 @@
   <p id="privacy-status" class="note"></p>
 </aside>
 
-<aside id="shortcuts" class="panel shortcuts-panel" hidden>
-  <div class="contents-head"><h2>Keyboard shortcuts</h2><button id="shortcuts-close" class="btn" type="button">Close</button></div>
+<aside id="shortcuts" class="panel shortcuts-panel" hidden role="dialog" aria-modal="true" aria-labelledby="shortcuts-title">
+  <div class="contents-head"><h2 id="shortcuts-title">Keyboard shortcuts</h2><button id="shortcuts-close" class="btn" type="button">Close</button></div>
   <div class="shortcut-row"><kbd>/</kbd><span>Search in the current book</span></div>
   <div class="shortcut-row"><kbd>F</kbd><span>Toggle focus mode</span></div>
   <div class="shortcut-row"><kbd>T</kbd><span>Toggle light and dark mode</span></div>

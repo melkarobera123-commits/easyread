@@ -12,5 +12,8 @@ The app works without an account. Imported books, vocabulary, notes, highlights,
 4. Create a **Firestore Database** in production or test mode.
 5. Copy the Firebase web configuration into `firebase-config.js`.
 6. Add `localhost` to **Authentication > Settings > Authorized domains**.
+7. Deploy `firestore.rules` to Firestore before making the app public. These rules ensure each signed-in person can access only their own `users/{userId}` record.
 
 The app stores vocabulary, notes, highlights, bookmarks, and reading statistics in `users/{userId}` in Firestore after Google sign-in. Local browser storage remains available when signed out.
+
+The Firebase web configuration is intentionally visible to browsers; protect user data with Firestore Security Rules, not by hiding the configuration values.

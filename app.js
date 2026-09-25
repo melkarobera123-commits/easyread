@@ -18,6 +18,9 @@ let bookProgressTimer = null;
 let auth = null, cloud = null, currentUser = null;
 let activePdf = null, pdfVisualMode = false, pdfCurrentPage = 1, pdfScale = 1.25, pdfFrames = [];
 let syncConflictCount = 0;
+let scrollSaveFrame = null;
+let lastScrollSave = 0;
+const panelFocusReturn = new Map();
 const seenHeadings = new Set();
 const contents = $('#contents'), outlineList = $('#outline'), outlineEmpty = $('#outline-empty');
 const pageNow = $('#page-now'), docMeta = $('#doc-meta');
@@ -33,15 +36,21 @@ const pageObserver = new IntersectionObserver(entries => {
   for (const e of entries) if (e.isIntersecting) pageNow.textContent = `Page ${e.target.dataset.page} of ${totalPages}`;
 }, { rootMargin: '-40% 0px -55% 0px' });
 
-const saveScroll = () => {
+const saveScroll = (force = false) => {
   if (!currentFileKey || readerWrap.hidden) return;
+  const now = Date.now();
+  if (!force && now - lastScrollSave < 1000) return;
+  lastScrollSave = now;
   const stats = store.get(statsKey, {});
   stats[currentFileKey] = { ...(stats[currentFileKey] || {}), day: new Date().toISOString().slice(0, 10), scroll: scrollY, seconds: (stats[currentFileKey]?.seconds || 0) + Math.max(0, Math.round((Date.now() - readingStarted) / 1000)) };
   store.set(statsKey, stats); readingStarted = Date.now(); queueCloudSync();
   clearTimeout(bookProgressTimer);
   bookProgressTimer = setTimeout(async () => { const book = await libraryRequest('readonly', books => books.get(currentFileKey)); if (book) await libraryRequest('readwrite', books => books.put({ ...book, opened: Date.now(), progress: Math.min(100, Math.max(0, Math.round((scrollY / Math.max(document.documentElement.scrollHeight - innerHeight, 1)) * 100)))})); }, 800);
 };
-addEventListener('scroll', () => { if (!readerWrap.hidden) saveScroll(); }, { passive: true });
+addEventListener('scroll', () => {
+  if (readerWrap.hidden || scrollSaveFrame) return;
+  scrollSaveFrame = requestAnimationFrame(() => { scrollSaveFrame = null; saveScroll(); });
+}, { passive: true });
 addEventListener('beforeunload', saveScroll);
 
 $('#search-btn').addEventListener('click', () => {
@@ -140,15 +149,34 @@ $('#settings-btn').addEventListener('click', () => togglePanel('settings'));
 $('#settings-close').addEventListener('click', () => togglePanel('settings', false));
 $('#vocab-close').addEventListener('click', () => togglePanel('vocab', false));
 $('#stats-close').addEventListener('click', () => togglePanel('stats', false));
-$('#font-choice').addEventListener('change', e => { rootStyle('--reader-font', e.target.value === 'dyslexic' ? 'OpenDyslexic, Arial, sans-serif' : e.target.value === 'serif' ? 'Georgia, serif' : "'Literata', Georgia, serif"); });
-$('#spacing').addEventListener('input', e => rootStyle('--reader-leading', e.target.value));
-$('#width').addEventListener('input', e => rootStyle('--reader-width', e.target.value + 'px'));
-$('#contrast').addEventListener('change', e => document.body.classList.toggle('high-contrast', e.target.checked));
+const readerPreferences = store.get('er-reader-preferences', {});
+function applyReaderPreferences() {
+  const font = readerPreferences.font || 'literata';
+  $('#font-choice').value = font; $('#spacing').value = readerPreferences.spacing || '1.9'; $('#width').value = readerPreferences.width || '780'; $('#contrast').checked = !!readerPreferences.contrast;
+  rootStyle('--reader-font', font === 'dyslexic' ? 'OpenDyslexic, Arial, sans-serif' : font === 'serif' ? 'Georgia, serif' : "'Literata', Georgia, serif");
+  rootStyle('--reader-leading', $('#spacing').value); rootStyle('--reader-width', $('#width').value + 'px'); document.body.classList.toggle('high-contrast', $('#contrast').checked);
+}
+function saveReaderPreferences(patch) { Object.assign(readerPreferences, patch); store.set('er-reader-preferences', readerPreferences); applyReaderPreferences(); }
+applyReaderPreferences();
+$('#font-choice').addEventListener('change', e => saveReaderPreferences({ font: e.target.value }));
+$('#spacing').addEventListener('input', e => saveReaderPreferences({ spacing: e.target.value }));
+$('#width').addEventListener('input', e => saveReaderPreferences({ width: e.target.value }));
+$('#contrast').addEventListener('change', e => saveReaderPreferences({ contrast: e.target.checked }));
 if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
 renderLibrary();
 
 function rootStyle(name, value) { document.documentElement.style.setProperty(name, value); }
-function togglePanel(id, open = true) { const panel = $('#' + id); panel.hidden = open === false ? true : !panel.hidden; if (id === 'vocab' && !panel.hidden) renderVocabulary(); if (id === 'stats' && !panel.hidden) renderStats(); if (id === 'library' && !panel.hidden) renderLibrary(); }
+function togglePanel(id, open = true) {
+  const panel = $('#' + id), wasOpen = !panel.hidden, shouldOpen = open === false ? false : panel.hidden;
+  if (shouldOpen) {
+    panelFocusReturn.set(id, document.activeElement); panel.hidden = false;
+    requestAnimationFrame(() => panel.querySelector('button, input, select, textarea, [tabindex]:not([tabindex="-1"])')?.focus());
+  } else {
+    panel.hidden = true;
+    const trigger = panelFocusReturn.get(id); if (wasOpen && trigger?.isConnected) trigger.focus();
+  }
+  if (id === 'vocab' && !panel.hidden) renderVocabulary(); if (id === 'stats' && !panel.hidden) renderStats(); if (id === 'library' && !panel.hidden) renderLibrary();
+}
 function updateNetworkStatus() {
   const banner = $('#network-status'); banner.hidden = navigator.onLine;
   banner.textContent = navigator.onLine ? '' : 'You are offline. Changes will sync automatically when you reconnect.';
@@ -168,6 +196,11 @@ function goToUpload() {
   setStatus('Choose a book to open the Reader.');
   requestAnimationFrame(() => { drop.scrollIntoView({ behavior: 'smooth', block: 'center' }); drop.focus({ preventScroll: true }); drop.classList.add('guide-focus'); setTimeout(() => drop.classList.remove('guide-focus'), 1100); });
 }
+
+drop.addEventListener('keydown', event => {
+  if (event.key !== 'Enter' && event.key !== ' ') return;
+  event.preventDefault(); fileInput.click();
+});
 
 function updateAccount(user) {
   $('#account-signed-out').hidden = !!user; $('#account-signed-in').hidden = !user;
@@ -226,7 +259,7 @@ async function renderLibrary() {
 }
 function bookCover(book) { const cover = el('span', 'book-cover ' + (book.type || 'file')); cover.append(el('small', '', (book.type || 'file').toUpperCase()), el('strong', '', (book.title || book.name).slice(0, 26))); return cover; }
 function bookProgress(book) { const wrap = el('span', 'book-progress'), bar = el('span'); bar.style.width = Math.min(100, Math.max(0, book.progress || 0)) + '%'; wrap.append(bar); return wrap; }
-function bookRow(book) { const row = el('div', 'library-row'), info = el('div', 'library-row-info'), actions = el('div', 'library-row-actions'), open = el('button', 'btn', 'Open'), rename = el('button', 'icon-btn', '✎'), favorite = el('button', 'icon-btn', book.favorite ? '★' : '☆'), remove = el('button', 'icon-btn', '×'); info.append(bookCover(book), el('span', 'library-row-copy', (book.title || book.name).replace(/\.[^.]+$/, '')), bookProgress(book)); open.onclick = () => { openFile(new File([book.file], book.name, { type: book.file.type, lastModified: book.modified })); togglePanel('library', false); }; rename.title = 'Rename book'; rename.onclick = () => { const title = prompt('Book title', book.title || book.name); if (title?.trim()) updateBook(book.key, { title: title.trim() }); }; favorite.title = 'Toggle favorite'; favorite.onclick = () => updateBook(book.key, { favorite: !book.favorite }); remove.title = 'Remove book'; remove.onclick = async () => { await libraryRequest('readwrite', booksStore => booksStore.delete(book.key)); renderLibrary(); }; actions.append(open, rename, favorite, remove); row.append(info, actions); return row; }
+function bookRow(book) { const row = el('div', 'library-row'), info = el('div', 'library-row-info'), actions = el('div', 'library-row-actions'), open = el('button', 'btn', 'Open'), rename = el('button', 'icon-btn', '✎'), favorite = el('button', 'icon-btn', book.favorite ? '★' : '☆'), remove = el('button', 'icon-btn', '×'); info.append(bookCover(book), el('span', 'library-row-copy', (book.title || book.name).replace(/\.[^.]+$/, '')), bookProgress(book)); open.onclick = () => { openFile(new File([book.file], book.name, { type: book.file.type, lastModified: book.modified })); togglePanel('library', false); }; rename.title = 'Rename book'; rename.onclick = () => { const title = prompt('Book title', book.title || book.name); if (title?.trim()) updateBook(book.key, { title: title.trim() }); }; favorite.title = 'Toggle favorite'; favorite.onclick = () => updateBook(book.key, { favorite: !book.favorite }); remove.title = 'Remove book'; remove.onclick = async () => { if (!confirm(`Remove “${book.title || book.name}” from this device?`)) return; await libraryRequest('readwrite', booksStore => booksStore.delete(book.key)); renderLibrary(); showToast('Book removed from this device.'); }; actions.append(open, rename, favorite, remove); row.append(info, actions); return row; }
 function bookCard(book) { const card = el('article', 'book-card'), open = el('button', 'book-open'); open.type = 'button'; open.append(bookCover(book), el('strong', '', (book.title || book.name).replace(/\.[^.]+$/, '')), bookProgress(book), el('small', '', Math.round(book.progress || 0) + '% complete')); open.onclick = () => openFile(new File([book.file], book.name, { type: book.file.type, lastModified: book.modified })); const favorite = el('button', 'icon-btn book-favorite', book.favorite ? '★' : '☆'); favorite.onclick = () => updateBook(book.key, { favorite: !book.favorite }); card.append(open, favorite); return card; }
 
 /* ---------- Opening files ---------- */
@@ -272,11 +305,10 @@ async function openFile(file) {
     if (name.endsWith('.pdf')) await readPdf(file, my);
     else if (name.endsWith('.docx')) await readDocx(file);
     else if (name.endsWith('.pptx')) await readPptx(file);
-    else if (name.endsWith('.ppt')) return setStatus('Old .ppt files are not readable in the browser yet. Save it as .pptx in PowerPoint, then try again.', true);
     else if (name.endsWith('.epub')) await readEpub(file);
     else if (/\.(png|jpe?g)$/i.test(name)) await readImage(file);
     else if (name.endsWith('.txt')) addParagraphs((await file.text()).split(/\n\s*\n/));
-    else return setStatus('Use a PDF, DOCX, EPUB, TXT or image file.', true);
+    else return setStatus('Use a PDF, DOCX, PPTX, EPUB, TXT or image file.', true);
     if (my !== openToken) return;
     if (!reader.textContent.trim()) return setStatus('No text found. This file may be scanned images.', true);
     reveal(file.name);
@@ -436,7 +468,7 @@ function renderStats() {
   $('#stats-content').innerHTML = `<div class="stats-grid"><p><strong>${Math.round(seconds / 60)}</strong><small>minutes read</small></p><p><strong>${store.get(vocabKey, []).length}</strong><small>saved words</small></p><p><strong>${days.size}</strong><small>reading days</small></p></div><p class="note">Your progress stays private in this browser and syncs only when you choose Google sync.</p>`;
 }
 function renderSavedItems() {
-  const bookmarks = store.get('er-bookmarks', []), notes = store.get('er-notes', []), highlights = store.get('er-highlights', []);
+  const bookmarks = store.get('er-bookmarks', []).filter(item => item.file === currentFileKey), notes = store.get('er-notes', []).filter(item => item.file === currentFileKey), highlights = store.get('er-highlights', []).filter(item => item.file === currentFileKey);
   const bookmarkList = $('#bookmark-list'), savedList = $('#saved-list'); bookmarkList.replaceChildren(); savedList.replaceChildren();
   if (!bookmarks.length) bookmarkList.append(el('p', 'note', 'No bookmarks yet.'));
   bookmarks.slice(0, 20).forEach(bookmark => { const button = el('button', 'saved-item', bookmark.name || 'Reading position'); button.append(el('small', '', new Date(bookmark.created).toLocaleDateString())); button.onclick = () => { scrollTo({ top: bookmark.scroll, behavior: 'smooth' }); toggleContents(false); }; bookmarkList.append(button); });
@@ -468,7 +500,7 @@ async function exportAllData() {
 }
 async function deleteAllLocalData() {
   if (!confirm('Delete local books, notes, vocabulary, highlights, bookmarks, and progress? This cannot be undone.')) return;
-  localStorage.clear(); await new Promise(resolve => { const request = indexedDB.deleteDatabase('easyread-library'); request.onsuccess = request.onerror = request.onblocked = resolve; });
+  Object.keys(localStorage).filter(key => key.startsWith('er-')).forEach(key => localStorage.removeItem(key)); await new Promise(resolve => { const request = indexedDB.deleteDatabase('easyread-library'); request.onsuccess = request.onerror = request.onblocked = resolve; });
   $('#privacy-status').textContent = 'Local data deleted. Reload to start fresh.'; showToast('Local data deleted.');
 }
 
@@ -574,7 +606,16 @@ document.addEventListener('click', e => {
   hit ? showWord(hit) : hidePopup();
 });
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') { hidePopup(); toggleContents(false); ['privacy', 'shortcuts', 'contact'].forEach(id => togglePanel(id, false)); }
+  const openDialog = [...document.querySelectorAll('[role="dialog"]')].find(panel => !panel.hidden);
+  if (e.key === 'Tab' && openDialog) {
+    const focusable = [...openDialog.querySelectorAll('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [href]')];
+    if (focusable.length) {
+      const first = focusable[0], last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
+  }
+  if (e.key === 'Escape') { hidePopup(); toggleContents(false); ['settings', 'vocab', 'stats', 'library', 'learning', 'account', 'privacy', 'shortcuts', 'contact'].forEach(id => togglePanel(id, false)); }
   if (e.target.matches('input, textarea, select')) return;
   if (e.key === '/') { e.preventDefault(); if (!readerWrap.hidden) { setView('reader'); $('#reader-tools').hidden = false; $('#search-input').focus(); } }
   if (e.key.toLowerCase() === 'f' && !readerWrap.hidden) { document.body.classList.toggle('focus-mode'); $('#focus-btn').textContent = document.body.classList.contains('focus-mode') ? 'Exit focus' : 'Focus'; }
