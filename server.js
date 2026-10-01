@@ -9,6 +9,16 @@ const port = Number(process.env.PORT || 8080);
 const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.webmanifest': 'application/manifest+json', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg' };
 const partsOfSpeech = [{ code: 'n', name: 'noun' }, { code: 'v', name: 'verb' }, { code: 'a', name: 'adjective' }, { code: 'r', name: 'adverb' }];
 const wordnetIndexes = new Map();
+const irregularForms = new Map(Object.entries({
+  children: ['child'], people: ['person'], men: ['man'], women: ['woman'], feet: ['foot'], teeth: ['tooth'], mice: ['mouse'], geese: ['goose'], oxen: ['ox'], indices: ['index'], matrices: ['matrix'], vertices: ['vertex'], analyses: ['analysis'], bases: ['basis'], crises: ['crisis'], theses: ['thesis'], hypotheses: ['hypothesis'], phenomena: ['phenomenon'], criteria: ['criterion'], stimuli: ['stimulus'], fungi: ['fungus'], cacti: ['cactus'], alumni: ['alumnus'], data: ['datum'], media: ['medium'],
+  am: ['be'], are: ['be'], is: ['be'], was: ['be'], were: ['be'], been: ['be'], being: ['be'], went: ['go'], gone: ['go'], did: ['do'], does: ['do'], done: ['do'], had: ['have'], has: ['have'], having: ['have'], got: ['get'], gotten: ['get'], made: ['make'], took: ['take'], taken: ['take'], gave: ['give'], given: ['give'], saw: ['see'], seen: ['see'], said: ['say'], told: ['tell'], thought: ['think'], knew: ['know'], known: ['know'], found: ['find'], felt: ['feel'], left: ['leave'], kept: ['keep'], began: ['begin'], begun: ['begin'], became: ['become'], brought: ['bring'], bought: ['buy'], caught: ['catch'], chose: ['choose'], chosen: ['choose'], came: ['come'], ran: ['run'], written: ['write'], wrote: ['write'], read: ['read'], ate: ['eat'], eaten: ['eat'], spoke: ['speak'], spoken: ['speak'], drove: ['drive'], driven: ['drive'], fell: ['fall'], fallen: ['fall'], flew: ['fly'], forgotten: ['forget'], grew: ['grow'], grown: ['grow'], held: ['hold'], led: ['lead'], lost: ['lose'], met: ['meet'], paid: ['pay'], rode: ['ride'], risen: ['rise'], sent: ['send'], sang: ['sing'], sung: ['sing'], sat: ['sit'], slept: ['sleep'], spent: ['spend'], stood: ['stand'], swam: ['swim'], taught: ['teach'], thrown: ['throw'], understood: ['understand'], wore: ['wear'], worn: ['wear'], won: ['win']
+}));
+const morphologyRules = {
+  n: [['s', ''], ['ses', 's'], ['xes', 'x'], ['zes', 'z'], ['ches', 'ch'], ['shes', 'sh'], ['men', 'man'], ['ies', 'y'], ['ves', 'f'], ['ves', 'fe']],
+  v: [['s', ''], ['ies', 'y'], ['es', 'e'], ['es', ''], ['ed', 'e'], ['ed', ''], ['ing', 'e'], ['ing', '']],
+  a: [['er', ''], ['est', ''], ['er', 'e'], ['est', 'e']],
+  r: []
+};
 
 function getWordnetIndex(pos) {
   if (!wordnetIndexes.has(pos.code)) {
@@ -42,6 +52,17 @@ async function findWordnetEntry(pos, word) {
   return null;
 }
 
+function morphologyCandidates(word, pos) {
+  const candidates = [word, ...(irregularForms.get(word) || [])];
+  for (const [suffix, replacement] of morphologyRules[pos.code]) {
+    if (word.length > suffix.length && word.endsWith(suffix)) candidates.push(word.slice(0, -suffix.length) + replacement);
+  }
+  for (const candidate of [...candidates]) {
+    if (/(.)\1$/.test(candidate)) candidates.push(candidate.slice(0, -1));
+  }
+  return [...new Set(candidates)];
+}
+
 async function readWordnetGloss(pos, offset) {
   const name = pos.code === 'a' ? 'adj' : pos.code === 'r' ? 'adv' : pos.code === 'n' ? 'noun' : 'verb';
   const handle = await fsp.open(path.join(wordnet.path, `data.${name}`), 'r');
@@ -55,17 +76,29 @@ async function readWordnetGloss(pos, offset) {
 }
 
 async function lookupWordnet(word) {
-  const meanings = [];
+  const primaryMeanings = [], additionalMeanings = [], seen = new Set();
   for (const pos of partsOfSpeech) {
-    const line = await findWordnetEntry(pos, word);
+    let line = null;
+    for (const candidate of morphologyCandidates(word, pos)) {
+      line = await findWordnetEntry(pos, candidate);
+      if (line) break;
+    }
     if (!line) continue;
+    const posMeanings = [];
     const fields = line.trim().split(/\s+/), offsetStart = 6 + Number(fields[3]);
     for (const offset of fields.slice(offsetStart, offsetStart + 3)) {
       const definition = await readWordnetGloss(pos, offset);
-      if (definition && !meanings.some(item => item.definition === definition)) meanings.push({ partOfSpeech: pos.name, definition, example: '' });
-      if (meanings.length === 3) return { word: word.replace(/_/g, ' '), phonetic: '', meanings };
+      if (definition && !seen.has(definition)) {
+        seen.add(definition);
+        posMeanings.push({ partOfSpeech: pos.name, definition, example: '' });
+      }
+    }
+    if (posMeanings.length) {
+      primaryMeanings.push(posMeanings[0]);
+      additionalMeanings.push(...posMeanings.slice(1));
     }
   }
+  const meanings = [...primaryMeanings, ...additionalMeanings].slice(0, 3);
   return meanings.length ? { word: word.replace(/_/g, ' '), phonetic: '', meanings } : null;
 }
 
