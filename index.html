@@ -14,7 +14,7 @@
 <meta property="og:description" content="Open a book, tap a word, and keep going.">
 <meta property="og:image" content="og-image.svg">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<script src="script.js"></script>
+<script src="script.js" defer></script>
 </head>
 <body data-view="about">
 <div id="meter" aria-hidden="true"></div>
@@ -63,12 +63,12 @@
       <p class="welcome-kicker">A little help for big reading days</p>
       <h1>Open a book. Feel at home in every word.</h1>
       <p class="lead">EasyRead makes difficult pages feel lighter. Open your book, tap anything unfamiliar, and keep going without breaking your flow.</p>
-      <label class="drop" id="drop" tabindex="0">
+      <button class="drop" id="drop" type="button" aria-describedby="upload-help">
         <svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 19V6M9 11l5-5 5 5M6 22h16"/></svg>
         <span class="drop-title">Choose a file or drop it here</span>
-        <small>PDF, DOCX, PPTX, EPUB, TXT or images. Your files stay on your device; lookups and translation use the internet.</small>
-        <input id="file" type="file" accept=".pdf,.docx,.pptx,.txt,.epub,.png,.jpg,.jpeg">
-      </label>
+        <small id="upload-help">PDF, DOCX, PPTX, EPUB, TXT or images. Your files stay on your device; lookups and translation use the internet.</small>
+      </button>
+      <input id="file" class="file-input" type="file" accept=".pdf,.docx,.pptx,.txt,.epub,.png,.jpg,.jpeg" aria-label="Choose a book file">
       <div id="welcome-signin" class="welcome-signin" hidden><span>Want your words and progress everywhere?</span><button id="welcome-signin-btn" class="btn" type="button">Sign in with Google</button><button id="welcome-dismiss" class="text-button" type="button">Maybe later</button></div>
       <p id="status" role="status"></p>
     </div>
@@ -238,15 +238,7 @@
   <button id="onboarding-start" class="btn account-action" type="button">Start reading</button>
 </aside>
 
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.0.4/tesseract.min.js"></script>
-<script src="firebase-config.js"></script>
-<script src="app.js"></script>
+<script src="firebase-config.js" defer></script>
+<script src="app.js" defer></script>
 </body>
 </html>
