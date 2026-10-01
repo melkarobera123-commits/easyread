@@ -27,9 +27,9 @@ function loadScript(url) {
 }
 function loadLibrary(name) { return loadScript(sources[name]); }
 function loadPdfLibrary() {
-  if (!pdfLibraryPromise) pdfLibraryPromise = import('./node_modules/pdfjs-dist/legacy/build/pdf.mjs').then(library => {
+  if (!pdfLibraryPromise) pdfLibraryPromise = import('./pdfjs/pdf.mjs').then(library => {
     pdfjsLib = library;
-    pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('./node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs', document.baseURI).href;
+    pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('./pdfjs/pdf.worker.mjs', document.baseURI).href;
     return pdfjsLib;
   }).catch(error => { pdfLibraryPromise = null; throw new Error(`Could not load the local PDF reader: ${error.message}`); });
   return pdfLibraryPromise;
