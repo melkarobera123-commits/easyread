@@ -42,7 +42,7 @@ const putDefinition = value => dbRequest('definitions', 'readwrite', store => st
 const fileInput = byId('file'), drop = byId('drop'), reader = byId('reader'), readerWrap = byId('reader-wrap');
 const pdfPages = byId('pdf-pages'), pdfThumbs = byId('pdf-thumbs'), popup = byId('popup');
 const STORE_KEYS = { vocabulary: 'er-vocabulary', notes: 'er-notes', highlights: 'er-highlights', bookmarks: 'er-bookmarks', stats: 'er-stats' };
-let activeBook = null, activePdf = null, pdfMode = true, zoom = 1, pageCount = 0, lookupController = null, toastTimer, saveTimer, auth = null, firestore = null, storage = null, user = null;
+let activeBook = null, activePdf = null, pdfMode = true, zoom = 1, pageCount = 0, lookupController = null, toastTimer, saveTimer, auth = null, firestore = null, storage = null, user = null, installPromptEvent = null;
 let pageObserver = null, thumbObserver = null, activePage = 1, pdfTextPromise = null, pdfSearchMatches = [], pdfSearchIndex = -1, searchToken = 0, firebaseInitPromise = null, cloudSyncTimer = null;
 
 function toast(message) { const node = byId('toast'); node.textContent = message; node.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { node.hidden = true; }, 2800); }
@@ -150,8 +150,33 @@ function updateProfile(){const label=user?.displayName?.split(' ')[0]||'Sign in'
 async function signIn(){try{await initFirebase();await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());showPanel('account',false);toast('Signed in with Google.');}catch(error){byId('auth-status').textContent=error.message;}}
 function queueCloudSync(){if(!user)return;clearTimeout(cloudSyncTimer);cloudSyncTimer=setTimeout(syncCloud,800);}
 async function syncCloud(){if(!user||!navigator.onLine)return;try{if(!firestore)await initFirebase();const ref=firestore.collection('users').doc(user.uid),snapshot=await ref.get(),remote=snapshot.exists?snapshot.data():{},data={};for(const [name,key]of Object.entries(STORE_KEYS)){const localItems=local.get(key,[]),remoteItems=Array.isArray(remote[name])?remote[name]:[],seen=new Set(),merged=[];for(const item of [...remoteItems,...localItems]){const signature=JSON.stringify(item);if(!seen.has(signature)){seen.add(signature);merged.push(item);}}data[name]=merged.slice(-1000);local.set(key,data[name]);}await ref.set(data,{merge:true});byId('sync-label').textContent='Synced just now';byId('last-synced').textContent='Last synced '+new Date().toLocaleString();toast('Reading data synced.');}catch(error){byId('sync-label').textContent='Sync needs attention';console.warn('Sync failed',error);}}
+function updateInstallButton() {
+  const button = byId('install-btn');
+  if (!button) return;
+  button.hidden = !installPromptEvent;
+}
+
 async function init() {
   initNavigation();
+  updateInstallButton();
+  window.addEventListener('beforeinstallprompt', event => {
+    event.preventDefault();
+    installPromptEvent = event;
+    updateInstallButton();
+  });
+  window.addEventListener('appinstalled', () => {
+    installPromptEvent = null;
+    updateInstallButton();
+    toast('EasyRead was installed.');
+  });
+  byId('install-btn')?.addEventListener('click', async () => {
+    if (!installPromptEvent) { toast('Install is not available in this browser yet.'); return; }
+    installPromptEvent.prompt();
+    const choice = await installPromptEvent.userChoice;
+    installPromptEvent = null;
+    updateInstallButton();
+    toast(choice.outcome === 'accepted' ? 'App installed.' : 'Install cancelled.');
+  });
   fileInput.addEventListener('change',()=>{openFile(fileInput.files?.[0]);fileInput.value='';});
   drop.addEventListener('click',event=>{if(event.target!==fileInput)fileInput.click();}); drop.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();fileInput.click();}});
   for(const eventName of ['dragover','dragleave','drop'])drop.addEventListener(eventName,event=>{event.preventDefault();drop.classList.toggle('over',eventName==='dragover');if(eventName==='drop'&&event.dataTransfer.files[0])openFile(event.dataTransfer.files[0]);});
