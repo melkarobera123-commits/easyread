@@ -1,0 +1,1 @@
+& "C:\Program Files\nodejs\node.exe" (Join-Path $PSScriptRoot "server.js")

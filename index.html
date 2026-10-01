@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>EasyRead - a calmer way to read</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@300;500&family=Literata:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#2F3FE0">
+<meta name="description" content="EasyRead helps you understand books without losing your reading flow.">
+<meta property="og:title" content="EasyRead - a calmer way to read">
+<meta property="og:description" content="Open a book, tap a word, and keep going.">
+<meta property="og:image" content="og-image.svg">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<script src="script.js" defer></script>
+</head>
+<body data-view="about">
+<div id="meter" aria-hidden="true"></div>
+<div id="network-status" class="network-status" role="status" hidden></div>
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+<aside id="signin-modal" class="signin-modal" hidden role="dialog" aria-modal="true" aria-labelledby="signin-title">
+  <div class="signin-card"><button id="signin-modal-close" class="close signin-close" type="button" aria-label="Close sign-in prompt">×</button><div class="signin-mark">—</div><p class="eyebrow">Optional, always yours</p><h2 id="signin-title">Take your reading with you.</h2><p>Sign in with Google to keep your vocabulary, bookmarks, and progress available on your other devices.</p><button id="signin-modal-google" class="btn account-action" type="button">Continue with Google</button><button id="signin-modal-later" class="text-button" type="button">Maybe later</button></div>
+</aside>
+<aside id="app-sidebar" class="app-sidebar" aria-label="App navigation">
+  <a class="sidebar-brand" href="#top"><span class="sidebar-mark">—</span><span>EasyRead</span></a>
+  <p class="sidebar-caption">Your calmer reading room</p>
+  <nav class="sidebar-nav">
+    <button id="sidebar-about" class="shell-nav active" type="button"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1zM9 21v-7h6v7"/></svg><span>About</span></button>
+    <button id="sidebar-reader" class="shell-nav" type="button"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h11a3 3 0 0 1 3 3v15H8a3 3 0 0 0-3 3zM5 3v18a3 3 0 0 1 3-3h11"/><path d="M9 8h6M9 12h6"/></svg><span>Reader</span></button>
+    <button id="sidebar-library" class="shell-nav" type="button"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v16H4zM8 3v18M12 7h5M12 11h5"/></svg><span>Library</span></button>
+  </nav>
+  <div class="sidebar-bottom">
+    <button id="sidebar-account" class="profile-entry" type="button"><span class="profile-avatar"><img id="sidebar-avatar" alt=""></span><span><strong id="sidebar-account-label">Sign in</strong><small id="sidebar-account-meta">Sync your reading</small></span></button>
+  <button id="sidebar-theme" class="shell-nav" type="button"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><span>Appearance</span></button>
+  </div>
+</aside>
+<header class="top">
+  <a class="brand" href="#top">
+    <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="7" fill="currentColor"/><path d="M6.5 15.5h11" stroke="var(--marker)" stroke-width="3.2" stroke-linecap="round"/></svg>
+    EasyRead
+  </a>
+  <button id="theme" class="theme-toggle" type="button" aria-label="Switch to dark mode"><span class="theme-icon">◐</span><span id="theme-label">Dark mode</span></button>
+  <button id="install-btn" class="btn" type="button" hidden>Install app</button>
+  <nav class="nav-links" aria-label="Primary navigation">
+    <button id="about-nav" class="nav-link active" type="button">About</button>
+    <button id="reader-nav" class="nav-link" type="button">Reader</button>
+  </nav>
+  <button id="library-btn" class="btn top-library" type="button">My library</button>
+  <button id="account-btn" class="btn account-trigger" type="button"><img id="account-avatar" alt="" hidden><span id="account-label">Sign in</span></button>
+</header>
+
+<nav id="mobile-nav" class="mobile-nav" aria-label="Mobile navigation">
+  <button id="mobile-about" class="shell-nav active" type="button"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/></svg><span>About</span></button>
+  <button id="mobile-reader" class="shell-nav" type="button"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h11a3 3 0 0 1 3 3v15H8a3 3 0 0 0-3 3zM5 3v18a3 3 0 0 1 3-3h11"/></svg><span>Reader</span></button>
+  <button id="mobile-library" class="shell-nav" type="button"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v16H4zM8 3v18"/></svg><span>Library</span></button>
+  <button id="mobile-account" class="shell-nav" type="button"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c.8-4 3.4-6 8-6s7.2 2 8 6"/></svg><span>Profile</span></button>
+</nav>
+
+<main id="top">
+  <section class="hero">
+    <div class="copy">
+      <p class="welcome-kicker">A little help for big reading days</p>
+      <h1>Open a book. Feel at home in every word.</h1>
+      <p class="lead">EasyRead makes difficult pages feel lighter. Open your book, tap anything unfamiliar, and keep going without breaking your flow.</p>
+      <button class="drop" id="drop" type="button" aria-describedby="upload-help">
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 19V6M9 11l5-5 5 5M6 22h16"/></svg>
+        <span class="drop-title">Choose a file or drop it here</span>
+        <small id="upload-help">PDF, DOCX, PPTX, EPUB, TXT or images. Your files stay on your device; lookups and translation use the internet.</small>
+      </button>
+      <input id="file" class="file-input" type="file" accept=".pdf,.docx,.pptx,.txt,.epub,.png,.jpg,.jpeg" aria-label="Choose a book file">
+      <div id="welcome-signin" class="welcome-signin" hidden><span>Want your words and progress everywhere?</span><button id="welcome-signin-btn" class="btn" type="button">Sign in with Google</button><button id="welcome-dismiss" class="text-button" type="button">Maybe later</button></div>
+      <p id="status" role="status"></p>
+    </div>
+    <figure class="stack">
+      <div class="sheet">
+        <p class="readable">The lighthouse keeper was reluctant to abandon his post, even as the storm grew <mark class="demo-word">ominous</mark> and the waves relentlessly battered the rocks.</p>
+      </div>
+      <div class="demo-definition" aria-hidden="true"><span>ominous</span><strong>suggesting that something bad may happen</strong><small>Tap a word to look it up</small></div>
+      <figcaption>A gentler way to understand as you read.</figcaption>
+    </figure>
+  </section>
+
+  <section class="steps" aria-label="How it works">
+    <ol>
+      <li><h2>Open your book</h2><p>Choose a PDF, Word or text file from your device.</p></li>
+      <li><h2>Tap any word</h2><p>A short meaning and an example appear beside the word.</p></li>
+      <li><h2>Keep reading</h2><p>Tap somewhere else and carry on. Nothing gets in your way.</p></li>
+    </ol>
+  </section>
+
+  <section id="library-home" class="library-home" aria-labelledby="library-title">
+    <div class="section-heading"><div><p class="eyebrow">Your reading shelf</p><h2 id="library-title">Pick up where you left off</h2></div><button id="library-home-btn" class="btn" type="button">Open library</button></div>
+    <div class="library-subheading"><span>Recently opened</span><select id="home-library-sort" aria-label="Sort recent books"><option value="recent">Last opened</option><option value="title">Title</option><option value="progress">Progress</option></select></div>
+    <div id="library-preview" class="library-grid"><p class="note">Your imported books will appear here.</p></div>
+  </section>
+
+  <section id="reader-wrap" class="reader-wrap" hidden>
+    <div class="bar">
+      <div class="bar-primary"><button id="contents-btn" class="btn" type="button" aria-expanded="false" aria-controls="contents">Contents</button><button id="saved-btn" class="btn" type="button">Saved</button><button id="search-btn" class="btn" type="button">Search</button></div>
+      <span id="page-now"></span>
+      <span id="progress"></span>
+      <details class="toolbar-more"><summary class="btn">More</summary><div class="toolbar-menu"><button id="focus-btn" class="btn" type="button">Focus</button><button id="fullscreen-btn" class="btn" type="button" aria-label="Enter fullscreen reading">Fullscreen</button><button id="settings-btn" class="btn" type="button" aria-expanded="false">Settings</button><span class="text-size"><button id="smaller" class="btn" type="button" aria-label="Smaller text">A−</button><button id="larger" class="btn" type="button" aria-label="Larger text">A+</button></span><button id="again" class="btn" type="button">New file</button></div></details>
+    </div>
+    <header class="doc-head">
+      <p id="file-name" class="doc-title"></p>
+      <p id="doc-meta"></p>
+    </header>
+    <div id="reader-tools" class="reader-tools" hidden>
+      <label>Search <input id="search-input" type="search" placeholder="Find in this book"></label>
+      <span id="search-count"></span>
+      <button id="search-prev" class="btn" type="button" aria-label="Previous result">↑</button>
+      <button id="search-next" class="btn" type="button" aria-label="Next result">↓</button>
+      <button id="highlight-btn" class="btn" type="button">Highlight</button>
+      <button id="vocab-btn" class="btn" type="button">Vocabulary</button>
+      <button id="stats-btn" class="btn" type="button">Stats</button>
+      <button id="bookmark-btn" class="btn" type="button">Bookmark</button>
+      <button id="export-btn" class="btn" type="button">Export</button>
+      <button id="flashcards-btn" class="btn" type="button">Flashcards</button>
+      <button id="speak-page-btn" class="btn" type="button">Read aloud</button>
+      <button id="stop-speech-btn" class="btn" type="button">Stop voice</button>
+      <button id="autoscroll-btn" class="btn" type="button">Auto-scroll</button>
+      <button id="line-focus-btn" class="btn" type="button">Line focus</button>
+      <button id="pdf-mode-btn" class="btn" type="button" hidden>Page view</button>
+      <span id="pdf-controls" class="pdf-controls" hidden><button id="pdf-prev" class="icon-btn" type="button" aria-label="Previous PDF page">‹</button><span id="pdf-page-label">Page 1</span><button id="pdf-next" class="icon-btn" type="button" aria-label="Next PDF page">›</button><button id="pdf-zoom-out" class="icon-btn" type="button" aria-label="Zoom out">−</button><button id="pdf-zoom-in" class="icon-btn" type="button" aria-label="Zoom in">+</button><button id="pdf-fullscreen" class="btn" type="button">Full document</button></span>
+    </div>
+    <div id="pdf-thumbs" class="pdf-thumbs" hidden></div>
+    <div id="pdf-pages" class="pdf-pages" hidden></div>
+    <div id="loading-skeleton" class="loading-skeleton" hidden aria-label="Loading document"><span></span><span></span><span></span></div>
+    <article id="reader" class="sheet readable"></article>
+  </section>
+</main>
+
+<footer class="site-footer"><span>Rob_Era (Abiti) Made with love</span><span class="footer-links"><a id="contact-link" href="#contact">Contact developer</a><button id="privacy-link" class="footer-button" type="button">Privacy</button><button id="shortcuts-link" class="footer-button" type="button">Shortcuts</button></span></footer>
+
+<aside id="contents" class="contents" aria-label="Contents">
+  <div class="contents-head"><h2>Contents</h2><button id="contents-close" class="btn" type="button">Close</button></div>
+  <label class="jump">Go to page <input id="jump" type="number" min="1" inputmode="numeric" placeholder="12"></label>
+  <ol id="outline"></ol>
+  <p id="outline-empty">No chapter titles found in this file.</p>
+  <section class="saved-section"><h3>Bookmarks</h3><div id="bookmark-list"></div><h3>Notes & highlights</h3><div id="saved-list"></div></section>
+</aside>
+
+<aside id="popup" role="dialog" aria-live="polite" hidden></aside>
+
+<aside id="settings" class="panel" hidden role="dialog" aria-modal="true" aria-labelledby="settings-title">
+  <div class="contents-head"><h2 id="settings-title">Reader settings</h2><button id="settings-close" class="btn" type="button">Close</button></div>
+  <label>Font <select id="font-choice"><option value="literata">Literata</option><option value="serif">Classic serif</option><option value="dyslexic">OpenDyslexic</option></select></label>
+  <label>Line spacing <input id="spacing" type="range" min="1.5" max="2.3" step=".1" value="1.9"></label>
+  <label>Page width <input id="width" type="range" min="620" max="980" step="20" value="780"></label>
+  <label class="check"><input id="contrast" type="checkbox"> High contrast</label>
+  <label>Daily reading goal <select id="reading-goal"><option value="0">No goal</option><option value="10">10 minutes</option><option value="20">20 minutes</option><option value="30">30 minutes</option><option value="45">45 minutes</option><option value="60">60 minutes</option></select></label>
+  <label>Reading language <select id="source-language"><option value="en">English</option><option value="am">Amharic</option><option value="es">Spanish</option><option value="fr">French</option><option value="de">German</option></select></label>
+  <label>Translation language <select id="translation-language"><option value="am">Amharic</option><option value="es">Spanish</option><option value="fr">French</option><option value="de">German</option></select></label>
+  <label>Read-aloud speed <input id="speech-rate" type="range" min="0.7" max="1.4" step="0.1" value="1"><output id="speech-rate-value">1.0×</output></label>
+  <label>Voice <select id="speech-voice"><option value="">Browser default</option></select></label>
+</aside>
+
+<aside id="vocab" class="panel vocab-panel" hidden role="dialog" aria-modal="true" aria-labelledby="vocab-title">
+  <div class="contents-head"><h2 id="vocab-title">My vocabulary</h2><button id="vocab-close" class="btn" type="button">Close</button></div>
+  <div id="vocab-list"></div>
+</aside>
+
+<aside id="stats" class="panel stats-panel" hidden role="dialog" aria-modal="true" aria-labelledby="stats-title">
+  <div class="contents-head"><h2 id="stats-title">Reading progress</h2><button id="stats-close" class="btn" type="button">Close</button></div>
+  <div id="stats-content"></div>
+</aside>
+
+<aside id="library" class="panel library-panel" hidden role="dialog" aria-modal="true" aria-labelledby="library-panel-title">
+  <div class="contents-head"><h2 id="library-panel-title">My library</h2><button id="library-close" class="btn" type="button">Close</button></div>
+  <p class="note">Files are stored only in this browser.</p>
+  <label class="library-search">Find a book <input id="library-search" type="search" placeholder="Search your library"></label>
+  <label class="library-filter">Show <select id="library-filter"><option value="all">All files</option><option value="favorite">Favorites</option><option value="pdf">PDF</option><option value="docx">Word</option><option value="epub">EPUB</option><option value="txt">Text</option><option value="image">Images</option></select></label>
+  <label class="library-sort">Sort by <select id="library-sort"><option value="recent">Last opened</option><option value="title">Title</option><option value="progress">Progress</option></select></label>
+  <h3 class="library-section-title">Favorites</h3><div id="library-favorites"></div>
+  <h3 class="library-section-title">Recently opened</h3><div id="library-list"></div>
+</aside>
+
+<aside id="learning" class="panel learning-panel" hidden role="dialog" aria-modal="true" aria-labelledby="learning-title">
+  <div class="contents-head"><h2 id="learning-title">Learning</h2><button id="learning-close" class="btn" type="button">Close</button></div>
+  <div id="learning-content"></div>
+</aside>
+
+<aside id="account" class="panel account-panel" hidden role="dialog" aria-modal="true" aria-labelledby="account-title">
+  <div class="contents-head"><h2 id="account-title">Your account</h2><button id="account-close" class="btn" type="button">Close</button></div>
+  <div id="account-signed-out">
+    <p>Sign in with Google to sync vocabulary, notes, bookmarks, and reading progress across your devices.</p>
+    <button id="google-signin" class="btn account-action" type="button">Continue with Google</button>
+    <p id="auth-status" class="note"></p>
+  </div>
+  <div id="account-signed-in" hidden>
+    <div class="account-summary"><img id="account-photo" class="account-photo" alt="Google profile photo"><div><strong id="account-name"></strong><small id="account-email"></small></div></div>
+    <p id="sync-status" class="sync-state"><span class="sync-dot"></span><span id="sync-label">Not synced yet</span></p>
+    <p id="last-synced" class="note"></p>
+    <p id="pending-sync" class="note"></p>
+    <p id="sync-conflicts" class="note"></p>
+    <button id="sync-now" class="btn account-action" type="button">Sync now</button>
+    <button id="backup-books" class="btn account-action" type="button">Back up original books</button>
+    <button id="restore-books" class="btn account-action" type="button">Restore backed-up books</button>
+    <p id="book-backup-status" class="note"></p>
+    <button id="signout" class="btn account-action" type="button">Sign out</button>
+  </div>
+</aside>
+
+<aside id="contact" class="panel contact-panel" hidden role="dialog" aria-modal="true" aria-labelledby="contact-title">
+  <div class="contents-head"><h2 id="contact-title">Say hello</h2><button id="contact-close" class="btn" type="button">Close</button></div>
+  <p>Found a rough edge or have an idea? Leave a note for the developer.</p>
+  <div class="contact-cards"><a id="contact-telegram" class="contact-card" target="_blank" rel="noreferrer"><span class="contact-symbol">↗</span><span><strong>Telegram</strong><small id="contact-telegram-label">Add handle</small></span></a><a id="contact-phone" class="contact-card"><span class="contact-symbol">⌕</span><span><strong>Phone</strong><small id="contact-phone-label">Add number</small></span></a><a id="contact-email" class="contact-card"><span class="contact-symbol">@</span><span><strong>Email</strong><small id="contact-email-label">Add address</small></span></a></div>
+  <label>Your message <textarea id="contact-message" rows="6" placeholder="Tell me what would make EasyRead better..."></textarea></label>
+  <button id="contact-send" class="btn account-action" type="button">Prepare email</button>
+  <p id="contact-status" class="note">The developer email can be set in firebase-config.js.</p>
+</aside>
+
+<aside id="privacy" class="panel privacy-panel" hidden role="dialog" aria-modal="true" aria-labelledby="privacy-title">
+  <div class="contents-head"><h2 id="privacy-title">Privacy center</h2><button id="privacy-close" class="btn" type="button">Close</button></div>
+  <div class="privacy-block"><span class="privacy-check">✓</span><div><strong>Local-first by default</strong><p>Your books stay in this browser. Online services are used only when you ask for a lookup, translation, or sync.</p></div></div>
+  <div class="privacy-block"><span class="privacy-check">✓</span><div><strong>Cloud sync is optional</strong><p>Google sync stores your reading data in your private Firestore user record after sign-in.</p></div></div>
+  <button id="export-all" class="btn account-action" type="button">Export all my data</button>
+  <button id="delete-all" class="btn danger-action" type="button">Delete all local data</button>
+  <p id="privacy-status" class="note"></p>
+</aside>
+
+<aside id="shortcuts" class="panel shortcuts-panel" hidden role="dialog" aria-modal="true" aria-labelledby="shortcuts-title">
+  <div class="contents-head"><h2 id="shortcuts-title">Keyboard shortcuts</h2><button id="shortcuts-close" class="btn" type="button">Close</button></div>
+  <div class="shortcut-row"><kbd>/</kbd><span>Search in the current book</span></div>
+  <div class="shortcut-row"><kbd>F</kbd><span>Toggle focus mode</span></div>
+  <div class="shortcut-row"><kbd>T</kbd><span>Toggle light and dark mode</span></div>
+  <div class="shortcut-row"><kbd>?</kbd><span>Open this panel</span></div>
+  <div class="shortcut-row"><kbd>Esc</kbd><span>Close panels and popups</span></div>
+</aside>
+
+<aside id="onboarding" class="onboarding-panel" hidden>
+  <div class="onboarding-mark">—</div>
+  <p class="eyebrow">Welcome to EasyRead</p>
+  <h2>A calmer way into difficult books.</h2>
+  <p>Open a book, tap an unfamiliar word, and build a private reading space that remembers your progress.</p>
+  <div class="onboarding-steps"><span><b>01</b> Open your book</span><span><b>02</b> Tap any word</span><span><b>03</b> Keep your words</span></div>
+  <button id="onboarding-start" class="btn account-action" type="button">Start reading</button>
+</aside>
+
+<script src="firebase-config.js" defer></script>
+<script src="app.js" defer></script>
+</body>
+</html>
