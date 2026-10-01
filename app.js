@@ -5,8 +5,8 @@ const local = {
   set(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch {} }
 };
 const loadedScripts = new Map();
+let pdfjsLib = null, pdfLibraryPromise = null;
 const sources = {
-  pdf: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js',
   mammoth: 'https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js',
   zip: 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js',
   ocr: 'https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.0.4/tesseract.min.js',
@@ -26,6 +26,14 @@ function loadScript(url) {
   loadedScripts.set(url, promise); return promise;
 }
 function loadLibrary(name) { return loadScript(sources[name]); }
+function loadPdfLibrary() {
+  if (!pdfLibraryPromise) pdfLibraryPromise = import('./node_modules/pdfjs-dist/legacy/build/pdf.mjs').then(library => {
+    pdfjsLib = library;
+    pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('./node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs', document.baseURI).href;
+    return pdfjsLib;
+  }).catch(error => { pdfLibraryPromise = null; throw new Error(`Could not load the local PDF reader: ${error.message}`); });
+  return pdfLibraryPromise;
+}
 
 const dbPromise = new Promise((resolve, reject) => {
   const request = indexedDB.open('easyread-library-v2', 1);
@@ -44,6 +52,7 @@ const pdfPages = byId('pdf-pages'), pdfThumbs = byId('pdf-thumbs'), popup = byId
 const STORE_KEYS = { vocabulary: 'er-vocabulary', notes: 'er-notes', highlights: 'er-highlights', bookmarks: 'er-bookmarks', stats: 'er-stats' };
 let activeBook = null, activePdf = null, pdfMode = true, zoom = 1, pageCount = 0, lookupController = null, toastTimer, saveTimer, auth = null, firestore = null, storage = null, user = null, installPromptEvent = null;
 let pageObserver = null, thumbObserver = null, activePage = 1, pdfTextPromise = null, pdfSearchMatches = [], pdfSearchIndex = -1, searchToken = 0, firebaseInitPromise = null, cloudSyncTimer = null;
+const pdfRenderPromises = new Map();
 
 function toast(message) { const node = byId('toast'); node.textContent = message; node.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { node.hidden = true; }, 2800); }
 function status(message, error = false) { const node = byId('status'); node.textContent = message; node.classList.toggle('err', error); }
@@ -70,7 +79,7 @@ async function openFile(file) {
   const ext = file.name.split('.').pop().toLowerCase(), allowed = ['pdf','docx','pptx','epub','txt','png','jpg','jpeg'];
   if (!allowed.includes(ext)) return status('Choose a PDF, DOCX, PPTX, EPUB, TXT, or image file.', true);
   if (file.size > 150 * 1024 * 1024) return status('This file is larger than 150 MB. Try a smaller copy.', true);
-  hidePopup(); reader.replaceChildren(); pdfPages.replaceChildren(); pdfThumbs.replaceChildren(); activePdf = null; pageCount = 0;
+  hidePopup(); reader.replaceChildren(); pdfPages.replaceChildren(); pdfThumbs.replaceChildren(); activePdf = null; pdfTextPromise = null; pdfRenderPromises.clear(); pdfMode = true; byId('pdf-toolbar').hidden = true; byId('pdf-controls').hidden = true; pageCount = 0;
   byId('loading-skeleton').hidden = false; readerWrap.hidden = false; setView('reader'); status(`Preparing ${file.name}…`);
   const key = `${file.name}:${file.size}:${file.lastModified}`;
   activeBook = await getBook(key).catch(() => null) || { key, name: file.name, title: file.name.replace(/\.[^.]+$/, ''), file, type: ext, added: Date.now(), favorite: false, progress: 0 };
@@ -99,9 +108,9 @@ function appendTextNodes(section,text) { const paragraphs=String(text).split(/\n
 async function parseImage(file) { await loadLibrary('ocr'); status('Reading image text…'); const worker=await Tesseract.createWorker('eng'); try { const result=await worker.recognize(file,{logger:message=>{ if(message.status==='recognizing text') status(`Reading image text… ${Math.round(message.progress*100)}%`); }}); appendTextPages(result.data.text); } finally { await worker.terminate(); } }
 
 async function parsePdf(file) {
-  await loadLibrary('pdf'); pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  await loadPdfLibrary();
   let pdf; try { pdf=await pdfjsLib.getDocument({data:new Uint8Array(await file.arrayBuffer())}).promise; } catch { throw new Error('Could not open this PDF. It may be damaged or password-protected.'); }
-  activePdf=pdf; pageCount=pdf.numPages; zoom=1; pdfPages.hidden=false; pdfThumbs.hidden=false; byId('pdf-controls').hidden=false; byId('pdf-mode-btn').hidden=false; byId('pdf-mode-btn').textContent='Text view'; reader.hidden=true;
+  activePdf=pdf; pageCount=pdf.numPages; zoom=1; pdfPages.hidden=false; pdfThumbs.hidden=false; byId('pdf-toolbar').hidden=false; byId('pdf-controls').hidden=false; byId('pdf-mode-btn').textContent='Text view'; reader.hidden=true;
   pageObserver=new IntersectionObserver(entries=>entries.forEach(entry=>{ if(entry.isIntersecting){ const page=Number(entry.target.dataset.page); activePage=page; byId('pdf-page-label').textContent=`Page ${page} of ${pageCount}`; renderPdfPage(page).catch(console.error); } else if(Math.abs(Number(entry.target.dataset.page)-activePage)>1) releasePdfPage(entry.target); }),{rootMargin:'30% 0px'});
   thumbObserver=new IntersectionObserver(entries=>entries.forEach(entry=>{ if(entry.isIntersecting) renderThumbnail(Number(entry.target.dataset.page)); }),{rootMargin:'0px 240px'});
   for(let number=1;number<=pdf.numPages;number++){
@@ -121,36 +130,33 @@ async function buildPdfTextView(){
   try{return await pdfTextPromise;}catch(error){pdfTextPromise=null;throw error;}
 }
 function pageScale(page) { const base=page.getViewport({scale:1}); const fit=Math.min((pdfPages.clientWidth-36)/base.width,1.5); return Math.max(.5,fit*zoom); }
-async function renderPdfPage(number) { if(!activePdf) return; const frame=pdfPages.querySelector(`[data-page="${number}"]`); if(!frame||frame.dataset.rendered==='yes') return; const page=await activePdf.getPage(number), scale=pageScale(page), viewport=page.getViewport({scale}), desiredDpr=Math.min(devicePixelRatio||1,2), pixelBudget=12_000_000, dpr=Math.min(desiredDpr,Math.max(.5,Math.sqrt(pixelBudget/(viewport.width*viewport.height)))), canvas=frame.querySelector('canvas'), context=canvas.getContext('2d',{alpha:false}); canvas.width=Math.round(viewport.width*dpr); canvas.height=Math.round(viewport.height*dpr); canvas.style.width=`${viewport.width}px`; canvas.style.height=`${viewport.height}px`; frame.style.minHeight=`${viewport.height+48}px`; const renderViewport = page.getViewport({scale:scale*dpr}); await page.render({canvasContext:context,viewport:renderViewport}).promise; const layer=frame.querySelector('.textLayer'); layer.replaceChildren(); layer.style.width=`${viewport.width}px`; layer.style.height=`${viewport.height}px`; try { const content=await page.getTextContent(); const baseTransform = renderViewport.transform; const items = content.items.filter(item => item.str && item.str.trim()); items.forEach(item => {
-      const span = document.createElement('span');
-      span.className = 'pdf-text-hit';
-      span.textContent = item.str;
-      span.style.position = 'absolute';
-      span.style.whiteSpace = 'pre';
-      span.style.pointerEvents = 'auto';
-      span.style.userSelect = 'text';
-      span.style.cursor = 'text';
-      span.style.fontSize = `${Math.max(11, item.height || 12)}px`;
-      span.style.fontFamily = item.fontName || 'sans-serif';
-      span.style.color = 'rgba(22, 27, 36, 0.92)';
-      const matrix = Array.isArray(item.transform) ? item.transform : (item.transform ? String(item.transform).match(/-?\d*\.?\d+/g)?.map(Number) || [] : []);
-      const x = matrix[4] || 0; const y = matrix[5] || 0; span.style.left = `${x}px`; span.style.top = `${y}px`; span.style.transform = 'translateY(-1px)';
-      span.addEventListener('click', event => {
-        event.stopPropagation();
-        const text = (span.textContent || '').trim();
-        if (!text) return;
-        const range = document.createRange();
-        range.selectNodeContents(span);
-        showWord({ word: text.replace(/[^\p{L}'’-]+/gu, '').toLowerCase() || text.trim().toLowerCase(), range });
-      });
-      layer.append(span);
-    });
-  } catch(error){ console.warn('PDF text layer failed',error); }
-  frame.dataset.rendered='yes'; }
-function releasePdfPage(frame) { if(frame.dataset.rendered!=='yes') return; const canvas=frame.querySelector('canvas'); canvas.width=0; canvas.height=0; frame.querySelector('.textLayer').replaceChildren(); frame.dataset.rendered=''; }
+async function renderPdfPage(number) {
+  const pdf=activePdf, frame=pdfPages.querySelector(`[data-page="${number}"]`);
+  if(!pdf||!frame||frame.dataset.rendered==='yes') return;
+  if(pdfRenderPromises.has(frame)) return pdfRenderPromises.get(frame);
+  const task=drawPdfPage(pdf,number,frame);
+  pdfRenderPromises.set(frame,task);
+  let rendered=false;
+  try { await task; frame.dataset.rendered='yes'; rendered=true; }
+  finally { pdfRenderPromises.delete(frame); }
+  if(rendered&&frame.dataset.releaseAfterRender==='yes') { releasePdfPage(frame); pageObserver?.unobserve(frame); pageObserver?.observe(frame); }
+}
+async function drawPdfPage(pdf,number,frame) { const page=await pdf.getPage(number), scale=pageScale(page), viewport=page.getViewport({scale}), desiredDpr=Math.min(devicePixelRatio||1,2), pixelBudget=12_000_000, dpr=Math.min(desiredDpr,Math.max(.5,Math.sqrt(pixelBudget/(viewport.width*viewport.height)))), canvas=frame.querySelector('canvas'), context=canvas.getContext('2d',{alpha:false}); canvas.width=Math.round(viewport.width*dpr); canvas.height=Math.round(viewport.height*dpr); canvas.style.width=`${viewport.width}px`; canvas.style.height=`${viewport.height}px`; frame.style.minHeight=`${viewport.height+48}px`; const renderViewport=page.getViewport({scale:scale*dpr}); await page.render({canvasContext:context,viewport:renderViewport}).promise; const layer=frame.querySelector('.textLayer'); layer.replaceChildren(); layer.style.left=`${canvas.offsetLeft}px`; layer.style.top=`${canvas.offsetTop}px`; layer.style.width=`${viewport.width}px`; layer.style.height=`${viewport.height}px`; layer.style.setProperty('--total-scale-factor',String(scale)); try { const content=await page.getTextContent(); const textLayer=new pdfjsLib.TextLayer({textContentSource:content,container:layer,viewport}); await textLayer.render(); } catch(error){ console.warn('PDF text layer failed',error); } }
+function releasePdfPage(frame) { if(pdfRenderPromises.has(frame)){frame.dataset.releaseAfterRender='yes';return;} if(frame.dataset.rendered!=='yes') return; const canvas=frame.querySelector('canvas'); canvas.width=0; canvas.height=0; frame.querySelector('.textLayer').replaceChildren(); frame.dataset.rendered=''; delete frame.dataset.releaseAfterRender; }
 async function renderThumbnail(number) { const button=pdfThumbs.querySelector(`[data-page="${number}"]`); if(!button||button.dataset.rendered) return; try { const page=await activePdf.getPage(number), viewport=page.getViewport({scale:.11}), canvas=document.createElement('canvas'); canvas.width=viewport.width*2; canvas.height=viewport.height*2; canvas.style.width='56px'; await page.render({canvasContext:canvas.getContext('2d'),viewport:page.getViewport({scale:.22})}).promise; button.prepend(canvas); button.dataset.rendered='yes'; } catch {} }
 function goPdfPage(number) { const target=pdfPages.querySelector(`[data-page="${Math.min(pageCount,Math.max(1,number))}"]`); target?.scrollIntoView({behavior:'smooth',block:'start'}); }
-async function setPdfMode(visual) { if(!visual&&activePdf){byId('loading-skeleton').hidden=false;try{await buildPdfTextView();}catch{toast('Could not prepare the text view.');}finally{byId('loading-skeleton').hidden=true;}}pdfMode=visual; pdfPages.hidden=!visual; pdfThumbs.hidden=!visual; byId('pdf-controls').hidden=!visual; reader.hidden=visual; byId('pdf-mode-btn').textContent=visual?'Text view':'Page view'; }
+async function setPdfMode(visual) {
+  pdfMode=visual;
+  pdfPages.hidden=!visual;
+  pdfThumbs.hidden=!visual;
+  byId('pdf-controls').hidden=!visual;
+  reader.hidden=visual;
+  byId('pdf-mode-btn').textContent=visual?'Text view':'Page view';
+  if(!visual&&activePdf){
+    try { await buildPdfTextView(); }
+    catch { toast('Could not prepare the text view.'); }
+  }
+}
 function scalePdf(amount) { zoom=Math.min(2.4,Math.max(.65,zoom+amount)); pdfPages.querySelectorAll('.pdf-page[data-rendered="yes"]').forEach(releasePdfPage); pdfPages.querySelectorAll('.pdf-page').forEach(frame=>{ if(pageObserver) pageObserver.unobserve(frame); pageObserver?.observe(frame); }); }
 
 function wordAt(x,y) { let node,offset; if(document.caretPositionFromPoint){const p=document.caretPositionFromPoint(x,y);node=p?.offsetNode;offset=p?.offset;}else{const range=document.caretRangeFromPoint?.(x,y);node=range?.startContainer;offset=range?.startOffset;} if(!node||node.nodeType!==Node.TEXT_NODE)return null; const text=node.data; let start=offset,end=offset; while(start>0&&/[-'’\p{L}\p{M}]/u.test(text[start-1]))start--; while(end<text.length&&/[-'’\p{L}\p{M}]/u.test(text[end]))end++; const word=text.slice(start,end).replace(/^[-'’]+|[-'’]+$/g,'').toLowerCase(); if(!word)return null; const range=document.createRange();range.setStart(node,start);range.setEnd(node,end); if(![...range.getClientRects()].some(rect=>x>=rect.left-3&&x<=rect.right+3&&y>=rect.top-3&&y<=rect.bottom+3))return null;return {word,range}; }
@@ -159,14 +165,15 @@ document.addEventListener('pointerdown',event=>{ if(event.target.closest('button
 async function showWord(hit) { lookupController?.abort(); lookupController=new AbortController(); const range=hit.range; if(CSS.highlights)CSS.highlights.set('picked',new Highlight(range)); popup.hidden=false; popup.replaceChildren(); safeText(popup,'button','×','close').addEventListener('click',hidePopup); safeText(popup,'h2',hit.word); safeText(popup,'p','Looking up…','note'); placePopup(range); try { const result=await define(hit.word,lookupController.signal); if(result.offline) throw new Error('offline'); renderDefinition(result,hit.word); placePopup(range); } catch(error){ if(error.name==='AbortError')return; popup.replaceChildren();safeText(popup,'button','×','close').addEventListener('click',hidePopup);safeText(popup,'h2',hit.word);safeText(popup,'p',error.message==='offline'?'Offline: no saved meaning for this word yet.':'Could not load a definition. Check your connection and try again.','note'); } }
 function hidePopup(){lookupController?.abort();popup.hidden=true;if(CSS.highlights)CSS.highlights.delete('picked');}
 function placePopup(range){if(matchMedia('(max-width: 640px)').matches){popup.style.left='';popup.style.top='';return;}const rect=range.getBoundingClientRect();popup.style.left=`${Math.max(12,Math.min(scrollX+rect.left,scrollX+innerWidth-popup.offsetWidth-12))}px`;popup.style.top=`${scrollY+rect.bottom+8}px`;}
-function lemma(word){if(word.length>5&&word.endsWith('ies'))return word.slice(0,-3)+'y';if(word.length>5&&word.endsWith('ing'))return word.slice(0,-3).replace(/(.)\1$/,'$1');if(word.length>4&&word.endsWith('ed'))return word.slice(0,-2);if(word.length>4&&word.endsWith('s'))return word.slice(0,-1);return word;}
+function lemma(word){if(word.length>5&&word.endsWith('ies'))return word.slice(0,-3)+'y';if(word.length>5&&word.endsWith('ing'))return word.slice(0,-3).replace(/(.)\1$/,'$1');if(word.length>4&&word.endsWith('ed'))return word.slice(0,-2);if(word.length>4&&word.endsWith('s')&&!/(ss|us|is|ous)$/.test(word))return word.slice(0,-1);return word;}
 const FALLBACK_DEFINITIONS = {
   ominous: { word: 'ominous', phonetic: '/ˈɒmɪnəs/', meanings: [{ partOfSpeech: 'adjective', definition: 'giving the impression that something bad or unpleasant is going to happen.', example: 'The sky looked ominous before the storm.' }] },
   gentle: { word: 'gentle', phonetic: '/ˈdʒentəl/', meanings: [{ partOfSpeech: 'adjective', definition: 'mild, calm, and not harsh or severe.', example: 'She used a gentle tone with the children.' }] },
   read: { word: 'read', phonetic: '/riːd/', meanings: [{ partOfSpeech: 'verb', definition: 'look at and understand the meaning of written or printed words or symbols.', example: 'I read a chapter before bed.' }] },
   calm: { word: 'calm', phonetic: '/kɑːm/', meanings: [{ partOfSpeech: 'adjective', definition: 'not showing or feeling nervousness, anger, or anxiety.', example: 'He remained calm during the debate.' }] }
 };
-async function define(word,signal){const stem=lemma(String(word||'').toLowerCase());const cached=await getDefinition(stem).catch(()=>null);if(cached)return cached;const handlers=[async()=>{const response=await fetch('https://api.dictionaryapi.dev/api/v2/entries/en/'+encodeURIComponent(stem),{signal,headers:{'Accept':'application/json'}}); if(!response.ok)throw new Error('missing'); const data=await response.json(); const entry=data?.[0]; if(!entry) throw new Error('missing'); return {word:entry.word||stem,phonetic:entry.phonetic||'',meanings:(entry.meanings||[]).slice(0,3).map(item=>({partOfSpeech:item.partOfSpeech||'word',definition:item.definitions?.[0]?.definition||'No definition available.',example:item.definitions?.[0]?.example||''}))};}, async()=>{const fallback=FALLBACK_DEFINITIONS[stem]; if(!fallback)throw new Error('missing'); return fallback; }]; for(const step of handlers){try{const result=await step(); await putDefinition({word:stem,result}).catch(()=>{}); return result;}catch(error){if(error.name==='AbortError')throw error;}} throw new Error('Could not load a definition right now.'); }
+function dictionaryFetch(url,signal,options={}){const controller=new AbortController(),abort=()=>controller.abort(signal?.reason||new DOMException('Lookup cancelled.','AbortError'));if(signal?.aborted)abort();else signal?.addEventListener('abort',abort,{once:true});const timeout=setTimeout(()=>controller.abort(new DOMException('Dictionary lookup timed out.','TimeoutError')),2500);return fetch(url,{...options,signal:controller.signal}).finally(()=>{clearTimeout(timeout);signal?.removeEventListener('abort',abort);});}
+async function define(word,signal){const stem=lemma(String(word||'').toLowerCase());const cached=await getDefinition(stem).catch(()=>null);const cachedResult=cached?.result||cached;if(cachedResult?.meanings?.length)return cachedResult;const handlers=[async()=>{const response=await fetch('/api/definition?word='+encodeURIComponent(stem),{signal});if(!response.ok)throw new Error('missing');return response.json();},async()=>{const response=await dictionaryFetch('https://api.dictionaryapi.dev/api/v2/entries/en/'+encodeURIComponent(stem),signal,{headers:{'Accept':'application/json'}});if(!response.ok)throw new Error('missing');const data=await response.json(),entry=data?.[0];if(!entry)throw new Error('missing');return {word:entry.word||stem,phonetic:entry.phonetic||'',meanings:(entry.meanings||[]).slice(0,3).map(item=>({partOfSpeech:item.partOfSpeech||'word',definition:item.definitions?.[0]?.definition||'No definition available.',example:item.definitions?.[0]?.example||''}))};},async()=>{const response=await dictionaryFetch('https://en.wiktionary.org/api/rest_v1/page/definition/'+encodeURIComponent(stem),signal);if(!response.ok)throw new Error('missing');const entry=(await response.json())?.en?.[0];const meanings=(entry?.definitions||[]).slice(0,3).map(item=>({partOfSpeech:item.partOfSpeech||'word',definition:item.definition||'',example:''})).filter(item=>item.definition);if(!meanings.length)throw new Error('missing');return {word:stem,phonetic:'',meanings};},async()=>{const fallback=FALLBACK_DEFINITIONS[stem];if(!fallback)throw new Error('missing');return fallback;}];for(const step of handlers){try{const result=await step();await putDefinition({word:stem,result}).catch(()=>{});return result;}catch(error){if(error.name==='AbortError')throw error;}}throw new Error(`No definition is available for “${stem}” right now.`);}
 function renderDefinition(result,asked){popup.replaceChildren();safeText(popup,'button','×','close').addEventListener('click',hidePopup);safeText(popup,'h2',result.word);if(result.phonetic)safeText(popup,'p',result.phonetic,'ph');const actions=document.createElement('div');actions.className='word-actions';const button=(label,handler)=>{const control=document.createElement('button');control.className='btn';control.type='button';control.textContent=label;control.addEventListener('click',handler);actions.append(control);return control;};button('Save',event=>{const values=local.get('er-vocabulary',[]);if(!values.some(item=>item.word===result.word))values.unshift({word:result.word,definition:result.meanings[0]?.definition});local.set('er-vocabulary',values);queueCloudSync();event.currentTarget.textContent='Saved';toast('Word saved to your vocabulary.');});button('Listen',()=>speechSynthesis.speak(new SpeechSynthesisUtterance(result.word)));button('Translate',async event=>{const control=event.currentTarget;control.textContent='Translating…';try{const language=byId('translation-language').value,response=await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(result.word)}&langpair=en|${language}`,{signal:lookupController?.signal});if(!response.ok)throw new Error();const data=await response.json();safeText(popup,'p',data.responseData?.translatedText||'Translation unavailable','note');control.textContent='Translated';}catch{control.textContent='Try translate again';}});button('Note',()=>{const text=prompt(`Add a note for “${result.word}”`);if(text?.trim()){const notes=local.get('er-notes',[]);notes.unshift({word:result.word,text:text.trim(),book:activeBook?.key,created:Date.now()});local.set('er-notes',notes);queueCloudSync();toast('Note saved.');}});popup.append(actions);result.meanings.forEach(item=>{safeText(popup,'p',item.partOfSpeech,'pos');safeText(popup,'p',item.definition,'def');if(item.example)safeText(popup,'p',`“${item.example}”`,'ex');});if(result.word!==asked)safeText(popup,'p',`Showing the base form “${result.word}”.`,'note');}
 
 function renderLibrary(){const list=byId('library-list'),favorites=byId('library-favorites');if(!list)return;Promise.all([getBooks(),Promise.resolve()]).then(([books])=>{list.replaceChildren();favorites.replaceChildren();const sort=byId('library-sort')?.value||'recent';books.sort((a,b)=>sort==='title'?a.title.localeCompare(b.title):sort==='progress'?(b.progress||0)-(a.progress||0):(b.opened||0)-(a.opened||0));if(!books.length){safeText(list,'p','Add a book to begin your library.','note');return;}for(const book of books){const row=document.createElement('div');row.className='library-row';const title=safeText(row,'strong',book.title||book.name);const progress=document.createElement('progress');progress.max=100;progress.value=book.progress||0;row.append(progress);const open=document.createElement('button');open.className='btn';open.textContent='Open';open.onclick=()=>openFile(book.file);const fav=document.createElement('button');fav.className='icon-btn';fav.textContent=book.favorite?'★':'☆';fav.setAttribute('aria-label','Toggle favorite');fav.onclick=async()=>{book.favorite=!book.favorite;await putBook(book);renderLibrary();};const rename=document.createElement('button');rename.className='icon-btn';rename.textContent='✎';rename.setAttribute('aria-label','Rename book');rename.onclick=async()=>{const value=prompt('Book title',book.title);if(value?.trim()){book.title=value.trim();await putBook(book);renderLibrary();}};row.append(open,rename,fav);(book.favorite?favorites:list).append(row);}});}

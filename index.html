@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@300;500&family=Literata:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="pdf-reader.css">
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#2F3FE0">
 <meta name="description" content="EasyRead helps you understand books without losing your reading flow.">
@@ -122,7 +123,9 @@
       <button id="stop-speech-btn" class="btn" type="button">Stop voice</button>
       <button id="autoscroll-btn" class="btn" type="button">Auto-scroll</button>
       <button id="line-focus-btn" class="btn" type="button">Line focus</button>
-      <button id="pdf-mode-btn" class="btn" type="button" hidden>Page view</button>
+    </div>
+    <div id="pdf-toolbar" class="pdf-toolbar" hidden>
+      <button id="pdf-mode-btn" class="btn" type="button">Text view</button>
       <span id="pdf-controls" class="pdf-controls" hidden><button id="pdf-prev" class="icon-btn" type="button" aria-label="Previous PDF page">‹</button><span id="pdf-page-label">Page 1</span><button id="pdf-next" class="icon-btn" type="button" aria-label="Next PDF page">›</button><button id="pdf-zoom-out" class="icon-btn" type="button" aria-label="Zoom out">−</button><button id="pdf-zoom-in" class="icon-btn" type="button" aria-label="Zoom in">+</button><button id="pdf-fullscreen" class="btn" type="button">Full document</button></span>
     </div>
     <div id="pdf-thumbs" class="pdf-thumbs" hidden></div>
@@ -209,7 +212,6 @@
   <div class="contact-cards"><a id="contact-telegram" class="contact-card" target="_blank" rel="noreferrer"><span class="contact-symbol">↗</span><span><strong>Telegram</strong><small id="contact-telegram-label">Add handle</small></span></a><a id="contact-phone" class="contact-card"><span class="contact-symbol">⌕</span><span><strong>Phone</strong><small id="contact-phone-label">Add number</small></span></a><a id="contact-email" class="contact-card"><span class="contact-symbol">@</span><span><strong>Email</strong><small id="contact-email-label">Add address</small></span></a></div>
   <label>Your message <textarea id="contact-message" rows="6" placeholder="Tell me what would make EasyRead better..."></textarea></label>
   <button id="contact-send" class="btn account-action" type="button">Prepare email</button>
-  <p id="contact-status" class="note">The developer email can be set in firebase-config.js.</p>
 </aside>
 
 <aside id="privacy" class="panel privacy-panel" hidden role="dialog" aria-modal="true" aria-labelledby="privacy-title">
