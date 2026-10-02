@@ -71,6 +71,18 @@
   outline-offset: 2px;
 }
 
+.dictionary-source {
+  display: inline-flex;
+  margin: 0 0 8px;
+  padding: 3px 8px;
+  color: var(--muted);
+  background: var(--accent-soft);
+  border-radius: 999px;
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .02em;
+}
+
 .note-dialog {
   width: min(460px, calc(100vw - 28px));
   max-height: min(80vh, 680px);
@@ -205,10 +217,18 @@
   pointer-events: auto;
   user-select: text;
   -webkit-user-select: text;
-  /* Give the invisible selection text a small vertical hit area so word selection
-     still starts when the pointer lands on the visible glyph itself. */
-  padding: 1px 1px 5px;
-  margin: -1px -1px -5px;
+  /*
+   * PDF.js positions text spans from the glyph box. The glyph box can be
+   * noticeably shorter than the visual ink, especially with ascenders,
+   * descenders, embedded fonts, and fractional page scaling. Expand only the
+   * interaction box, not the visual text, so selection starts on the word
+   * instead of requiring a "slightly below the word" aim.
+   */
+  padding: 2px 2px 7px;
+  margin: -2px -2px -7px;
+  line-height: 1.12;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
 }
 
 .textLayer > :not(.markedContent),
