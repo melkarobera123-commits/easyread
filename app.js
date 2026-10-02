@@ -214,7 +214,22 @@ async function renderContents(){const outline=byId('outline'),empty=byId('outlin
 function renderStats(){const stats=local.get('er-stats',{}),seconds=Object.values(stats).reduce((sum,item)=>sum+(item.seconds||0),0);const node=byId('stats-content');node.replaceChildren();safeText(node,'strong',`${Math.round(seconds/60)} minutes read`);safeText(node,'p',`${local.get('er-vocabulary',[]).length} saved words`);}
 function updateDocMeta(){if(activeBook){byId('doc-meta').textContent=activePdf?`${pageCount} pages · original PDF layout`:`${pageCount?pageCount+' sections · ':''}${(activeBook.words||0).toLocaleString()} words`;if(byId('jump'))byId('jump').max=String(Math.max(1,pageCount));if(byId('reader-page-jump'))byId('reader-page-jump').max=String(Math.max(1,pageCount));}}
 function restorePosition(){setTimeout(()=>{if(activePdf)goPdfPage(activeBook.position?.page||1);else scrollTo({top:activeBook.position?.scroll||0});},120);}
-function savePosition(){if(!activeBook)return;const savedAt=Date.now();activeBook.position={page:activePage,scroll:scrollY,savedAt};local.set(`er-position:${activeBook.key}`,activeBook.position);clearTimeout(saveTimer);saveTimer=setTimeout(async()=>{activeBook.opened=savedAt;activeBook.progress=Math.round(Math.min(100,scrollY/Math.max(document.documentElement.scrollHeight-innerHeight,1)*100));await putBook(activeBook).catch(()=>{});queueCloudSync();},650);}
+function savePosition(){
+  if(!activeBook)return;
+  const savedAt=Date.now();
+  const scrollingPdf=Boolean(activePdf&&pdfMode);
+  const scroll=scrollingPdf?pdfPages.scrollTop:scrollY;
+  activeBook.position={page:activePage,scroll,savedAt};
+  local.set(`er-position:${activeBook.key}`,activeBook.position);
+  clearTimeout(saveTimer);
+  saveTimer=setTimeout(async()=>{
+    activeBook.opened=savedAt;
+    const maxScroll=scrollingPdf?Math.max(pdfPages.scrollHeight-pdfPages.clientHeight,1):Math.max(document.documentElement.scrollHeight-innerHeight,1);
+    activeBook.progress=Math.round(Math.min(100,scroll/maxScroll*100));
+    await putBook(activeBook).catch(()=>{});
+    queueCloudSync();
+  },650);
+}
 function todayKey(){return new Date().toISOString().slice(0,10);}
 function elapsedReadingSeconds(){return readerTimerSeconds+(readerTimerRunning?Math.floor((Date.now()-readerTimerStart)/1000):0);}
 function formatTimer(seconds){const value=Math.max(0,Math.floor(seconds)),hours=Math.floor(value/3600),minutes=Math.floor(value%3600/60),remaining=value%60;return hours?`${String(hours).padStart(2,'0')}:${String(minutes).padStart(2,'0')}:${String(remaining).padStart(2,'0')}`:`${String(minutes).padStart(2,'0')}:${String(remaining).padStart(2,'0')}`;}
