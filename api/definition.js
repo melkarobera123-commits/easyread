@@ -6,7 +6,7 @@ module.exports = async function definition(req, res) {
 
   const rawWord = Array.isArray(req.query?.word) ? req.query.word[0] : req.query?.word;
   const word = String(rawWord || '').trim().toLowerCase().replace(/\s+/g, '_');
-  if (!/^[a-z0-9][a-z0-9_-]{0,59}$/.test(word)) return res.status(400).json({ error: 'Enter a valid word.' });
+  if (!/^[a-z][a-z0-9_'’\-]{0,59}$/.test(word)) return res.status(400).json({ error: 'Enter a valid word.' });
 
   try {
     const localResult = await lookupWordnet(word);
