@@ -69,12 +69,19 @@ async function readWordnetGloss(pos, offset) {
     const buffer = Buffer.alloc(8192);
     const { bytesRead } = await handle.read(buffer, 0, buffer.length, Number(offset));
     const record = buffer.toString('utf8', 0, bytesRead).split('\n', 1)[0];
+    const beforeGloss = record.slice(0, record.indexOf('|')).trim().split(/\s+/);
+    const wordCount = parseInt(beforeGloss[3], 16) || 0;
+    const synonyms = [];
+    for (let index = 0; index < wordCount; index += 1) {
+      const lemma = beforeGloss[4 + index * 2];
+      if (lemma) synonyms.push(lemma.replace(/_/g, ' '));
+    }
     const gloss = record.slice(record.indexOf('|') + 1).trim();
     if (!gloss) return null;
     const pieces = gloss.split('; "');
     const definition = pieces[0].trim();
     const example = pieces.length > 1 ? ('"' + pieces.slice(1).join('; "')).replace(/"$/, '').trim() : '';
-    return definition ? { definition, example } : null;
+    return definition ? { definition, example, synonyms } : null;
   } finally { await handle.close(); }
 }
 
@@ -93,7 +100,7 @@ async function lookupWordnet(word) {
       const gloss = await readWordnetGloss(pos, offset);
       if (gloss?.definition && !seen.has(gloss.definition)) {
         seen.add(gloss.definition);
-        posMeanings.push({ partOfSpeech: pos.name, definition: gloss.definition, example: gloss.example || '' });
+        posMeanings.push({ partOfSpeech: pos.name, definition: gloss.definition, example: gloss.example || '', synonyms: gloss.synonyms || [] });
       }
     }
     if (posMeanings.length) {
