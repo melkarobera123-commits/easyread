@@ -204,6 +204,11 @@
   transform-origin: 0 0;
   pointer-events: auto;
   user-select: text;
+  -webkit-user-select: text;
+  /* Give the invisible selection text a small vertical hit area so word selection
+     still starts when the pointer lands on the visible glyph itself. */
+  padding: 1px 1px 5px;
+  margin: -1px -1px -5px;
 }
 
 .textLayer > :not(.markedContent),
