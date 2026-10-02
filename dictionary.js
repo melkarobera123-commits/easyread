@@ -49,7 +49,10 @@ async function findWordnetEntry(pos, word) {
 }
 
 function morphologyCandidates(word, pos) {
-  const candidates = [word, ...(irregularForms.get(word) || [])];
+  const normalized = String(word || '').toLowerCase().replace(/[’']/g, "'").replace(/_+/g, '_');
+  const possessiveBase = normalized.replace(/(?:'s|s')$/, '');
+  const hyphenBase = normalized.replace(/-/g, '_');
+  const candidates = [normalized, possessiveBase, hyphenBase, ...(irregularForms.get(normalized) || [])];
   for (const [suffix, replacement] of morphologyRules[pos.code]) {
     if (word.length > suffix.length && word.endsWith(suffix)) candidates.push(word.slice(0, -suffix.length) + replacement);
   }
@@ -82,11 +85,11 @@ async function lookupWordnet(word) {
     if (!line) continue;
     const posMeanings = [];
     const fields = line.trim().split(/\s+/), offsetStart = 6 + Number(fields[3]);
-    for (const offset of fields.slice(offsetStart, offsetStart + 3)) {
-      const definition = await readWordnetGloss(pos, offset);
-      if (definition && !seen.has(definition)) {
-        seen.add(definition);
-        posMeanings.push({ partOfSpeech: pos.name, definition, example: '' });
+    for (const offset of fields.slice(offsetStart, offsetStart + 8)) {
+      const gloss = await readWordnetGloss(pos, offset);
+      if (gloss?.definition && !seen.has(gloss.definition)) {
+        seen.add(gloss.definition);
+        posMeanings.push({ partOfSpeech: pos.name, definition: gloss.definition, example: gloss.example || '' });
       }
     }
     if (posMeanings.length) {
@@ -94,7 +97,7 @@ async function lookupWordnet(word) {
       additionalMeanings.push(...posMeanings.slice(1));
     }
   }
-  const meanings = [...primaryMeanings, ...additionalMeanings].slice(0, 3);
+  const meanings = [...primaryMeanings, ...additionalMeanings].slice(0, 6);
   return meanings.length ? { word: word.replace(/_/g, ' '), phonetic: '', meanings } : null;
 }
 
