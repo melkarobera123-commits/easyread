@@ -12,6 +12,32 @@
   gap: 7px;
 }
 
+.reading-timer {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  padding: 3px 5px 3px 10px;
+  color: var(--ink);
+  background: var(--accent-soft);
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.reading-timer output {
+  min-width: 4.5em;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  text-align: center;
+}
+
+.reading-timer .icon-btn {
+  min-width: 36px;
+  min-height: 36px;
+  padding: 5px 8px;
+  border-radius: 999px;
+}
+
 .dictionary-panel:not([hidden]) {
   display: flex;
   align-items: center;
@@ -45,6 +71,68 @@
   outline-offset: 2px;
 }
 
+.note-dialog {
+  width: min(460px, calc(100vw - 28px));
+  max-height: min(80vh, 680px);
+  padding: 0;
+  overflow: auto;
+  color: var(--ink);
+  background: var(--sheet);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+}
+
+.note-dialog::backdrop {
+  background: rgba(20, 29, 28, .48);
+  backdrop-filter: blur(3px);
+}
+
+.note-dialog form {
+  padding: 16px 20px 20px;
+}
+
+.note-dialog form > label {
+  display: block;
+  margin: 12px 0 6px;
+  color: var(--muted);
+  font-weight: 650;
+}
+
+.note-dialog textarea,
+.email-auth-form input {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.note-dialog textarea {
+  min-height: 140px;
+  resize: vertical;
+}
+
+.note-word {
+  margin: 0;
+  color: var(--muted);
+  font-weight: 650;
+}
+
+.email-auth-form {
+  display: grid;
+  gap: 6px;
+  margin: 16px 0;
+}
+
+.email-auth-form label {
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: .88rem;
+}
+
 #popup.dictionary-search-popup {
   position: fixed;
   z-index: 75;
@@ -58,6 +146,36 @@
 
 .pdf-page {
   isolation: isolate;
+}
+
+.reader-wrap:fullscreen {
+  width: 100%;
+  height: 100vh;
+  max-height: 100vh;
+  margin: 0;
+  padding: 18px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  background: var(--bg);
+}
+
+#pdf-pages:fullscreen {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 18px;
+  width: 100%;
+  height: 100vh;
+  max-height: 100vh;
+  padding: 18px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  background: var(--bg);
+}
+
+#pdf-pages:fullscreen .pdf-page {
+  width: min(100%, 1100px);
+  flex: none;
 }
 
 .textLayer {
@@ -105,6 +223,14 @@
 }
 
 @media (max-width: 640px) {
+  .reading-timer {
+    margin-left: 0;
+  }
+
+  .reading-timer .icon-btn {
+    min-height: 40px;
+  }
+
   .pdf-toolbar {
     position: sticky;
     z-index: 14;

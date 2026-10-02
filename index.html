@@ -100,6 +100,7 @@
   <section id="reader-wrap" class="reader-wrap" hidden>
     <div class="bar">
       <div class="bar-primary"><button id="contents-btn" class="btn" type="button" aria-expanded="false" aria-controls="contents">Contents</button><button id="saved-btn" class="btn" type="button">Saved</button><button id="search-btn" class="btn" type="button">Search</button><button id="dictionary-btn" class="btn" type="button" aria-expanded="false" aria-controls="dictionary-panel">Dictionary</button></div>
+      <div class="reading-timer" role="group" aria-label="Reading timer"><output id="timer-display" aria-live="off" aria-label="Elapsed reading time">00:00</output><button id="timer-toggle" class="icon-btn" type="button" aria-label="Pause reading timer">Pause</button><button id="timer-reset" class="icon-btn" type="button" aria-label="Reset reading timer">Reset</button></div>
       <span id="page-now"></span>
       <span id="progress"></span>
       <details class="toolbar-more"><summary class="btn">More</summary><div class="toolbar-menu"><button id="focus-btn" class="btn" type="button">Focus</button><button id="fullscreen-btn" class="btn" type="button" aria-label="Enter fullscreen reading">Fullscreen</button><button id="settings-btn" class="btn" type="button" aria-expanded="false">Settings</button><span class="text-size"><button id="smaller" class="btn" type="button" aria-label="Smaller text">A−</button><button id="larger" class="btn" type="button" aria-label="Larger text">A+</button></span><button id="again" class="btn" type="button">New file</button></div></details>
@@ -131,7 +132,7 @@
     </div>
     <div id="pdf-toolbar" class="pdf-toolbar" hidden>
       <button id="pdf-mode-btn" class="btn" type="button">Text view</button>
-      <span id="pdf-controls" class="pdf-controls" hidden><button id="pdf-prev" class="icon-btn" type="button" aria-label="Previous PDF page">‹</button><span id="pdf-page-label">Page 1</span><button id="pdf-next" class="icon-btn" type="button" aria-label="Next PDF page">›</button><button id="pdf-zoom-out" class="icon-btn" type="button" aria-label="Zoom out">−</button><button id="pdf-zoom-in" class="icon-btn" type="button" aria-label="Zoom in">+</button><button id="pdf-fullscreen" class="btn" type="button">Full document</button></span>
+      <span id="pdf-controls" class="pdf-controls" hidden><button id="pdf-prev" class="icon-btn" type="button" aria-label="Previous PDF page">‹</button><span id="pdf-page-label">Page 1</span><button id="pdf-next" class="icon-btn" type="button" aria-label="Next PDF page">›</button><button id="pdf-zoom-out" class="icon-btn" type="button" aria-label="Zoom out">−</button><button id="pdf-zoom-in" class="icon-btn" type="button" aria-label="Zoom in">+</button><button id="pdf-preview-toggle" class="btn" type="button" aria-pressed="true">Hide previews</button><button id="pdf-fullscreen" class="btn" type="button">Full document</button></span>
     </div>
     <div id="pdf-thumbs" class="pdf-thumbs" hidden></div>
     <div id="pdf-pages" class="pdf-pages" hidden></div>
@@ -151,6 +152,16 @@
 </aside>
 
 <aside id="popup" role="dialog" aria-modal="false" aria-live="polite" hidden></aside>
+
+<dialog id="note-dialog" class="note-dialog" aria-labelledby="note-title">
+  <form id="note-form">
+    <div class="contents-head"><h2 id="note-title">Add a note</h2><button id="note-cancel" class="btn" type="button">Cancel</button></div>
+    <p id="note-word" class="note-word"></p>
+    <label for="note-editor-text">Your note</label>
+    <textarea id="note-editor-text" rows="5" maxlength="2000" required placeholder="Write a short note…"></textarea>
+    <button class="btn account-action" type="submit">Save note</button>
+  </form>
+</dialog>
 
 <aside id="settings" class="panel" hidden role="dialog" aria-modal="true" aria-labelledby="settings-title">
   <div class="contents-head"><h2 id="settings-title">Reader settings</h2><button id="settings-close" class="btn" type="button">Close</button></div>
@@ -193,7 +204,14 @@
 <aside id="account" class="panel account-panel" hidden role="dialog" aria-modal="true" aria-labelledby="account-title">
   <div class="contents-head"><h2 id="account-title">Your account</h2><button id="account-close" class="btn" type="button">Close</button></div>
   <div id="account-signed-out">
-    <p>Sign in with Google to sync vocabulary, notes, bookmarks, and reading progress across your devices.</p>
+    <p>Sign in or create an account to sync your reading across devices.</p>
+    <form id="email-auth-form" class="email-auth-form">
+      <label for="auth-email">Email</label><input id="auth-email" type="email" autocomplete="email" required>
+      <label for="auth-password">Password</label><input id="auth-password" type="password" autocomplete="current-password" minlength="6" required>
+      <button id="email-signin" class="btn account-action" type="submit">Sign in with email</button>
+      <button id="email-signup" class="text-button" type="button">Create an account</button>
+    </form>
+    <p class="note">Or continue with Google</p>
     <button id="google-signin" class="btn account-action" type="button">Continue with Google</button>
     <p id="auth-status" class="note"></p>
   </div>
