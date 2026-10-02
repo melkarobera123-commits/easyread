@@ -211,7 +211,78 @@ async function define(word,signal){
 }
 function renderDefinition(result,asked){popup.replaceChildren();safeText(popup,'button','×','close').addEventListener('click',hidePopup);safeText(popup,'h2',result.word);const source=result.source||'';if(result.phonetic)safeText(popup,'p',result.phonetic,'ph');if(source)safeText(popup,'span',result.cached?'Cached · '+source:source,'dictionary-source');const actions=document.createElement('div');actions.className='word-actions';const button=(label,handler)=>{const control=document.createElement('button');control.className='btn';control.type='button';control.textContent=label;control.addEventListener('click',handler);actions.append(control);return control;};button('Save',event=>{const values=local.get('er-vocabulary',[]);if(!values.some(item=>item.word===result.word))values.unshift({word:result.word,definition:result.meanings[0]?.definition});local.set('er-vocabulary',values);queueCloudSync();event.currentTarget.textContent='Saved';toast('Word saved to your vocabulary.');});button('Listen',()=>speechSynthesis.speak(new SpeechSynthesisUtterance(result.word)));button('Translate',async event=>{const control=event.currentTarget;control.textContent='Translating…';try{const language=byId('translation-language').value,response=await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(result.word)}&langpair=en|${language}`,{signal:lookupController?.signal});if(!response.ok)throw new Error();const data=await response.json();safeText(popup,'p',data.responseData?.translatedText||'Translation unavailable','note');control.textContent='Translated';}catch{control.textContent='Try translate again';}});button('Note',()=>{const text=prompt(`Add a note for “${result.word}”`);if(text?.trim()){const notes=local.get('er-notes',[]);notes.unshift({word:result.word,text:text.trim(),book:activeBook?.key,created:Date.now()});local.set('er-notes',notes);queueCloudSync();toast('Note saved.');}});popup.append(actions);result.meanings.forEach(item=>{safeText(popup,'p',item.partOfSpeech,'pos');safeText(popup,'p',item.definition,'def');if(item.example)safeText(popup,'p',`“${item.example}”`,'ex');});if(result.word!==asked)safeText(popup,'p',`Showing the base form “${result.word}”.`,'note');}
 
-function renderDefinition(result,asked){popup.replaceChildren();const close=safeText(popup,'button','×','close');close.type='button';close.setAttribute('aria-label','Close definition');close.addEventListener('click',hidePopup);const heading=safeText(popup,'h2',result.word);heading.id='popup-word';popup.setAttribute('aria-labelledby','popup-word');if(result.phonetic)safeText(popup,'p',result.phonetic,'ph');const translated=safeText(popup,'p','','translation-result');translated.hidden=true;translated.setAttribute('role','status');translated.setAttribute('aria-live','polite');const actions=document.createElement('div');actions.className='word-actions';const button=(label,handler)=>{const control=document.createElement('button');control.className='btn';control.type='button';control.textContent=label;control.addEventListener('click',handler);actions.append(control);return control;};button('Save',event=>{const values=local.get('er-vocabulary',[]);if(!values.some(item=>item.word===result.word))values.unshift({word:result.word,definition:plainDefinition(result.meanings[0]?.definition)});local.set('er-vocabulary',values);queueCloudSync();renderVocabulary();event.currentTarget.textContent='Saved';toast('Word saved to your vocabulary.');});button('Listen',()=>speechSynthesis.speak(new SpeechSynthesisUtterance(result.word)));button('Translate',async event=>{const control=event.currentTarget;control.disabled=true;control.textContent='Translating…';translated.hidden=false;translated.textContent='Translating…';try{const language=byId('translation-language').value,response=await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(result.word)}&langpair=en|${language}`,{signal:lookupController?.signal});if(!response.ok)throw new Error();const data=await response.json(),value=plainDefinition(data.responseData?.translatedText);translated.textContent=value?`Translation (${language}): ${value}`:'No translation was returned.';control.textContent='Translate';}catch{translated.textContent='Translation is unavailable right now.';control.textContent='Translate';}finally{control.disabled=false;}});button('Note',()=>openNoteEditor(result.word));popup.append(actions);result.meanings.forEach(item=>{safeText(popup,'p',item.partOfSpeech,'pos');safeText(popup,'p',plainDefinition(item.definition),'def');const example=plainDefinition(item.example);if(example)safeText(popup,'p',`“${example}”`,'ex');});if(result.forms?.length)safeText(popup,'p',`Forms: ${result.forms.join(', ')}`,'note');}
+function renderDefinition(result,asked){
+  popup.replaceChildren();
+  const close=safeText(popup,'button','×','close');
+  close.type='button';
+  close.setAttribute('aria-label','Close definition');
+  close.addEventListener('click',hidePopup);
+  const heading=safeText(popup,'h2',result.word);
+  heading.id='popup-word';
+  popup.setAttribute('aria-labelledby','popup-word');
+  if(result.phonetic)safeText(popup,'p',result.phonetic,'ph');
+  if(result.source)safeText(popup,'span',result.cached?'Cached · '+result.source:result.source,'dictionary-source');
+  const translated=safeText(popup,'p','','translation-result');
+  translated.hidden=true;
+  translated.setAttribute('role','status');
+  translated.setAttribute('aria-live','polite');
+  const actions=document.createElement('div');
+  actions.className='word-actions';
+  const button=(label,handler)=>{
+    const control=document.createElement('button');
+    control.className='btn';
+    control.type='button';
+    control.textContent=label;
+    control.addEventListener('click',handler);
+    actions.append(control);
+    return control;
+  };
+  button('Save',event=>{
+    const values=local.get('er-vocabulary',[]);
+    if(!values.some(item=>item.word===result.word))values.unshift({word:result.word,definition:plainDefinition(result.meanings[0]?.definition)});
+    local.set('er-vocabulary',values);
+    queueCloudSync();
+    renderVocabulary();
+    event.currentTarget.textContent='Saved';
+    toast('Word saved to your vocabulary.');
+  });
+  button('Listen',()=>speechSynthesis.speak(new SpeechSynthesisUtterance(result.word)));
+  button('Translate',async event=>{
+    const control=event.currentTarget;
+    control.disabled=true;
+    control.textContent='Translating…';
+    translated.hidden=false;
+    translated.textContent='Translating…';
+    try{
+      const language=byId('translation-language').value;
+      const response=await fetch('https://api.mymemory.translated.net/get?q='+encodeURIComponent(result.word)+'&langpair=en|'+language,{signal:lookupController?.signal});
+      if(!response.ok)throw new Error();
+      const data=await response.json();
+      const value=plainDefinition(data.responseData?.translatedText);
+      translated.textContent=value?'Translation ('+language+'): '+value:'No translation was returned.';
+      control.textContent='Translate';
+    }catch{
+      translated.textContent='Translation is unavailable right now.';
+      control.textContent='Translate';
+    }finally{control.disabled=false;}
+  });
+  button('Note',()=>openNoteEditor(result.word));
+  popup.append(actions);
+  result.meanings.forEach(item=>{
+    safeText(popup,'p',item.partOfSpeech,'pos');
+    safeText(popup,'p',plainDefinition(item.definition),'def');
+    const example=plainDefinition(item.example);
+    if(example)safeText(popup,'p','“'+example+'”','ex');
+  });
+  const synonyms=[...(result.synonyms||[])].map(plainDefinition).filter(Boolean).filter((value,index,array)=>array.indexOf(value)===index);
+  const antonyms=[...(result.antonyms||[])].map(plainDefinition).filter(Boolean).filter((value,index,array)=>array.indexOf(value)===index);
+  const wordnetSynonyms=[...new Set((result.meanings||[]).flatMap(item=>item.synonyms||[]).map(plainDefinition).filter(Boolean))];
+  const allSynonyms=[...new Set([...synonyms,...wordnetSynonyms].filter(value=>value.toLowerCase()!==result.word.toLowerCase()))].slice(0,10);
+  if(allSynonyms.length)safeText(popup,'p','Synonyms: '+allSynonyms.join(', '),'dictionary-related');
+  if(antonyms.length)safeText(popup,'p','Antonyms: '+antonyms.join(', '),'dictionary-related');
+  if(result.forms?.length)safeText(popup,'p','Forms: '+result.forms.join(', '),'note');
+  if(result.word!==asked)safeText(popup,'p','Showing the base form “'+result.word+'”.','note');
+}
 function openNoteEditor(word){activeNoteWord=word;byId('note-word').textContent=`For “${word}”`;byId('note-editor-text').value='';byId('note-dialog').showModal();byId('note-editor-text').focus();}
 function saveNote(event){event.preventDefault();const text=byId('note-editor-text').value.trim();if(!text)return;const notes=local.get('er-notes',[]);notes.unshift({word:activeNoteWord,text,book:activeBook?.key,created:Date.now()});local.set('er-notes',notes);queueCloudSync();byId('note-dialog').close();toast('Note saved.');}
 async function renderLibraryPanel(){
