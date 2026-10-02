@@ -4,7 +4,8 @@
   "version": "1.0.0",
   "scripts": {
     "start": "node server.js",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:dictionary": "node --test dictionary.test.js"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0"
