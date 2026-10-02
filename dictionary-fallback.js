@@ -21,7 +21,7 @@ async function fetchJson(url, signal) {
   const onAbort = () => controller.abort();
   signal?.addEventListener('abort', onAbort, { once: true });
   try {
-    const response = await fetch(url, { headers: { accept: 'application/json' }, signal: controller.signal });
+    const response = await fetch(url, { headers: { accept: 'application/json', 'user-agent': 'EasyRead/1.0 dictionary lookup' }, signal: controller.signal });
     if (!response.ok) return null;
     return await response.json();
   } finally {
