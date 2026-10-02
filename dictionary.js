@@ -70,7 +70,11 @@ async function readWordnetGloss(pos, offset) {
     const { bytesRead } = await handle.read(buffer, 0, buffer.length, Number(offset));
     const record = buffer.toString('utf8', 0, bytesRead).split('\n', 1)[0];
     const gloss = record.slice(record.indexOf('|') + 1).trim();
-    return gloss ? gloss.split('; "')[0].trim() : '';
+    if (!gloss) return null;
+    const pieces = gloss.split('; "');
+    const definition = pieces[0].trim();
+    const example = pieces.length > 1 ? ('"' + pieces.slice(1).join('; "')).replace(/"$/, '').trim() : '';
+    return definition ? { definition, example } : null;
   } finally { await handle.close(); }
 }
 
