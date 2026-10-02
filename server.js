@@ -2,6 +2,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const { lookupWordnet } = require('./dictionary');
+const { lookupRemoteDictionary } = require('./dictionary-fallback');
 
 const root = __dirname;
 const port = Number(process.env.PORT || 8080);
@@ -16,9 +17,13 @@ const server = http.createServer((req, res) => {
   if (url.pathname === '/api/definition') {
     const word = (url.searchParams.get('word') || '').trim().toLowerCase().replace(/\s+/g, '_');
     if (!/^[a-z0-9][a-z0-9_-]{0,59}$/.test(word)) return send(res, 400, JSON.stringify({ error: 'Enter a valid word.' }));
-    return lookupWordnet(word).then(result => send(res, result ? 200 : 404, JSON.stringify(result || { error: 'No local definition found.' }))).catch(error => {
-      console.error('Local dictionary lookup failed:', error);
-      send(res, 500, JSON.stringify({ error: 'Local dictionary is unavailable.' }));
+    return lookupWordnet(word).then(async localResult => {
+      if (localResult) { localResult.source = 'WordNet'; return send(res, 200, JSON.stringify(localResult)); }
+      const remoteResult = await lookupRemoteDictionary(word);
+      return send(res, remoteResult ? 200 : 404, JSON.stringify(remoteResult || { error: 'No definition was found in the local or fallback dictionaries.' }));
+    }).catch(error => {
+      console.error('Dictionary lookup failed:', error);
+      send(res, 500, JSON.stringify({ error: 'Dictionary lookup is temporarily unavailable.' }));
     });
   }
   const pathname = decodeURIComponent(url.pathname === '/' ? '/index.html' : url.pathname);
