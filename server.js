@@ -16,7 +16,7 @@ const server = http.createServer((req, res) => {
   if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, JSON.stringify({ error: 'Method not allowed.' }));
   if (url.pathname === '/api/definition') {
     const word = (url.searchParams.get('word') || '').trim().toLowerCase().replace(/\s+/g, '_');
-    if (!/^[a-z0-9][a-z0-9_-]{0,59}$/.test(word)) return send(res, 400, JSON.stringify({ error: 'Enter a valid word.' }));
+    if (!/^[a-z][a-z0-9_'’\-]{0,59}$/.test(word)) return send(res, 400, JSON.stringify({ error: 'Enter a valid word.' }));
     return lookupWordnet(word).then(async localResult => {
       if (localResult) { localResult.source = 'WordNet'; return send(res, 200, JSON.stringify(localResult)); }
       const remoteResult = await lookupRemoteDictionary(word);
