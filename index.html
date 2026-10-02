@@ -99,11 +99,16 @@
 
   <section id="reader-wrap" class="reader-wrap" hidden>
     <div class="bar">
-      <div class="bar-primary"><button id="contents-btn" class="btn" type="button" aria-expanded="false" aria-controls="contents">Contents</button><button id="saved-btn" class="btn" type="button">Saved</button><button id="search-btn" class="btn" type="button">Search</button></div>
+      <div class="bar-primary"><button id="contents-btn" class="btn" type="button" aria-expanded="false" aria-controls="contents">Contents</button><button id="saved-btn" class="btn" type="button">Saved</button><button id="search-btn" class="btn" type="button">Search</button><button id="dictionary-btn" class="btn" type="button" aria-expanded="false" aria-controls="dictionary-panel">Dictionary</button></div>
       <span id="page-now"></span>
       <span id="progress"></span>
       <details class="toolbar-more"><summary class="btn">More</summary><div class="toolbar-menu"><button id="focus-btn" class="btn" type="button">Focus</button><button id="fullscreen-btn" class="btn" type="button" aria-label="Enter fullscreen reading">Fullscreen</button><button id="settings-btn" class="btn" type="button" aria-expanded="false">Settings</button><span class="text-size"><button id="smaller" class="btn" type="button" aria-label="Smaller text">A−</button><button id="larger" class="btn" type="button" aria-label="Larger text">A+</button></span><button id="again" class="btn" type="button">New file</button></div></details>
     </div>
+    <form id="dictionary-panel" class="dictionary-panel" hidden>
+      <label for="dictionary-query">Look up a word</label>
+      <input id="dictionary-query" type="search" maxlength="60" autocomplete="off" spellcheck="false" placeholder="Type an English word">
+      <button id="dictionary-submit" class="btn" type="submit">Look up</button>
+    </form>
     <header class="doc-head">
       <p id="file-name" class="doc-title"></p>
       <p id="doc-meta"></p>
@@ -145,7 +150,7 @@
   <section class="saved-section"><h3>Bookmarks</h3><div id="bookmark-list"></div><h3>Notes & highlights</h3><div id="saved-list"></div></section>
 </aside>
 
-<aside id="popup" role="dialog" aria-live="polite" hidden></aside>
+<aside id="popup" role="dialog" aria-modal="false" aria-live="polite" hidden></aside>
 
 <aside id="settings" class="panel" hidden role="dialog" aria-modal="true" aria-labelledby="settings-title">
   <div class="contents-head"><h2 id="settings-title">Reader settings</h2><button id="settings-close" class="btn" type="button">Close</button></div>
