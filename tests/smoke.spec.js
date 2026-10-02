@@ -21,3 +21,21 @@ test('tablet layout does not show the desktop sidebar', async ({ page }) => {
   await page.goto('/');
   await expect(page.locator('#app-sidebar')).toBeHidden();
 });
+
+
+test('reader controls are present and keyboard friendly', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.locator('#reader-page-jump')).toHaveAttribute('min', '1');
+  await expect(page.locator('#timer-toggle')).toBeVisible();
+  await expect(page.locator('#timer-reset')).toBeVisible();
+  await expect(page.locator('#pdf-preview-toggle')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#text-smaller')).toHaveAttribute('aria-label', /Decrease text size/);
+  await expect(page.locator('#text-larger')).toHaveAttribute('aria-label', /Increase text size/);
+});
+
+test('account screen exposes only configured Google sign-in', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('#account-btn').click();
+  await expect(page.locator('#google-signin')).toBeVisible();
+  await expect(page.locator('#email-auth-form')).toHaveCount(0);
+});
