@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "api/definition.js": {
+      "includeFiles": "node_modules/wordnet-db/dict/**"
+    }
+  }
+}
