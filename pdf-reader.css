@@ -348,7 +348,7 @@
 
 /* Focused PDF text view: turn extracted text into a calm, page-like reading surface. */
 #reader.pdf-text-reader {
-  width: min(100%, 900px);
+  width: min(100%, var(--reader-width));
   margin: 0 auto;
   padding: 0;
   background: transparent;
@@ -390,10 +390,13 @@
 }
 
 #reader.pdf-text-reader p {
+  width: 100%;
   max-width: 68ch;
   margin: 0 auto;
   color: var(--ink);
-  font: var(--reader-fs)/1.9 var(--reader-font);
+  font-family: var(--reader-font);
+  font-size: var(--reader-fs);
+  line-height: var(--reader-leading);
   text-align: left;
   overflow-wrap: anywhere;
 }
