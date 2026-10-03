@@ -171,7 +171,62 @@ async function setPdfMode(visual) {
 }
 function scalePdf(amount) { zoom=Math.min(2.4,Math.max(.65,zoom+amount)); pdfPages.querySelectorAll('.pdf-page[data-rendered="yes"]').forEach(releasePdfPage); pdfPages.querySelectorAll('.pdf-page').forEach(frame=>{ if(pageObserver) pageObserver.unobserve(frame); pageObserver?.observe(frame); }); }
 
-function wordAt(x,y) { let node,offset; if(document.caretPositionFromPoint){const p=document.caretPositionFromPoint(x,y);node=p?.offsetNode;offset=p?.offset;}else{const range=document.caretRangeFromPoint?.(x,y);node=range?.startContainer;offset=range?.startOffset;} if(!node||node.nodeType!==Node.TEXT_NODE)return null; const text=node.data; let start=offset,end=offset; while(start>0&&/[-'’\p{L}\p{M}]/u.test(text[start-1]))start--; while(end<text.length&&/[-'’\p{L}\p{M}]/u.test(text[end]))end++; const word=text.slice(start,end).replace(/^[-'’]+|[-'’]+$/g,'').toLowerCase(); if(!word)return null; const range=document.createRange();range.setStart(node,start);range.setEnd(node,end); if(![...range.getClientRects()].some(rect=>x>=rect.left-3&&x<=rect.right+3&&y>=rect.top-3&&y<=rect.bottom+3))return null;return {word,range}; }
+function textOffsetAtPoint(node,x,y){
+  const text=node?.data||'';
+  if(!text)return 0;
+  const probe=document.createRange();
+  let nearest=0,nearestDistance=Infinity;
+  for(let index=0;index<text.length;index++){
+    probe.setStart(node,index);
+    probe.setEnd(node,index+1);
+    for(const rect of probe.getClientRects()){
+      const inside=x>=rect.left&&x<=rect.right&&y>=rect.top&&y<=rect.bottom;
+      if(inside)return x>rect.left+rect.width/2?index+1:index;
+      const dx=x<rect.left?rect.left-x:x>rect.right?x-rect.right:0;
+      const dy=y<rect.top?rect.top-y:y>rect.bottom?y-rect.bottom:0;
+      const distance=dx*dx+dy*dy;
+      if(distance<nearestDistance){nearestDistance=distance;nearest=x>rect.left+rect.width/2?index+1:index;}
+    }
+  }
+  return nearest;
+}
+function wordAt(x,y){
+  let node=null,offset=0;
+  const hit=document.elementFromPoint(x,y);
+  const textHost=hit?.closest?.('.textLayer :is(span, br)');
+  if(textHost){
+    const walker=document.createTreeWalker(textHost,NodeFilter.SHOW_TEXT);
+    node=walker.nextNode();
+    if(node)offset=textOffsetAtPoint(node,x,y);
+  }
+  if(!node){
+    if(document.caretPositionFromPoint){
+      const point=document.caretPositionFromPoint(x,y);
+      node=point?.offsetNode;
+      offset=point?.offset||0;
+    }else{
+      const range=document.caretRangeFromPoint?.(x,y);
+      node=range?.startContainer;
+      offset=range?.startOffset||0;
+    }
+  }
+  if(!node||node.nodeType!==Node.TEXT_NODE)return null;
+  const text=node.data;
+  if(!text.trim())return null;
+  const exactOffset=textOffsetAtPoint(node,x,y);
+  if(Number.isFinite(exactOffset))offset=exactOffset;
+  offset=Math.max(0,Math.min(text.length,offset));
+  let start=offset,end=offset;
+  while(start>0&&/[-'’\p{L}\p{M}]/u.test(text[start-1]))start--;
+  while(end<text.length&&/[-'’\p{L}\p{M}]/u.test(text[end]))end++;
+  const word=text.slice(start,end).replace(/^[-'’]+|[-'’]+$/g,'').toLowerCase();
+  if(!word)return null;
+  const range=document.createRange();
+  range.setStart(node,start);
+  range.setEnd(node,end);
+  if(![...range.getClientRects()].some(rect=>x>=rect.left&&x<=rect.right&&y>=rect.top&&y<=rect.bottom))return null;
+  return {word,range};
+}
 document.addEventListener('click',event=>{if(event.target.closest('button,a,input,select,textarea,#popup,.pdf-thumb'))return;const readable=event.target.closest('.readable');if(!readable)return;const selection=getSelection();if(selection&&!selection.isCollapsed)return;const hit=wordAt(event.clientX,event.clientY);if(hit)showWord(hit);else hidePopup();});
 document.addEventListener('dblclick',event=>{if(event.target.closest('button,a,input,select,textarea,#popup,.pdf-thumb'))return;const readable=event.target.closest('.readable'),selection=getSelection();if(!readable||!selection||selection.isCollapsed)return;const selected=selection.toString().trim().match(/^[\p{L}\p{M}]+(?:[-'’][\p{L}\p{M}]+)*$/u);if(selected)showWord({word:selected[0].toLowerCase(),range:selection.getRangeAt(0).cloneRange()});});
 function popupShell(word,message){popup.replaceChildren();const close=safeText(popup,'button','×','close');close.type='button';close.setAttribute('aria-label','Close definition');close.addEventListener('click',hidePopup);const heading=safeText(popup,'h2',word);heading.id='popup-word';popup.setAttribute('aria-labelledby','popup-word');if(message)safeText(popup,'p',message,'note');}
