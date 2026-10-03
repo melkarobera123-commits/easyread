@@ -149,7 +149,100 @@ async function renderPdfPage(number) {
   finally { pdfRenderPromises.delete(frame); }
   if(rendered&&frame.dataset.releaseAfterRender==='yes') { releasePdfPage(frame); pageObserver?.unobserve(frame); pageObserver?.observe(frame); }
 }
-async function drawPdfPage(pdf,number,frame) { const page=await pdf.getPage(number), scale=pageScale(page), viewport=page.getViewport({scale}), desiredDpr=Math.min(devicePixelRatio||1,2), pixelBudget=12_000_000, dpr=Math.min(desiredDpr,Math.max(.5,Math.sqrt(pixelBudget/(viewport.width*viewport.height)))), canvas=frame.querySelector('canvas'), context=canvas.getContext('2d',{alpha:false}); canvas.width=Math.round(viewport.width*dpr); canvas.height=Math.round(viewport.height*dpr); canvas.style.width=`${viewport.width}px`; canvas.style.height=`${viewport.height}px`; frame.style.minHeight=`${viewport.height+48}px`; const renderViewport=page.getViewport({scale:scale*dpr}); await page.render({canvasContext:context,viewport:renderViewport}).promise; const layer=frame.querySelector('.textLayer'); unregisterPdfSelectionLayer(layer); layer.replaceChildren(); layer.style.left=`${canvas.offsetLeft}px`; layer.style.top=`${canvas.offsetTop}px`; layer.style.width=`${viewport.width}px`; layer.style.height=`${viewport.height}px`; layer.style.setProperty('--total-scale-factor',String(scale)); try { const textContentSource=page.streamTextContent({includeMarkedContent:true,disableNormalization:true}); const textLayer=new pdfjsLib.TextLayer({textContentSource,container:layer,viewport}); await textLayer.render(); registerPdfSelectionLayer(layer); } catch(error){ console.warn('PDF text layer failed',error); } }
+async async function buildFallbackPdfTextLayer(page, layer, viewport) {
+  const textContent = await page.getTextContent({
+    includeMarkedContent: true,
+    disableNormalization: true
+  });
+  const fragment = document.createDocumentFragment();
+
+  for (const item of textContent.items) {
+    if (!item.str) continue;
+    const tx = pdfjsLib.Util.transform(viewport.transform, item.transform);
+    const fontHeight = Math.max(Math.hypot(tx[2], tx[3]), 1);
+    const span = document.createElement('span');
+    span.textContent = item.str;
+    span.style.position = 'absolute';
+    span.style.left = `${tx[4]}px`;
+    span.style.top = `${tx[5] - fontHeight}px`;
+    span.style.fontSize = `${fontHeight}px`;
+    span.style.lineHeight = '1';
+    span.style.fontFamily = 'sans-serif';
+    span.style.whiteSpace = 'pre';
+    span.style.color = 'transparent';
+    span.style.cursor = 'text';
+    span.style.userSelect = 'text';
+    span.style.webkitUserSelect = 'text';
+    span.style.transformOrigin = '0 0';
+    fragment.append(span);
+  }
+
+  layer.append(fragment);
+
+  for (const span of layer.querySelectorAll('span')) {
+    const itemWidth = span.textContent ? span.getBoundingClientRect().width : 0;
+    const targetWidth = span.textContent ? span.style.width : '';
+    if (itemWidth > 0 && targetWidth) {
+      span.style.transform = `scaleX(${Math.max(.01, parseFloat(targetWidth) / itemWidth)})`;
+    }
+  }
+}
+
+async function drawPdfPage(pdf,number,frame) {
+  const page=await pdf.getPage(number),
+    scale=pageScale(page),
+    viewport=page.getViewport({scale}),
+    desiredDpr=Math.min(devicePixelRatio||1,2),
+    pixelBudget=12_000_000,
+    dpr=Math.min(desiredDpr,Math.max(.5,Math.sqrt(pixelBudget/(viewport.width*viewport.height)))),
+    canvas=frame.querySelector('canvas'),
+    context=canvas.getContext('2d',{alpha:false});
+
+  canvas.width=Math.round(viewport.width*dpr);
+  canvas.height=Math.round(viewport.height*dpr);
+  canvas.style.width=`${viewport.width}px`;
+  canvas.style.height=`${viewport.height}px`;
+  frame.style.minHeight=`${viewport.height+48}px`;
+
+  const renderViewport=page.getViewport({scale:scale*dpr});
+  await page.render({canvasContext:context,viewport:renderViewport}).promise;
+
+  const layer=frame.querySelector('.textLayer');
+  unregisterPdfSelectionLayer(layer);
+  layer.replaceChildren();
+  layer.style.left=`${canvas.offsetLeft}px`;
+  layer.style.top=`${canvas.offsetTop}px`;
+  layer.style.width=`${viewport.width}px`;
+  layer.style.height=`${viewport.height}px`;
+  layer.style.setProperty('--total-scale-factor',String(scale));
+
+  try {
+    const textContentSource=page.streamTextContent({
+      includeMarkedContent:true,
+      disableNormalization:true
+    });
+    const textLayer=new pdfjsLib.TextLayer({
+      textContentSource,
+      container:layer,
+      viewport
+    });
+    await textLayer.render();
+
+    if (!layer.querySelector('span')) {
+      await buildFallbackPdfTextLayer(page,layer,viewport);
+    }
+  } catch(error) {
+    console.warn('PDF.js text layer failed, using selectable fallback',error);
+    layer.replaceChildren();
+    try {
+      await buildFallbackPdfTextLayer(page,layer,viewport);
+    } catch(fallbackError) {
+      console.warn('PDF fallback text layer failed',fallbackError);
+    }
+  }
+
+  registerPdfSelectionLayer(layer);
+}
 function releasePdfPage(frame) { if(pdfRenderPromises.has(frame)){frame.dataset.releaseAfterRender='yes';return;} if(frame.dataset.rendered!=='yes') return; const canvas=frame.querySelector('canvas'), layer=frame.querySelector('.textLayer'); unregisterPdfSelectionLayer(layer); canvas.width=0; canvas.height=0; layer.replaceChildren(); frame.dataset.rendered=''; delete frame.dataset.releaseAfterRender; }
 async function renderThumbnail(number) { const button=pdfThumbs.querySelector(`[data-page="${number}"]`); if(!button||button.dataset.rendered) return; try { const page=await activePdf.getPage(number), viewport=page.getViewport({scale:.11}), canvas=document.createElement('canvas'); canvas.width=viewport.width*2; canvas.height=viewport.height*2; canvas.style.width='56px'; await page.render({canvasContext:canvas.getContext('2d'),viewport:page.getViewport({scale:.22})}).promise; button.prepend(canvas); button.dataset.rendered='yes'; } catch {} }
 function goPdfPage(number) { const page=Math.min(pageCount,Math.max(1,Number(number)||1)),target=pdfPages.querySelector(`[data-page="${page}"]`);if(!target)return;activePage=page;byId('pdf-page-label').textContent=`Page ${page} of ${pageCount}`;target.scrollIntoView({behavior:'smooth',block:'start'}); }
