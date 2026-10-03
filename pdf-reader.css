@@ -207,7 +207,7 @@
 
 .textLayer {
   position: absolute;
-  z-index: 2;
+  z-index: 3;
   width: auto;
   height: auto;
   overflow: visible;
@@ -218,11 +218,12 @@
   --min-font-size: 1;
   --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
   --min-font-size-inv: calc(1 / var(--min-font-size));
-  pointer-events: none;
+  pointer-events: auto;
   user-select: text;
   -webkit-user-select: text;
   -webkit-touch-callout: default;
   touch-action: auto;
+  cursor: text;
 }
 
 /*
@@ -244,8 +245,8 @@
   -webkit-touch-callout: default;
   touch-action: auto;
   box-sizing: content-box;
-  padding: 1px 0 3px;
-  margin: -1px 0 -3px;
+  padding: 0;
+  margin: 0;
   line-height: 1;
   text-rendering: geometricPrecision;
   font-kerning: normal;
