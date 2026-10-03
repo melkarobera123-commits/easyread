@@ -311,6 +311,78 @@
   border: 1px solid var(--line);
   border-radius: 10px;
 }
+
+/* Focused PDF text view: turn extracted text into a calm, page-like reading surface. */
+#reader.pdf-text-reader {
+  width: min(100%, 900px);
+  margin: 0 auto;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  overflow: visible;
+}
+
+#reader.pdf-text-reader .page {
+  width: 100%;
+  max-width: 820px;
+  margin: 0 auto 26px;
+  padding: clamp(30px, 5vw, 58px) clamp(24px, 6vw, 72px);
+  background: var(--sheet);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .08);
+  scroll-margin-top: 105px;
+}
+
+#reader.pdf-text-reader .page-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin: 0 0 34px;
+  color: var(--muted);
+  font: 700 .7rem/1 var(--ui);
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+#reader.pdf-text-reader .page-mark::before,
+#reader.pdf-text-reader .page-mark::after {
+  content: "";
+  width: 34px;
+  height: 1px;
+  background: var(--line);
+}
+
+#reader.pdf-text-reader p {
+  max-width: 68ch;
+  margin: 0 auto;
+  color: var(--ink);
+  font: var(--reader-fs)/1.9 var(--reader-font);
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+#reader.pdf-text-reader p + p {
+  margin-top: 1.25em;
+}
+
+#reader.pdf-text-reader .page:focus-within {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+}
+
+@media (max-width: 700px) {
+  #reader.pdf-text-reader .page {
+    margin-bottom: 16px;
+    padding: 28px 20px 34px;
+    border-radius: 12px;
+  }
+
+  #reader.pdf-text-reader .page-mark {
+    margin-bottom: 26px;
+  }
+}
 .text-view-controls .icon-btn {
   min-width: 38px;
   min-height: 38px;
