@@ -203,7 +203,7 @@
   z-index: 2;
   width: 100% !important;
   height: 100% !important;
-  overflow: hidden;
+  overflow: visible;
   line-height: 1;
   text-align: initial;
   transform: none;
@@ -213,8 +213,18 @@
   --min-font-size-inv: calc(1 / var(--min-font-size));
   pointer-events: none;
   user-select: text;
+  -webkit-user-select: text;
+  -webkit-touch-callout: default;
+  touch-action: auto;
 }
 
+/*
+ * Keep the PDF.js text geometry as close as possible to the real glyph
+ * geometry. Large horizontal padding makes neighbouring words overlap and
+ * causes inaccurate selection handles, especially on touch screens.
+ * A very small vertical buffer makes tapping/long-pressing easier without
+ * changing the horizontal word boundary.
+ */
 .textLayer :is(span, br) {
   position: absolute;
   color: transparent;
@@ -222,22 +232,35 @@
   cursor: text;
   transform-origin: 0 0;
   pointer-events: auto;
-  user-select: text;
-  -webkit-user-select: text;
-  /*
-   * PDF.js positions text spans from the glyph box. The glyph box can be
-   * noticeably shorter than the visual ink, especially with ascenders,
-   * descenders, embedded fonts, and fractional page scaling. Expand only the
-   * interaction box, not the visual text, so selection starts on the word
-   * instead of requiring a "slightly below the word" aim.
-   */
-  padding: 2px 2px 7px;
-  margin: -2px -2px -7px;
-  line-height: 1.12;
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  -webkit-touch-callout: default;
+  touch-action: auto;
+  box-sizing: content-box;
+  padding: 1px 0 3px;
+  margin: -1px 0 -3px;
+  line-height: 1;
+  text-rendering: geometricPrecision;
+  font-kerning: normal;
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
 }
 
+.textLayer :is(span, br)::selection {
+  background: rgba(67, 132, 111, .38);
+}
+
+.textLayer span.markedContent {
+  padding: 0;
+  margin: 0;
+}
+
+.textLayer > :not(.markedContent),
+.textLayer .markedContent span:not(.markedContent) {
+  z-index: 1;
+  font-size: calc(var(--text-scale-factor) * var(--font-height));
+  transform: rotate(var(--rotate, 0deg)) scaleX(var(--scale-x, 1)) scale(var(--min-font-size-inv));
+}
 .textLayer > :not(.markedContent),
 .textLayer .markedContent span:not(.markedContent) {
   z-index: 1;
