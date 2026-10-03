@@ -172,108 +172,13 @@ async function setPdfMode(visual) {
 function scalePdf(amount) { zoom=Math.min(2.4,Math.max(.65,zoom+amount)); pdfPages.querySelectorAll('.pdf-page[data-rendered="yes"]').forEach(releasePdfPage); pdfPages.querySelectorAll('.pdf-page').forEach(frame=>{ if(pageObserver) pageObserver.unobserve(frame); pageObserver?.observe(frame); }); }
 
 const pdfSelectionLayers = new Map();
-let pdfSelectionAbort = null;
-
-function resetPdfSelectionLayer(layer, end) {
-  if (!layer) return;
-  if (end && end.parentNode !== layer) layer.append(end);
-  if (end) {
-    end.style.width = '';
-    end.style.height = '';
-    end.style.userSelect = '';
-  }
-  layer.classList.remove('selecting');
-}
 
 function unregisterPdfSelectionLayer(layer) {
   if (!layer) return;
   const end = pdfSelectionLayers.get(layer);
   pdfSelectionLayers.delete(layer);
-  if (pdfSelectionLayers.size === 0) {
-    pdfSelectionAbort?.abort();
-    pdfSelectionAbort = null;
-  }
-  resetPdfSelectionLayer(layer, end);
-}
-
-function ensurePdfSelectionListener() {
-  if (pdfSelectionAbort) return;
-  pdfSelectionAbort = new AbortController();
-  const { signal } = pdfSelectionAbort;
-  let pointerDown = false;
-  let previousRange = null;
-
-  const resetAll = () => {
-    pointerDown = false;
-    previousRange = null;
-    pdfSelectionLayers.forEach((end, layer) => resetPdfSelectionLayer(layer, end));
-  };
-
-  document.addEventListener('pointerdown', () => {
-    pointerDown = true;
-  }, { signal });
-
-  document.addEventListener('pointerup', resetAll, { signal });
-  window.addEventListener('blur', resetAll, { signal });
-  document.addEventListener('keyup', () => {
-    if (!pointerDown) resetAll();
-  }, { signal });
-
-  document.addEventListener('selectionchange', () => {
-    const selection = document.getSelection();
-    if (!selection || selection.rangeCount === 0) {
-      pdfSelectionLayers.forEach((end, layer) => resetPdfSelectionLayer(layer, end));
-      previousRange = null;
-      return;
-    }
-
-    const active = new Set();
-    for (let index = 0; index < selection.rangeCount; index++) {
-      const range = selection.getRangeAt(index);
-      pdfSelectionLayers.forEach((end, layer) => {
-        if (!active.has(layer) && range.intersectsNode(layer)) active.add(layer);
-      });
-    }
-
-    pdfSelectionLayers.forEach((end, layer) => {
-      if (active.has(layer)) {
-        layer.classList.add('selecting');
-      } else {
-        resetPdfSelectionLayer(layer, end);
-      }
-    });
-
-    // Chromium/Firefox have improved this behavior in recent versions.
-    // For other browsers, keep the selection anchor close to the text being
-    // modified instead of letting an empty area expand the selection wildly.
-    const firstLayer = active.values().next().value;
-    if (!firstLayer) return;
-
-    const range = selection.getRangeAt(0);
-    const end = pdfSelectionLayers.get(firstLayer);
-    if (!end) return;
-
-    const parent = range.endContainer.nodeType === Node.TEXT_NODE
-      ? range.endContainer.parentNode
-      : range.endContainer;
-
-    if (!parent?.closest?.('.textLayer')) return;
-
-    const shouldMoveEnd = previousRange &&
-      (range.compareBoundaryPoints(Range.END_TO_END, previousRange) === 0 ||
-       range.compareBoundaryPoints(Range.START_TO_END, previousRange) === 0);
-
-    if (!shouldMoveEnd && range.endOffset === 0) {
-      let anchor = parent;
-      while (anchor && !anchor.previousSibling && anchor.parentNode) anchor = anchor.parentNode;
-      if (anchor?.previousSibling) anchor = anchor.previousSibling;
-      if (anchor?.parentElement?.closest?.('.textLayer')) {
-        anchor.parentNode.insertBefore(end, anchor.nextSibling);
-      }
-    }
-
-    previousRange = range.cloneRange();
-  }, { signal });
+  end?.remove();
+  layer.classList.remove('selecting');
 }
 
 function registerPdfSelectionLayer(layer) {
@@ -283,21 +188,34 @@ function registerPdfSelectionLayer(layer) {
   end.className = 'endOfContent';
   layer.append(end);
   pdfSelectionLayers.set(layer, end);
-  ensurePdfSelectionListener();
 
   if (!layer.dataset.selectionBound) {
     layer.dataset.selectionBound = 'yes';
-    layer.addEventListener('mousedown', () => {
-      layer.classList.add('selecting');
-    });
+
     layer.addEventListener('copy', event => {
       const selection = document.getSelection();
-      if (!selection || selection.isCollapsed) return;
+      if (!selection || selection.isCollapsed || !selection.toString().trim()) return;
       event.clipboardData?.setData('text/plain', selection.toString().normalize());
       event.preventDefault();
     });
   }
 }
+
+document.addEventListener('selectionchange', () => {
+  const selection = document.getSelection();
+  pdfSelectionLayers.forEach((end, layer) => {
+    const active = Boolean(
+      selection &&
+      !selection.isCollapsed &&
+      selection.rangeCount &&
+      [...Array(selection.rangeCount)].some((_, index) => {
+        try { return selection.getRangeAt(index).intersectsNode(layer); }
+        catch { return false; }
+      })
+    );
+    layer.classList.toggle('selecting', active);
+  });
+});
 
 function pdfTextNodeAtPoint(x, y) {
   const point = document.caretPositionFromPoint?.(x, y);
