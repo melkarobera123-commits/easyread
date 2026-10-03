@@ -206,7 +206,7 @@ function ensurePdfSelectionListener() {
   const resetAll = () => {
     pointerDown = false;
     previousRange = null;
-    pdfSelectionLayers.forEach(resetPdfSelectionLayer);
+    pdfSelectionLayers.forEach((end, layer) => resetPdfSelectionLayer(layer, end));
   };
 
   document.addEventListener('pointerdown', () => {
@@ -247,7 +247,7 @@ function ensurePdfSelectionListener() {
     // For other browsers, keep the selection anchor close to the text being
     // modified instead of letting an empty area expand the selection wildly.
     const firstLayer = active.values().next().value;
-    if (!firstLayer || typeof CSS === 'undefined') return;
+    if (!firstLayer) return;
 
     const range = selection.getRangeAt(0);
     const end = pdfSelectionLayers.get(firstLayer);
@@ -285,15 +285,18 @@ function registerPdfSelectionLayer(layer) {
   pdfSelectionLayers.set(layer, end);
   ensurePdfSelectionListener();
 
-  layer.addEventListener('mousedown', () => {
-    layer.classList.add('selecting');
-  });
-  layer.addEventListener('copy', event => {
-    const selection = document.getSelection();
-    if (!selection || selection.isCollapsed) return;
-    event.clipboardData?.setData('text/plain', selection.toString().normalize());
-    event.preventDefault();
-  });
+  if (!layer.dataset.selectionBound) {
+    layer.dataset.selectionBound = 'yes';
+    layer.addEventListener('mousedown', () => {
+      layer.classList.add('selecting');
+    });
+    layer.addEventListener('copy', event => {
+      const selection = document.getSelection();
+      if (!selection || selection.isCollapsed) return;
+      event.clipboardData?.setData('text/plain', selection.toString().normalize());
+      event.preventDefault();
+    });
+  }
 }
 
 function pdfTextNodeAtPoint(x, y) {
