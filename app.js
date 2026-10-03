@@ -171,51 +171,67 @@ async function setPdfMode(visual) {
 }
 function scalePdf(amount) { zoom=Math.min(2.4,Math.max(.65,zoom+amount)); pdfPages.querySelectorAll('.pdf-page[data-rendered="yes"]').forEach(releasePdfPage); pdfPages.querySelectorAll('.pdf-page').forEach(frame=>{ if(pageObserver) pageObserver.unobserve(frame); pageObserver?.observe(frame); }); }
 
-function textOffsetAtPoint(node,x,y){
+function characterAtPoint(node,x,y){
   const text=node?.data||'';
-  if(!text)return 0;
+  if(!text.trim())return null;
   const probe=document.createRange();
-  let nearest=0,nearestDistance=Infinity;
+  let nearest=null,nearestDistance=Infinity;
   for(let index=0;index<text.length;index++){
+    if(/\\s/.test(text[index]))continue;
     probe.setStart(node,index);
     probe.setEnd(node,index+1);
     for(const rect of probe.getClientRects()){
+      if(rect.width<=0||rect.height<=0)continue;
       const inside=x>=rect.left&&x<=rect.right&&y>=rect.top&&y<=rect.bottom;
-      if(inside)return x>rect.left+rect.width/2?index+1:index;
+      if(inside){
+        return {node,index,distance:0};
+      }
       const dx=x<rect.left?rect.left-x:x>rect.right?x-rect.right:0;
       const dy=y<rect.top?rect.top-y:y>rect.bottom?y-rect.bottom:0;
       const distance=dx*dx+dy*dy;
-      if(distance<nearestDistance){nearestDistance=distance;nearest=x>rect.left+rect.width/2?index+1:index;}
+      if(distance<nearestDistance){
+        nearestDistance=distance;
+        nearest={node,index,distance};
+      }
     }
   }
   return nearest;
 }
-function wordAt(x,y){
-  let node=null,offset=0;
-  const hit=document.elementFromPoint(x,y);
-  const textHost=hit?.closest?.('.textLayer :is(span, br)');
-  if(textHost){
-    const walker=document.createTreeWalker(textHost,NodeFilter.SHOW_TEXT);
-    node=walker.nextNode();
-    if(node)offset=textOffsetAtPoint(node,x,y);
+function findPdfCharacterAtPoint(x,y){
+  const layer=document.elementFromPoint(x,y)?.closest?.('.textLayer')||
+    document.elementsFromPoint(x,y).find(element=>element.classList?.contains('textLayer'));
+  if(!layer)return null;
+
+  const candidates=[];
+  const spans=[...layer.querySelectorAll('span:not(.markedContent)')];
+  const direct=document.elementsFromPoint(x,y).filter(element=>element.matches?.('.textLayer span:not(.markedContent)'));
+  for(const span of [...new Set([...direct,...spans])]){
+    const walker=document.createTreeWalker(span,NodeFilter.SHOW_TEXT);
+    let node;
+    while((node=walker.nextNode())){
+      const hit=characterAtPoint(node,x,y);
+      if(hit)candidates.push(hit);
+    }
+    if(candidates.some(candidate=>candidate.distance===0))break;
   }
-  if(!node){
+  return candidates.sort((a,b)=>a.distance-b.distance)[0]||null;
+}
+function wordAt(x,y){
+  let hit=findPdfCharacterAtPoint(x,y);
+  if(!hit){
     if(document.caretPositionFromPoint){
       const point=document.caretPositionFromPoint(x,y);
-      node=point?.offsetNode;
-      offset=point?.offset||0;
+      if(point?.offsetNode?.nodeType===Node.TEXT_NODE)hit={node:point.offsetNode,index:point.offset||0,distance:0};
     }else{
       const range=document.caretRangeFromPoint?.(x,y);
-      node=range?.startContainer;
-      offset=range?.startOffset||0;
+      if(range?.startContainer?.nodeType===Node.TEXT_NODE)hit={node:range.startContainer,index:range.startOffset||0,distance:0};
     }
   }
+  const node=hit?.node;
   if(!node||node.nodeType!==Node.TEXT_NODE)return null;
   const text=node.data;
-  if(!text.trim())return null;
-  const exactOffset=textOffsetAtPoint(node,x,y);
-  if(Number.isFinite(exactOffset))offset=exactOffset;
-  offset=Math.max(0,Math.min(text.length,offset));
+  let offset=Math.max(0,Math.min(text.length,hit.index));
+  if(/\\s/.test(text[offset]||'')&&offset>0)offset--;
   let start=offset,end=offset;
   while(start>0&&/[-'’\p{L}\p{M}]/u.test(text[start-1]))start--;
   while(end<text.length&&/[-'’\p{L}\p{M}]/u.test(text[end]))end++;
@@ -224,7 +240,8 @@ function wordAt(x,y){
   const range=document.createRange();
   range.setStart(node,start);
   range.setEnd(node,end);
-  if(![...range.getClientRects()].some(rect=>x>=rect.left&&x<=rect.right&&y>=rect.top&&y<=rect.bottom))return null;
+  const rects=[...range.getClientRects()];
+  if(!rects.some(rect=>x>=rect.left&&x<=rect.right&&y>=rect.top&&y<=rect.bottom))return null;
   return {word,range};
 }
 document.addEventListener('click',event=>{if(event.target.closest('button,a,input,select,textarea,#popup,.pdf-thumb'))return;const readable=event.target.closest('.readable');if(!readable)return;const selection=getSelection();if(selection&&!selection.isCollapsed)return;const hit=wordAt(event.clientX,event.clientY);if(hit)showWord(hit);else hidePopup();});
