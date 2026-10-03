@@ -244,10 +244,13 @@
   -webkit-user-select: text !important;
   -webkit-touch-callout: default;
   touch-action: auto;
-  box-sizing: content-box;
-  padding: 1px 0 3px;
-  margin: -1px 0 -3px;
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
   line-height: 1;
+  -webkit-text-size-adjust: none;
+  text-size-adjust: none;
+  forced-color-adjust: none;
   text-rendering: geometricPrecision;
   font-kerning: normal;
   box-decoration-break: clone;
