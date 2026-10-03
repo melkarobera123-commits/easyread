@@ -174,6 +174,7 @@ async async function buildFallbackPdfTextLayer(page, layer, viewport) {
     span.style.userSelect = 'text';
     span.style.webkitUserSelect = 'text';
     span.style.transformOrigin = '0 0';
+    span.dataset.pdfWidth = String(item.width || 0);
     fragment.append(span);
   }
 
