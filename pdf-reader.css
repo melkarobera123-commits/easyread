@@ -206,85 +206,100 @@
 }
 
 .textLayer {
-  color-scheme: only light;
   position: absolute;
-  inset: 0;
+  inset: auto;
   z-index: 2;
-  overflow: clip;
-  opacity: 1;
+  width: 100% !important;
+  height: 100% !important;
+  overflow: visible;
   line-height: 1;
   text-align: initial;
-  letter-spacing: normal;
-  word-spacing: normal;
-  text-size-adjust: none;
-  -webkit-text-size-adjust: none;
-  forced-color-adjust: none;
+  transform: none;
   transform-origin: 0 0;
-  caret-color: CanvasText;
+  --min-font-size: 1;
+  --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+  --min-font-size-inv: calc(1 / var(--min-font-size));
   pointer-events: none;
   user-select: text;
   -webkit-user-select: text;
   -webkit-touch-callout: default;
+  touch-action: auto;
+}
 
-  :is(span, br) {
-    color: transparent;
-    position: absolute;
-    white-space: pre;
-    cursor: text;
-    transform-origin: 0% 0%;
-    pointer-events: auto;
-    user-select: text !important;
-    -webkit-user-select: text !important;
-    -webkit-touch-callout: default;
-    box-sizing: content-box;
-    padding: 0;
-    margin: 0;
+/*
+ * Keep the PDF.js text geometry as close as possible to the real glyph
+ * geometry. Large horizontal padding makes neighbouring words overlap and
+ * causes inaccurate selection handles, especially on touch screens.
+ * A very small vertical buffer makes tapping/long-pressing easier without
+ * changing the horizontal word boundary.
+ */
+.textLayer :is(span, br) {
+  position: absolute;
+  color: transparent;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0 0;
+  pointer-events: auto;
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  -webkit-touch-callout: default;
+  touch-action: auto;
+  box-sizing: content-box;
+  padding: 1px 0 3px;
+  margin: -1px 0 -3px;
+  line-height: 1;
+  text-rendering: geometricPrecision;
+  font-kerning: normal;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+.textLayer :is(span, br)::selection {
+  background: rgba(67, 132, 111, .38);
+}
+
+.textLayer span.markedContent {
+  padding: 0;
+  margin: 0;
+}
+
+.textLayer > :not(.markedContent),
+.textLayer .markedContent span:not(.markedContent) {
+  z-index: 1;
+  font-size: calc(var(--text-scale-factor) * var(--font-height));
+  transform: rotate(var(--rotate, 0deg)) scaleX(var(--scale-x, 1)) scale(var(--min-font-size-inv));
+}
+.textLayer > :not(.markedContent),
+.textLayer .markedContent span:not(.markedContent) {
+  z-index: 1;
+  font-size: calc(var(--text-scale-factor) * var(--font-height));
+  transform: rotate(var(--rotate, 0deg)) scaleX(var(--scale-x, 1)) scale(var(--min-font-size-inv));
+}
+
+.textLayer span.markedContent {
+  top: 0;
+  height: 0;
+}
+
+.textLayer ::selection {
+  background: rgba(67, 132, 111, .32);
+}
+
+@media (max-width: 640px) {
+  .reading-timer {
+    margin-left: 0;
   }
 
-  /* PDF.js uses this scaling model so very small PDF fonts remain
-   * selectable even when the browser enforces a minimum font size. */
-  --min-font-size: 1;
-  --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
-  --min-font-size-inv: calc(1 / var(--min-font-size));
-
-  > :not(.markedContent),
-  .markedContent span:not(.markedContent) {
-    z-index: 1;
-    --font-height: 0;
-    font-size: calc(var(--text-scale-factor) * var(--font-height));
-    --scale-x: 1;
-    --rotate: 0deg;
-    transform: rotate(var(--rotate)) scaleX(var(--scale-x))
-      scale(var(--min-font-size-inv));
+  .reading-timer .icon-btn {
+    min-height: 40px;
   }
 
-  .markedContent {
-    display: contents;
-  }
-
-  span[role="img"] {
-    user-select: none;
-    -webkit-user-select: none;
-    cursor: default;
-  }
-
-  ::selection {
-    background: color-mix(in srgb, AccentColor, transparent 50%);
-    color: transparent;
-  }
-
-  br::selection {
-    background: transparent;
-  }
-
-  .endOfContent {
-    display: block;
-    position: absolute;
-    inset: 100% 0 0;
-    z-index: 0;
-    cursor: default;
-    user-select: none;
-    -webkit-user-select: none;
+  .pdf-toolbar {
+    position: sticky;
+    z-index: 14;
+    top: 66px;
+    padding: 7px 0;
+    background: var(--bg);
   }
 }
 
