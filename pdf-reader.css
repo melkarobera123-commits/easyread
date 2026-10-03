@@ -165,6 +165,14 @@
 
 .pdf-page {
   isolation: isolate;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.pdf-page canvas {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-user-drag: none;
 }
 
 .reader-wrap:fullscreen {
