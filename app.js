@@ -156,6 +156,7 @@ function goPdfPage(number) { const page=Math.min(pageCount,Math.max(1,Number(num
 async function setPdfMode(visual) {
   closeDictionaryPanel();
   pdfMode=visual;
+  reader.classList.toggle('pdf-text-reader', !visual);
   pdfPages.hidden=!visual;
   pdfThumbs.hidden=!visual||!pdfPreviewsVisible;
   byId('pdf-controls').hidden=!visual;
