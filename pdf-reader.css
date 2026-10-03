@@ -207,10 +207,9 @@
 
 .textLayer {
   position: absolute;
-  inset: auto;
   z-index: 2;
-  width: 100% !important;
-  height: 100% !important;
+  width: auto;
+  height: auto;
   overflow: visible;
   line-height: 1;
   text-align: initial;
@@ -304,12 +303,49 @@
 }
 
 @media (max-width: 640px) {
+  #popup.dictionary-search-popup {
+    top: auto !important;
+    left: 10px !important;
+    bottom: max(10px, env(safe-area-inset-bottom)) !important;
+    transform: none !important;
+  }
+
   .reading-timer {
     margin-left: 0;
   }
 
   .reading-timer .icon-btn {
     min-height: 40px;
+  }
+
+  #popup {
+    width: min(420px, calc(100vw - 20px));
+    max-height: min(72vh, 620px);
+    overflow: auto;
+    left: 10px !important;
+    right: 10px !important;
+    bottom: max(10px, env(safe-area-inset-bottom)) !important;
+    top: auto !important;
+    transform: none !important;
+    border-radius: 16px;
+  }
+
+  .dictionary-panel:not([hidden]) {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: end;
+  }
+
+  .dictionary-panel label {
+    grid-column: 1 / -1;
+  }
+
+  .dictionary-panel input {
+    width: 100%;
+  }
+
+  .dictionary-panel .btn {
+    min-height: 42px;
   }
 
   .pdf-toolbar {
