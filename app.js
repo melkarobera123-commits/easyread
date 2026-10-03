@@ -134,7 +134,7 @@ async function parsePdf(file) {
 async function buildPdfTextView(){
   if(!activePdf)return;
   if(pdfTextPromise)return pdfTextPromise;
-  pdfTextPromise=(async()=>{reader.replaceChildren();for(let number=1;number<=activePdf.numPages;number++){const page=await activePdf.getPage(number),content=await page.getTextContent(),section=document.createElement('section');section.className='page readable';section.dataset.page=String(number);safeText(section,'div',`Page ${number}`,'page-mark');safeText(section,'p',content.items.map(item=>item.str).join(' '));reader.append(section);if(number%8===0)await new Promise(requestAnimationFrame);}return true;})();
+  pdfTextPromise=(async()=>{reader.replaceChildren();for(let number=1;number<=activePdf.numPages;number++){const page=await activePdf.getPage(number),content=await page.getTextContent(),section=document.createElement('section');section.className='page readable';section.dataset.page=String(number);safeText(section,'div',`Page ${number}`,'page-mark');const lines=[];let line='';for(const item of content.items){if(!item||typeof item.str!=='string')continue;const value=item.str.trim();if(value)line+=(line?' ':'')+value;if(item.hasEOL&&line){lines.push(line);line='';}}if(line)lines.push(line);const textLines=lines.length?lines:[content.items.map(item=>item?.str||'').join(' ').trim()];for(const value of textLines){if(value)safeText(section,'p',value);}reader.append(section);if(number%8===0)await new Promise(requestAnimationFrame);}return true;})();
   try{return await pdfTextPromise;}catch(error){pdfTextPromise=null;throw error;}
 }
 function pageScale(page) { const base=page.getViewport({scale:1}); const fit=Math.min((pdfPages.clientWidth-36)/base.width,1.5); return Math.max(.5,fit*zoom); }
