@@ -323,61 +323,64 @@ function pdfTextNodeAtPoint(x, y) {
   return null;
 }
 
-function nearestPdfTextNode(x, y) {
-  const elements = document.elementsFromPoint(x, y);
-  const direct = elements.find(element =>
-    element.matches?.('.textLayer span:not(.markedContent)')
-  );
-  if (!direct) return null;
-
-  const node = direct.firstChild;
+function wordRangeAtNode(node, x, y) {
   if (!node || node.nodeType !== Node.TEXT_NODE || !node.data.trim()) return null;
 
-  const range = document.createRange();
-  let nearestIndex = 0;
+  const text = node.data;
+  const wordPattern = /[-'’\p{L}\p{M}]+/gu;
+  let match;
+  let nearest = null;
   let nearestDistance = Infinity;
-  for (let index = 0; index < node.data.length; index++) {
-    if (/\\s/.test(node.data[index])) continue;
-    range.setStart(node, index);
-    range.setEnd(node, index + 1);
-    for (const rect of range.getClientRects()) {
-      if (rect.width <= 0 || rect.height <= 0) continue;
+
+  while ((match = wordPattern.exec(text))) {
+    const range = document.createRange();
+    range.setStart(node, match.index);
+    range.setEnd(node, match.index + match[0].length);
+
+    const rects = [...range.getClientRects()].filter(rect => rect.width > 0 && rect.height > 0);
+    for (const rect of rects) {
+      const inside = x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+      if (inside) {
+        return {
+          word: match[0].replace(/^[-'’]+|[-'’]+$/g, '').toLowerCase(),
+          range
+        };
+      }
+
       const dx = x < rect.left ? rect.left - x : x > rect.right ? x - rect.right : 0;
       const dy = y < rect.top ? rect.top - y : y > rect.bottom ? y - rect.bottom : 0;
       const distance = dx * dx + dy * dy;
       if (distance < nearestDistance) {
         nearestDistance = distance;
-        nearestIndex = index;
+        nearest = {
+          word: match[0].replace(/^[-'’]+|[-'’]+$/g, '').toLowerCase(),
+          range
+        };
       }
-      if (dx === 0 && dy === 0) return { node, index };
     }
   }
-  return nearestDistance < 900 ? { node, index: nearestIndex } : null;
+
+  return nearestDistance <= 900 ? nearest : null;
 }
 
 function wordAt(x, y) {
-  let hit = pdfTextNodeAtPoint(x, y) || nearestPdfTextNode(x, y);
-  const node = hit?.node;
-  if (!node || node.nodeType !== Node.TEXT_NODE) return null;
+  const elements = document.elementsFromPoint(x, y);
+  const span = elements.find(element =>
+    element.matches?.('.textLayer span:not(.markedContent)')
+  );
 
-  const text = node.data;
-  let offset = Math.max(0, Math.min(text.length, hit.index));
-  if (/\\s/.test(text[offset] || '') && offset > 0) offset--;
+  if (span?.firstChild?.nodeType === Node.TEXT_NODE) {
+    const exact = wordRangeAtNode(span.firstChild, x, y);
+    if (exact?.word) return exact;
+  }
 
-  let start = offset;
-  let end = offset;
-  while (start > 0 && /[-'’\\p{L}\\p{M}]/u.test(text[start - 1])) start--;
-  while (end < text.length && /[-'’\\p{L}\\p{M}]/u.test(text[end])) end++;
+  const caret = pdfTextNodeAtPoint(x, y);
+  if (caret?.node) {
+    const exact = wordRangeAtNode(caret.node, x, y);
+    if (exact?.word) return exact;
+  }
 
-  const word = text.slice(start, end).replace(/^[-'’]+|[-'’]+$/g, '').toLowerCase();
-  if (!word) return null;
-
-  const range = document.createRange();
-  range.setStart(node, start);
-  range.setEnd(node, end);
-  const rects = [...range.getClientRects()];
-  if (!rects.some(rect => x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom)) return null;
-  return { word, range };
+  return null;
 }
 
 document.addEventListener('click',event=>{if(event.target.closest('button,a,input,select,textarea,#popup,.pdf-thumb'))return;const readable=event.target.closest('.readable');if(!readable)return;const selection=getSelection();if(selection&&!selection.isCollapsed)return;const hit=wordAt(event.clientX,event.clientY);if(hit)showWord(hit);else hidePopup();});
