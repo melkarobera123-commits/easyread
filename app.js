@@ -222,7 +222,7 @@ function ensurePdfSelectionListener() {
   document.addEventListener('selectionchange', () => {
     const selection = document.getSelection();
     if (!selection || selection.rangeCount === 0) {
-      pdfSelectionLayers.forEach(resetPdfSelectionLayer);
+      pdfSelectionLayers.forEach((end, layer) => resetPdfSelectionLayer(layer, end));
       previousRange = null;
       return;
     }
