@@ -206,101 +206,84 @@
 }
 
 .textLayer {
+  color-scheme: only light;
   position: absolute;
   z-index: 3;
-  width: auto;
-  height: auto;
-  overflow: visible;
-  line-height: 1;
   text-align: initial;
-  transform: none;
+  inset: 0;
+  overflow: clip;
+  opacity: 1;
+  line-height: 1;
+  letter-spacing: normal;
+  word-spacing: normal;
+  text-size-adjust: none;
+  forced-color-adjust: none;
   transform-origin: 0 0;
-  --min-font-size: 1;
-  --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
-  --min-font-size-inv: calc(1 / var(--min-font-size));
+  caret-color: CanvasText;
   pointer-events: auto;
+  touch-action: auto;
   user-select: text;
   -webkit-user-select: text;
   -webkit-touch-callout: default;
-  touch-action: auto;
-  cursor: text;
+
+  --min-font-size: 1;
+  --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+  --min-font-size-inv: calc(1 / var(--min-font-size));
+
+  :is(span, br) {
+    color: transparent;
+    position: absolute;
+    white-space: pre;
+    cursor: text;
+    transform-origin: 0% 0%;
+    user-select: text !important;
+    -webkit-user-select: text !important;
+    -webkit-touch-callout: default;
+    touch-action: auto;
+  }
+
+  > :not(.markedContent),
+  .markedContent span:not(.markedContent) {
+    z-index: 1;
+    --font-height: 0;
+    font-size: calc(var(--text-scale-factor) * var(--font-height));
+    --scale-x: 1;
+    --rotate: 0deg;
+    transform: rotate(var(--rotate)) scaleX(var(--scale-x))
+      scale(var(--min-font-size-inv));
+  }
+
+  .markedContent {
+    display: contents;
+  }
+
+  ::selection {
+    background: rgba(67, 132, 111, .32);
+    color: transparent;
+  }
+
+  .endOfContent {
+    display: block;
+    position: absolute;
+    inset: 100% 0 0;
+    z-index: 0;
+    cursor: default;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  &.selecting .endOfContent {
+    top: 0;
+  }
 }
 
-/*
- * Keep the PDF.js text geometry as close as possible to the real glyph
- * geometry. Large horizontal padding makes neighbouring words overlap and
- * causes inaccurate selection handles, especially on touch screens.
- * A very small vertical buffer makes tapping/long-pressing easier without
- * changing the horizontal word boundary.
- */
-.textLayer :is(span, br) {
-  position: absolute;
-  color: transparent;
-  white-space: pre;
-  cursor: text;
-  transform-origin: 0 0;
-  pointer-events: auto;
-  user-select: text !important;
-  -webkit-user-select: text !important;
-  -webkit-touch-callout: default;
-  touch-action: auto;
-  box-sizing: content-box;
-  padding: 0;
-  margin: 0;
-  line-height: 1;
-  text-rendering: geometricPrecision;
-  font-kerning: normal;
-  box-decoration-break: clone;
-  -webkit-box-decoration-break: clone;
-}
-
-.textLayer :is(span, br)::selection {
-  background: rgba(67, 132, 111, .38);
-}
-
-.textLayer span.markedContent {
-  padding: 0;
-  margin: 0;
-}
-
-.textLayer > :not(.markedContent),
-.textLayer .markedContent span:not(.markedContent) {
+/* The PDF canvas stays visual; the transparent layer handles text selection. */
+.pdf-page canvas {
+  position: relative;
   z-index: 1;
-  --font-height: 0;
-  font-size: calc(var(--text-scale-factor) * var(--font-height));
-  --scale-x: 1;
-  --rotate: 0deg;
-  transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
-}
-
-.textLayer span.markedContent {
-  top: 0;
-  height: 0;
-}
-
-.textLayer ::selection {
-  background: rgba(67, 132, 111, .32);
-  color: transparent;
-}
-
-/* PDF.js-style selection guard. During an active drag, the end marker stays
- * inside the text layer so selection does not jump through empty page space. */
-.textLayer.selecting {
-  touch-action: none;
-}
-
-.textLayer .endOfContent {
-  display: block;
-  position: absolute;
-  inset: 100% 0 0;
-  z-index: 0;
-  cursor: default;
   user-select: none;
   -webkit-user-select: none;
-}
-
-.textLayer.selecting .endOfContent {
-  top: 0;
+  -webkit-user-drag: none;
 }
 
 @media (max-width: 640px) {
