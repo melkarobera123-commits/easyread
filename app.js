@@ -149,7 +149,7 @@ async function renderPdfPage(number) {
   finally { pdfRenderPromises.delete(frame); }
   if(rendered&&frame.dataset.releaseAfterRender==='yes') { releasePdfPage(frame); pageObserver?.unobserve(frame); pageObserver?.observe(frame); }
 }
-async async function buildFallbackPdfTextLayer(page, layer, viewport) {
+async function buildFallbackPdfTextLayer(page, layer, viewport) {
   const textContent = await page.getTextContent({
     includeMarkedContent: true,
     disableNormalization: true
@@ -181,10 +181,10 @@ async async function buildFallbackPdfTextLayer(page, layer, viewport) {
   layer.append(fragment);
 
   for (const span of layer.querySelectorAll('span')) {
-    const itemWidth = span.textContent ? span.getBoundingClientRect().width : 0;
-    const targetWidth = span.textContent ? span.style.width : '';
-    if (itemWidth > 0 && targetWidth) {
-      span.style.transform = `scaleX(${Math.max(.01, parseFloat(targetWidth) / itemWidth)})`;
+    const renderedWidth = span.getBoundingClientRect().width;
+    const targetWidth = Number(span.dataset.pdfWidth || 0) * viewport.scale;
+    if (renderedWidth > 0 && targetWidth > 0) {
+      span.style.transform = `scaleX(${Math.max(.01, targetWidth / renderedWidth)})`;
     }
   }
 }
@@ -327,32 +327,25 @@ function wordRangeAtNode(node, x, y) {
   if (!node || node.nodeType !== Node.TEXT_NODE || !node.data.trim()) return null;
 
   const text = node.data;
-  const wordPattern = /[-'’\p{L}\p{M}]+/gu;
+  const wordPattern = /[-'’\\p{L}\\p{M}]+/gu;
   let match;
-  let nearest = null;
-  let nearestDistance = Infinity;
 
   while ((match = wordPattern.exec(text))) {
     const range = document.createRange();
     range.setStart(node, match.index);
     range.setEnd(node, match.index + match[0].length);
 
+    // Only accept a word when the actual rendered word rectangle contains
+    // the pointer. Do not guess from nearby words or whitespace.
     const rects = [...range.getClientRects()].filter(rect => rect.width > 0 && rect.height > 0);
     for (const rect of rects) {
-      const inside = x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
-      if (inside) {
+      if (
+        x >= rect.left &&
+        x <= rect.right &&
+        y >= rect.top &&
+        y <= rect.bottom
+      ) {
         return {
-          word: match[0].replace(/^[-'’]+|[-'’]+$/g, '').toLowerCase(),
-          range
-        };
-      }
-
-      const dx = x < rect.left ? rect.left - x : x > rect.right ? x - rect.right : 0;
-      const dy = y < rect.top ? rect.top - y : y > rect.bottom ? y - rect.bottom : 0;
-      const distance = dx * dx + dy * dy;
-      if (distance < nearestDistance) {
-        nearestDistance = distance;
-        nearest = {
           word: match[0].replace(/^[-'’]+|[-'’]+$/g, '').toLowerCase(),
           range
         };
@@ -360,9 +353,8 @@ function wordRangeAtNode(node, x, y) {
     }
   }
 
-  return nearestDistance <= 900 ? nearest : null;
+  return null;
 }
-
 function wordAt(x, y) {
   const elements = document.elementsFromPoint(x, y);
   const span = elements.find(element =>
