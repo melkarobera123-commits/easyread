@@ -213,9 +213,21 @@
 <aside id="account" class="panel account-panel" hidden role="dialog" aria-modal="true" aria-labelledby="account-title">
   <div class="contents-head"><h2 id="account-title">Your account</h2><button id="account-close" class="btn" type="button">Close</button></div>
   <div id="account-signed-out">
-    <p>Sign in to sync your reading across devices. Your local books and reading data remain available without an account.</p>
-    <button id="google-signin" class="btn account-action" type="button">Continue with Google</button>
-    <p id="auth-status" class="note"></p>
+    <p class="auth-intro">Create an account or sign in to sync your reading across devices. Your local books and reading data remain available without an account.</p>
+    <div class="auth-tabs" role="tablist" aria-label="Account access">
+      <button id="auth-tab-signin" class="auth-tab active" type="button" role="tab" aria-selected="true" aria-controls="email-auth-form">Sign in</button>
+      <button id="auth-tab-signup" class="auth-tab" type="button" role="tab" aria-selected="false" aria-controls="email-auth-form">Create account</button>
+    </div>
+    <form id="email-auth-form" class="auth-form">
+      <label id="auth-name-field" hidden>Name<input id="auth-name" type="text" autocomplete="name" maxlength="80" placeholder="Your name"></label>
+      <label>Email<input id="auth-email" type="email" autocomplete="email" required placeholder="you@example.com"></label>
+      <label>Password<div class="password-field"><input id="auth-password" type="password" autocomplete="current-password" minlength="6" required placeholder="At least 6 characters"><button id="auth-password-toggle" class="password-toggle" type="button" aria-label="Show password">Show</button></div></label>
+      <button id="email-auth-submit" class="btn account-action auth-submit" type="submit">Sign in</button>
+      <button id="forgot-password" class="text-button auth-forgot" type="button">Forgot password?</button>
+    </form>
+    <div class="auth-divider"><span>or</span></div>
+    <button id="google-signin" class="btn account-action google-auth" type="button"><span class="google-glyph" aria-hidden="true">G</span><span>Continue with Google</span></button>
+    <p id="auth-status" class="note" role="status" aria-live="polite"></p>
   </div>
   <div id="account-signed-in" hidden>
     <div class="account-summary"><img id="account-photo" class="account-photo" alt="Google profile photo"><div><strong id="account-name"></strong><small id="account-email"></small></div></div>
