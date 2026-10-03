@@ -171,79 +171,200 @@ async function setPdfMode(visual) {
 }
 function scalePdf(amount) { zoom=Math.min(2.4,Math.max(.65,zoom+amount)); pdfPages.querySelectorAll('.pdf-page[data-rendered="yes"]').forEach(releasePdfPage); pdfPages.querySelectorAll('.pdf-page').forEach(frame=>{ if(pageObserver) pageObserver.unobserve(frame); pageObserver?.observe(frame); }); }
 
-function characterAtPoint(node,x,y){
-  const text=node?.data||'';
-  if(!text.trim())return null;
-  const probe=document.createRange();
-  let nearest=null,nearestDistance=Infinity;
-  for(let index=0;index<text.length;index++){
-    if(/\\s/.test(text[index]))continue;
-    probe.setStart(node,index);
-    probe.setEnd(node,index+1);
-    for(const rect of probe.getClientRects()){
-      if(rect.width<=0||rect.height<=0)continue;
-      const inside=x>=rect.left&&x<=rect.right&&y>=rect.top&&y<=rect.bottom;
-      if(inside){
-        return {node,index,distance:0};
-      }
-      const dx=x<rect.left?rect.left-x:x>rect.right?x-rect.right:0;
-      const dy=y<rect.top?rect.top-y:y>rect.bottom?y-rect.bottom:0;
-      const distance=dx*dx+dy*dy;
-      if(distance<nearestDistance){
-        nearestDistance=distance;
-        nearest={node,index,distance};
-      }
-    }
-  }
-  return nearest;
-}
-function findPdfCharacterAtPoint(x,y){
-  const layer=document.elementFromPoint(x,y)?.closest?.('.textLayer')||
-    document.elementsFromPoint(x,y).find(element=>element.classList?.contains('textLayer'));
-  if(!layer)return null;
+const pdfSelectionLayers = new Map();
+let pdfSelectionAbort = null;
 
-  const candidates=[];
-  const spans=[...layer.querySelectorAll('span:not(.markedContent)')];
-  const direct=document.elementsFromPoint(x,y).filter(element=>element.matches?.('.textLayer span:not(.markedContent)'));
-  for(const span of [...new Set([...direct,...spans])]){
-    const walker=document.createTreeWalker(span,NodeFilter.SHOW_TEXT);
-    let node;
-    while((node=walker.nextNode())){
-      const hit=characterAtPoint(node,x,y);
-      if(hit)candidates.push(hit);
-    }
-    if(candidates.some(candidate=>candidate.distance===0))break;
+function resetPdfSelectionLayer(layer, end) {
+  if (!layer) return;
+  if (end && end.parentNode !== layer) layer.append(end);
+  if (end) {
+    end.style.width = '';
+    end.style.height = '';
+    end.style.userSelect = '';
   }
-  return candidates.sort((a,b)=>a.distance-b.distance)[0]||null;
+  layer.classList.remove('selecting');
 }
-function wordAt(x,y){
-  let hit=findPdfCharacterAtPoint(x,y);
-  if(!hit){
-    if(document.caretPositionFromPoint){
-      const point=document.caretPositionFromPoint(x,y);
-      if(point?.offsetNode?.nodeType===Node.TEXT_NODE)hit={node:point.offsetNode,index:point.offset||0,distance:0};
-    }else{
-      const range=document.caretRangeFromPoint?.(x,y);
-      if(range?.startContainer?.nodeType===Node.TEXT_NODE)hit={node:range.startContainer,index:range.startOffset||0,distance:0};
+
+function unregisterPdfSelectionLayer(layer) {
+  if (!layer) return;
+  const end = pdfSelectionLayers.get(layer);
+  pdfSelectionLayers.delete(layer);
+  if (pdfSelectionLayers.size === 0) {
+    pdfSelectionAbort?.abort();
+    pdfSelectionAbort = null;
+  }
+  resetPdfSelectionLayer(layer, end);
+}
+
+function ensurePdfSelectionListener() {
+  if (pdfSelectionAbort) return;
+  pdfSelectionAbort = new AbortController();
+  const { signal } = pdfSelectionAbort;
+  let pointerDown = false;
+  let previousRange = null;
+
+  const resetAll = () => {
+    pointerDown = false;
+    previousRange = null;
+    pdfSelectionLayers.forEach(resetPdfSelectionLayer);
+  };
+
+  document.addEventListener('pointerdown', () => {
+    pointerDown = true;
+  }, { signal });
+
+  document.addEventListener('pointerup', resetAll, { signal });
+  window.addEventListener('blur', resetAll, { signal });
+  document.addEventListener('keyup', () => {
+    if (!pointerDown) resetAll();
+  }, { signal });
+
+  document.addEventListener('selectionchange', () => {
+    const selection = document.getSelection();
+    if (!selection || selection.rangeCount === 0) {
+      pdfSelectionLayers.forEach(resetPdfSelectionLayer);
+      previousRange = null;
+      return;
+    }
+
+    const active = new Set();
+    for (let index = 0; index < selection.rangeCount; index++) {
+      const range = selection.getRangeAt(index);
+      pdfSelectionLayers.forEach((end, layer) => {
+        if (!active.has(layer) && range.intersectsNode(layer)) active.add(layer);
+      });
+    }
+
+    pdfSelectionLayers.forEach((end, layer) => {
+      if (active.has(layer)) {
+        layer.classList.add('selecting');
+      } else {
+        resetPdfSelectionLayer(layer, end);
+      }
+    });
+
+    // Chromium/Firefox have improved this behavior in recent versions.
+    // For other browsers, keep the selection anchor close to the text being
+    // modified instead of letting an empty area expand the selection wildly.
+    const firstLayer = active.values().next().value;
+    if (!firstLayer || typeof CSS === 'undefined') return;
+
+    const range = selection.getRangeAt(0);
+    const end = pdfSelectionLayers.get(firstLayer);
+    if (!end) return;
+
+    const parent = range.endContainer.nodeType === Node.TEXT_NODE
+      ? range.endContainer.parentNode
+      : range.endContainer;
+
+    if (!parent?.closest?.('.textLayer')) return;
+
+    const shouldMoveEnd = previousRange &&
+      (range.compareBoundaryPoints(Range.END_TO_END, previousRange) === 0 ||
+       range.compareBoundaryPoints(Range.START_TO_END, previousRange) === 0);
+
+    if (!shouldMoveEnd && range.endOffset === 0) {
+      let anchor = parent;
+      while (anchor && !anchor.previousSibling && anchor.parentNode) anchor = anchor.parentNode;
+      if (anchor?.previousSibling) anchor = anchor.previousSibling;
+      if (anchor?.parentElement?.closest?.('.textLayer')) {
+        anchor.parentNode.insertBefore(end, anchor.nextSibling);
+      }
+    }
+
+    previousRange = range.cloneRange();
+  }, { signal });
+}
+
+function registerPdfSelectionLayer(layer) {
+  if (!layer) return;
+  unregisterPdfSelectionLayer(layer);
+  const end = document.createElement('div');
+  end.className = 'endOfContent';
+  layer.append(end);
+  pdfSelectionLayers.set(layer, end);
+  ensurePdfSelectionListener();
+
+  layer.addEventListener('mousedown', () => {
+    layer.classList.add('selecting');
+  });
+  layer.addEventListener('copy', event => {
+    const selection = document.getSelection();
+    if (!selection || selection.isCollapsed) return;
+    event.clipboardData?.setData('text/plain', selection.toString().normalize());
+    event.preventDefault();
+  });
+}
+
+function pdfTextNodeAtPoint(x, y) {
+  const point = document.caretPositionFromPoint?.(x, y);
+  if (point?.offsetNode?.nodeType === Node.TEXT_NODE) {
+    return { node: point.offsetNode, index: point.offset || 0 };
+  }
+  const range = document.caretRangeFromPoint?.(x, y);
+  if (range?.startContainer?.nodeType === Node.TEXT_NODE) {
+    return { node: range.startContainer, index: range.startOffset || 0 };
+  }
+  return null;
+}
+
+function nearestPdfTextNode(x, y) {
+  const elements = document.elementsFromPoint(x, y);
+  const direct = elements.find(element =>
+    element.matches?.('.textLayer span:not(.markedContent)')
+  );
+  if (!direct) return null;
+
+  const node = direct.firstChild;
+  if (!node || node.nodeType !== Node.TEXT_NODE || !node.data.trim()) return null;
+
+  const range = document.createRange();
+  let nearestIndex = 0;
+  let nearestDistance = Infinity;
+  for (let index = 0; index < node.data.length; index++) {
+    if (/\\s/.test(node.data[index])) continue;
+    range.setStart(node, index);
+    range.setEnd(node, index + 1);
+    for (const rect of range.getClientRects()) {
+      if (rect.width <= 0 || rect.height <= 0) continue;
+      const dx = x < rect.left ? rect.left - x : x > rect.right ? x - rect.right : 0;
+      const dy = y < rect.top ? rect.top - y : y > rect.bottom ? y - rect.bottom : 0;
+      const distance = dx * dx + dy * dy;
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearestIndex = index;
+      }
+      if (dx === 0 && dy === 0) return { node, index };
     }
   }
-  const node=hit?.node;
-  if(!node||node.nodeType!==Node.TEXT_NODE)return null;
-  const text=node.data;
-  let offset=Math.max(0,Math.min(text.length,hit.index));
-  if(/\\s/.test(text[offset]||'')&&offset>0)offset--;
-  let start=offset,end=offset;
-  while(start>0&&/[-'’\p{L}\p{M}]/u.test(text[start-1]))start--;
-  while(end<text.length&&/[-'’\p{L}\p{M}]/u.test(text[end]))end++;
-  const word=text.slice(start,end).replace(/^[-'’]+|[-'’]+$/g,'').toLowerCase();
-  if(!word)return null;
-  const range=document.createRange();
-  range.setStart(node,start);
-  range.setEnd(node,end);
-  const rects=[...range.getClientRects()];
-  if(!rects.some(rect=>x>=rect.left&&x<=rect.right&&y>=rect.top&&y<=rect.bottom))return null;
-  return {word,range};
+  return nearestDistance < 900 ? { node, index: nearestIndex } : null;
 }
+
+function wordAt(x, y) {
+  let hit = pdfTextNodeAtPoint(x, y) || nearestPdfTextNode(x, y);
+  const node = hit?.node;
+  if (!node || node.nodeType !== Node.TEXT_NODE) return null;
+
+  const text = node.data;
+  let offset = Math.max(0, Math.min(text.length, hit.index));
+  if (/\\s/.test(text[offset] || '') && offset > 0) offset--;
+
+  let start = offset;
+  let end = offset;
+  while (start > 0 && /[-'’\\p{L}\\p{M}]/u.test(text[start - 1])) start--;
+  while (end < text.length && /[-'’\\p{L}\\p{M}]/u.test(text[end])) end++;
+
+  const word = text.slice(start, end).replace(/^[-'’]+|[-'’]+$/g, '').toLowerCase();
+  if (!word) return null;
+
+  const range = document.createRange();
+  range.setStart(node, start);
+  range.setEnd(node, end);
+  const rects = [...range.getClientRects()];
+  if (!rects.some(rect => x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom)) return null;
+  return { word, range };
+}
+
 document.addEventListener('click',event=>{if(event.target.closest('button,a,input,select,textarea,#popup,.pdf-thumb'))return;const readable=event.target.closest('.readable');if(!readable)return;const selection=getSelection();if(selection&&!selection.isCollapsed)return;const hit=wordAt(event.clientX,event.clientY);if(hit)showWord(hit);else hidePopup();});
 document.addEventListener('dblclick',event=>{if(event.target.closest('button,a,input,select,textarea,#popup,.pdf-thumb'))return;const readable=event.target.closest('.readable'),selection=getSelection();if(!readable||!selection||selection.isCollapsed)return;const selected=selection.toString().trim().match(/^[\p{L}\p{M}]+(?:[-'’][\p{L}\p{M}]+)*$/u);if(selected)showWord({word:selected[0].toLowerCase(),range:selection.getRangeAt(0).cloneRange()});});
 function popupShell(word,message){popup.replaceChildren();const close=safeText(popup,'button','×','close');close.type='button';close.setAttribute('aria-label','Close definition');close.addEventListener('click',hidePopup);const heading=safeText(popup,'h2',word);heading.id='popup-word';popup.setAttribute('aria-labelledby','popup-word');if(message)safeText(popup,'p',message,'note');}
