@@ -50,7 +50,7 @@ const putDefinition = value => dbRequest('definitions', 'readwrite', store => st
 const fileInput = byId('file'), drop = byId('drop'), reader = byId('reader'), readerWrap = byId('reader-wrap');
 const pdfPages = byId('pdf-pages'), pdfThumbs = byId('pdf-thumbs'), popup = byId('popup');
 const STORE_KEYS = { vocabulary: 'er-vocabulary', notes: 'er-notes', highlights: 'er-highlights', bookmarks: 'er-bookmarks', stats: 'er-stats' };
-let activeBook = null, activePdf = null, pdfMode = true, zoom = 1, pageCount = 0, lookupController = null, toastTimer, saveTimer, auth = null, firestore = null, storage = null, user = null, installPromptEvent = null;
+let activeBook = null, activePdf = null, pdfMode = true, documentPageMode = false, zoom = 1, pageCount = 0, lookupController = null, toastTimer, saveTimer, auth = null, firestore = null, storage = null, user = null, installPromptEvent = null;
 let pageObserver = null, thumbObserver = null, activePage = 1, pdfTextPromise = null, pdfSearchMatches = [], pdfSearchIndex = -1, searchToken = 0, firebaseInitPromise = null, cloudSyncTimer = null;
 let popupReturnFocus = null;
 let activeNoteWord = '';
@@ -88,7 +88,7 @@ async function openFile(file) {
   if (!allowed.includes(ext)) return status('Choose a PDF, DOCX, PPTX, EPUB, TXT, or image file.', true);
   if (file.size > 150 * 1024 * 1024) return status('This file is larger than 150 MB. Try a smaller copy.', true);
   hidePopup(); reader.replaceChildren(); pdfPages.replaceChildren(); pdfThumbs.replaceChildren(); activePdf = null; pdfTextPromise = null; pdfRenderPromises.clear(); pdfMode = true; byId('pdf-toolbar').hidden = true; byId('pdf-controls').hidden = true; pageCount = 0;
-  byId('loading-skeleton').hidden = false; readerWrap.hidden = false; setView('reader'); status(`Preparing ${file.name}…`);
+  byId('loading-skeleton').hidden = false; readerWrap.hidden = false; setView('reader'); byId('document-page-toggle')?.setAttribute('aria-pressed','false'); byId('document-page-toggle')?.textContent='Page view'; status(`Preparing ${file.name}…`);
   const key = `${file.name}:${file.size}:${file.lastModified}`;
   activeBook = await getBook(key).catch(() => null) || { key, name: file.name, title: file.name.replace(/\.[^.]+$/, ''), file, type: ext, added: Date.now(), favorite: false, progress: 0 };
   const rememberedPosition = local.get(`er-position:${key}`);
@@ -103,7 +103,7 @@ async function openFile(file) {
     else await parseImage(file);
     if (!reader.textContent.trim() && ext !== 'pdf') throw new Error('No readable text was found in this file.');
     activeBook.words = wordCount(reader.textContent); await putBook(activeBook); byId('file-name').textContent = activeBook.title; updateDocMeta(); renderLibrary();
-    byId('loading-skeleton').hidden = true; status(''); if (activeBook.position) restorePosition(); byId('reader-page-jump').max=String(Math.max(1,pageCount)); byId('reader-page-jump').value=String(activeBook.position?.page||1); byId('text-view-controls').hidden=Boolean(activePdf&&pdfMode); readerTimerBookKey=activeBook.key;readerTimerRecordedSeconds=elapsedReadingSeconds();startReadingTimer(); toast('Book opened. Your reading position will be saved here.');
+    byId('loading-skeleton').hidden = true; status(''); if (activeBook.position) restorePosition(); byId('reader-page-jump').max=String(Math.max(1,pageCount)); byId('reader-page-jump').value=String(activeBook.position?.page||1); byId('text-view-controls').hidden=Boolean(activePdf&&pdfMode); updateDocumentPageControls(); readerTimerBookKey=activeBook.key;readerTimerRecordedSeconds=elapsedReadingSeconds();startReadingTimer(); toast('Book opened. Your reading position will be saved here.');
   } catch (error) { console.error(error); byId('loading-skeleton').hidden = true; status(error.message || 'Could not open this file. It may be damaged or password-protected.', true); }
 }
 function wordCount(text) { return (text.match(/\S+/g) || []).length; }
@@ -1172,7 +1172,46 @@ async function renderLibraryPanel(){
 function removeSavedWord(word){const target=String(word||'').trim().toLowerCase();if(!target)return;const values=local.get('er-vocabulary',[]);const next=values.filter(item=>String(item.word||'').trim().toLowerCase()!==target);if(next.length===values.length)return;local.set('er-vocabulary',next);queueCloudSync();renderVocabulary();renderAccountPanel?.();toast(`“${word}” removed from your saved words.`);}
 function renderVocabulary(){const list=byId('vocab-list');list.replaceChildren();const values=local.get('er-vocabulary',[]);if(!values.length)return safeText(list,'p','Saved words will appear here.','note');values.forEach(item=>{const row=document.createElement('div');row.className='vocab-row';const info=document.createElement('div');info.className='vocab-info';safeText(info,'strong',item.word);safeText(info,'p',item.definition||'');const remove=document.createElement('button');remove.type='button';remove.className='vocab-remove';remove.textContent='Remove';remove.setAttribute('aria-label',`Remove ${item.word} from saved words`);remove.addEventListener('click',()=>removeSavedWord(item.word));row.append(info,remove);list.append(row);});}
 function renderSavedItems(){const bookmarks=local.get('er-bookmarks',[]),notes=local.get('er-notes',[]),highlights=local.get('er-highlights',[]);const b=byId('bookmark-list'),s=byId('saved-list');b.replaceChildren();s.replaceChildren();if(!bookmarks.length)safeText(b,'p','No bookmarks yet.','note');bookmarks.forEach(item=>{const button=safeText(b,'button',item.name||'Bookmark','saved-item');button.onclick=()=>scrollTo({top:item.scroll||0,behavior:'smooth'});});[...notes,...highlights].forEach(item=>safeText(s,'p',item.text||item.word||'Saved note','saved-item'));}
-function goToReaderPage(value){const page=Math.min(pageCount,Math.max(1,Number(value)||1)),container=activePdf&&pdfMode?pdfPages:reader,target=container.querySelector(`[data-page="${page}"]`);if(!target)return false;if(activePdf){activePage=page;byId('pdf-page-label').textContent=`Page ${page} of ${pageCount}`;}target.scrollIntoView({behavior:'smooth',block:'start'});return true;}
+function updateDocumentPageControls(){
+  const toggle=byId('document-page-toggle'),label=byId('document-page-label'),prev=byId('document-page-prev'),next=byId('document-page-next');
+  if(!toggle||activePdf)return;
+  const total=Math.max(1,pageCount),page=Math.min(total,Math.max(1,activePage||1));
+  toggle.textContent=documentPageMode?'Reading view':'Page view';
+  toggle.setAttribute('aria-pressed',String(documentPageMode));
+  if(label)label.textContent=`Page ${page} of ${total}`;
+  if(prev)prev.disabled=!documentPageMode||page<=1;
+  if(next)next.disabled=!documentPageMode||page>=total;
+}
+function setDocumentPageMode(enabled){
+  if(activePdf||!pageCount)return;
+  documentPageMode=Boolean(enabled);
+  const pages=[...reader.querySelectorAll('.page')];
+  if(documentPageMode){
+    activePage=Math.min(pages.length,Math.max(1,activePage||1));
+    pages.forEach(item=>{item.hidden=Number(item.dataset.page)!==activePage;});
+    reader.classList.add('document-page-reader');
+    reader.scrollIntoView({behavior:'smooth',block:'start'});
+  }else{
+    pages.forEach(item=>{item.hidden=false;});
+    reader.classList.remove('document-page-reader');
+  }
+  updateDocumentPageControls();
+  byId('reader-page-jump').value=String(activePage);
+}
+function goToReaderPage(value){
+  const page=Math.min(pageCount,Math.max(1,Number(value)||1)),container=activePdf&&pdfMode?pdfPages:reader,target=container.querySelector(`[data-page="${page}"]`);
+  if(!target)return false;
+  activePage=page;
+  if(activePdf){
+    byId('pdf-page-label').textContent=`Page ${page} of ${pageCount}`;
+  }else if(documentPageMode){
+    reader.querySelectorAll('.page').forEach(item=>{item.hidden=Number(item.dataset.page)!==page;});
+    updateDocumentPageControls();
+  }
+  target.scrollIntoView({behavior:'smooth',block:'start'});
+  if(!activePdf)byId('reader-page-jump').value=String(page);
+  return true;
+}
 function goToRequestedPage(event){event?.preventDefault();const input=byId('jump'),requested=Number.parseInt(input.value,10);if(!Number.isInteger(requested)||requested<1||requested>pageCount){input.setCustomValidity(`Enter a page from 1 to ${pageCount}.`);input.reportValidity();return;}input.setCustomValidity('');input.value=String(requested);goToReaderPage(requested);}
 async function renderContents(){const outline=byId('outline'),empty=byId('outline-empty');outline.replaceChildren();if(!pageCount){empty.textContent='Open a book to see its contents.';empty.hidden=false;return;}let found=false;if(activePdf){try{const entries=await activePdf.getOutline();const appendEntries=async(items,list)=>{for(const entry of items||[]){const item=document.createElement('li'),button=safeText(item,'button',entry.title||'Untitled section','saved-item');button.type='button';try{const dest=typeof entry.dest==='string'?await activePdf.getDestination(entry.dest):entry.dest;if(Array.isArray(dest)&&dest[0]){const index=Number.isInteger(dest[0])?dest[0]:await activePdf.getPageIndex(dest[0]),page=index+1;button.addEventListener('click',()=>goToReaderPage(page));button.setAttribute('aria-label',`${entry.title||'Section'}, page ${page}`);}else{button.disabled=true;}}catch{button.disabled=true;}list.append(item);if(entry.items?.length){const nested=document.createElement('ol');item.append(nested);await appendEntries(entry.items,nested);}}};if(entries?.length){await appendEntries(entries,outline);found=outline.childElementCount>0;}}catch(error){console.warn('Could not read PDF outline',error);}}
   if(!found){const sections=activePdf?Array.from({length:pageCount},(_,index)=>({page:index+1,title:`Page ${index+1}`})):Array.from(reader.querySelectorAll('.page'),(section,index)=>({page:Number(section.dataset.page)||index+1,title:section.querySelector('.page-mark')?.textContent||`Page ${index+1}`}));for(const section of sections){const item=document.createElement('li'),button=safeText(item,'button',section.title,'saved-item');button.type='button';button.addEventListener('click',()=>goToReaderPage(section.page));outline.append(item);}empty.textContent=activePdf?'No chapter outline was found. Choose a page:':'Sections in this book';}
@@ -1298,6 +1337,9 @@ async function init() {
   byId('dictionary-panel').addEventListener('submit',submitDictionaryQuery);
   byId('text-smaller')?.addEventListener('click',()=>changeReaderTextSize(-.1));byId('text-larger')?.addEventListener('click',()=>changeReaderTextSize(.1));
   byId('text-spacing-down')?.addEventListener('click',()=>changeReaderSpacing(-.1));byId('text-spacing-up')?.addEventListener('click',()=>changeReaderSpacing(.1));
+  byId('document-page-toggle')?.addEventListener('click',()=>setDocumentPageMode(!documentPageMode));
+  byId('document-page-prev')?.addEventListener('click',()=>goToReaderPage(activePage-1));
+  byId('document-page-next')?.addEventListener('click',()=>goToReaderPage(activePage+1));
   byId('note-form').addEventListener('submit',saveNote);byId('note-cancel').addEventListener('click',()=>byId('note-dialog').close());
   for(const id of ['library-search'])byId(id)?.addEventListener('input',renderLibraryPanel);for(const id of ['library-filter','library-sort'])byId(id)?.addEventListener('change',renderLibraryPanel);byId('home-library-sort')?.addEventListener('change',renderLibrary);
   byId('timer-toggle').addEventListener('click',()=>readerTimerRunning?pauseReadingTimer():startReadingTimer());byId('timer-reset').addEventListener('click',resetReadingTimer);byId('reading-goal').addEventListener('change',event=>{readerTimerGoal=Math.max(0,Number(event.target.value)||0);local.set('er-reading-goal',readerTimerGoal);updateReadingTimer();});
