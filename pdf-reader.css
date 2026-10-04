@@ -278,12 +278,25 @@
 }
 
 /* The PDF canvas stays visual; the transparent layer handles text selection. */
+.pdf-page {
+  position: relative;
+}
+
 .pdf-page canvas {
   position: relative;
   z-index: 1;
+  pointer-events: none;
   user-select: none;
   -webkit-user-select: none;
   -webkit-user-drag: none;
+}
+
+.pdf-page .textLayer {
+  z-index: 10;
+  pointer-events: auto;
+  user-select: text;
+  -webkit-user-select: text;
+  touch-action: pan-y;
 }
 
 @media (max-width: 640px) {
