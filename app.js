@@ -380,6 +380,7 @@ async function setPdfMode(visual) {
     try { await buildPdfTextView(); }
     catch { toast('Could not prepare the text view.'); }
   }
+  updateDocumentPageControls();
 }
 function scalePdf(amount) { zoom=Math.min(2.4,Math.max(.65,zoom+amount)); pdfPages.querySelectorAll('.pdf-page[data-rendered="yes"]').forEach(releasePdfPage); pdfPages.querySelectorAll('.pdf-page').forEach(frame=>{ if(pageObserver) pageObserver.unobserve(frame); pageObserver?.observe(frame); }); }
 
@@ -1366,6 +1367,9 @@ async function init() {
   byId('text-smaller')?.addEventListener('click',()=>changeReaderTextSize(-.1));byId('text-larger')?.addEventListener('click',()=>changeReaderTextSize(.1));
   byId('text-spacing-down')?.addEventListener('click',()=>changeReaderSpacing(-.1));byId('text-spacing-up')?.addEventListener('click',()=>changeReaderSpacing(.1));
   byId('document-page-toggle')?.addEventListener('click',()=>setDocumentPageMode(!documentPageMode));
+  byId('global-view-toggle')?.addEventListener('click',()=>{ if(activePdf) setPdfMode(!pdfMode); else setDocumentPageMode(!documentPageMode); });
+  byId('global-view-prev')?.addEventListener('click',()=>{ if(activePdf) goPdfPage(activePage-1); else goToReaderPage(activePage-1); });
+  byId('global-view-next')?.addEventListener('click',()=>{ if(activePdf) goPdfPage(activePage+1); else goToReaderPage(activePage+1); });
   byId('document-page-prev')?.addEventListener('click',()=>goToReaderPage(activePage-1));
   byId('document-page-next')?.addEventListener('click',()=>goToReaderPage(activePage+1));
   byId('note-form').addEventListener('submit',saveNote);byId('note-cancel').addEventListener('click',()=>byId('note-dialog').close());
