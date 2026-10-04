@@ -88,7 +88,7 @@ async function openFile(file) {
   if (!allowed.includes(ext)) return status('Choose a PDF, DOCX, PPTX, EPUB, TXT, or image file.', true);
   if (file.size > 150 * 1024 * 1024) return status('This file is larger than 150 MB. Try a smaller copy.', true);
   hidePopup(); reader.replaceChildren(); pdfPages.replaceChildren(); pdfThumbs.replaceChildren(); activePdf = null; pdfTextPromise = null; pdfRenderPromises.clear(); pdfMode = true; byId('pdf-toolbar').hidden = true; byId('pdf-controls').hidden = true; pageCount = 0;
-  byId('loading-skeleton').hidden = false; readerWrap.hidden = false; setView('reader'); byId('document-page-toggle')?.setAttribute('aria-pressed','false'); byId('document-page-toggle')?.textContent='Page view'; status(`Preparing ${file.name}…`);
+  byId('loading-skeleton').hidden = false; readerWrap.hidden = false; setView('reader'); if(byId('document-page-toggle')){byId('document-page-toggle').setAttribute('aria-pressed','false');byId('document-page-toggle').textContent='Page view';} status(`Preparing ${file.name}…`);
   const key = `${file.name}:${file.size}:${file.lastModified}`;
   activeBook = await getBook(key).catch(() => null) || { key, name: file.name, title: file.name.replace(/\.[^.]+$/, ''), file, type: ext, added: Date.now(), favorite: false, progress: 0 };
   const rememberedPosition = local.get(`er-position:${key}`);
