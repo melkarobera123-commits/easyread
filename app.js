@@ -88,13 +88,16 @@ function hidePanels() { document.querySelectorAll('.panel, .contents').forEach(p
 
 function initNavigation() {
   document.querySelector('.brand')?.addEventListener('click', event => { event.preventDefault(); setView('about'); });
-  for (const id of ['about-nav','sidebar-about','mobile-about']) byId(id)?.addEventListener('click', () => setView('about'));
-  for (const id of ['reader-nav','sidebar-reader','mobile-reader']) byId(id)?.addEventListener('click', () => readerWrap.hidden ? goToUpload() : setView('reader'));
-  for (const id of ['sidebar-library','mobile-library','library-btn','library-home-btn']) byId(id)?.addEventListener('click', () => showPanel('library'));
+  for (const id of ['about-nav','sidebar-about','mobile-about']) byId(id)?.addEventListener('click', () => { byId('library')?.setAttribute('hidden',''); setView('about'); });
+  for (const id of ['reader-nav','sidebar-reader','mobile-reader']) byId(id)?.addEventListener('click', () => { byId('library')?.setAttribute('hidden',''); readerWrap.hidden ? goToUpload() : setView('reader'); });
+  for (const id of ['sidebar-library','mobile-library','library-btn','library-home-btn']) byId(id)?.addEventListener('click', event => {
+  event.stopPropagation();
+  showPanel('library', true);
+});
 document.addEventListener('pointerdown', event => {
   const library = byId('library');
   if (!library || library.hidden) return;
-  if (event.target.closest('#library') || event.target.closest('#sidebar-library,#mobile-library,#library-btn,#library-home-btn')) return;
+  if (event.target.closest('#library')) return;
   library.hidden = true;
 }, true);
   for (const id of ['sidebar-account','mobile-account','account-btn']) byId(id)?.addEventListener('click', openAccount);
