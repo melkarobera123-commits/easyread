@@ -205,15 +205,17 @@ function pdfPointInQuad(x, y, quad) {
 function pdfItemQuad(viewport, item) {
   const tx = pdfjsLib.Util.transform(viewport.transform, item.transform);
   const width = Number(item.width || 0) * viewport.scale;
-  const height = Math.max(Math.hypot(tx[2], tx[3]), 1);
+  const aLen = Math.max(Math.hypot(tx[0], tx[1]), 1);
+  const dLen = Math.max(Math.hypot(tx[2], tx[3]), 1);
+  const ux = { x: tx[0] / aLen, y: tx[1] / aLen };
+  const uy = { x: tx[2] / dLen, y: tx[3] / dLen };
   const origin = { x: tx[4], y: tx[5] };
-  const vx = { x: tx[0] / Math.max(Math.hypot(tx[0], tx[1]), 1), y: tx[1] / Math.max(Math.hypot(tx[0], tx[1]), 1) };
-  const vy = { x: -vx.y, y: vx.x };
+  const height = dLen;
   return [
     origin,
-    { x: origin.x + vx.x * width, y: origin.y + vx.y * width },
-    { x: origin.x + vx.x * width + vy.x * height, y: origin.y + vx.y * width + vy.y * height },
-    { x: origin.x + vy.x * height, y: origin.y + vy.y * height }
+    { x: origin.x + ux.x * width, y: origin.y + ux.y * width },
+    { x: origin.x + ux.x * width + uy.x * height, y: origin.y + ux.y * width + uy.y * height },
+    { x: origin.x + uy.x * height, y: origin.y + uy.y * height }
   ];
 }
 
