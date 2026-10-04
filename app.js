@@ -278,6 +278,7 @@ function unregisterPdfSelectionLayer(layer) {
 function registerPdfSelectionLayer(layer) {
   if (!layer) return;
   unregisterPdfSelectionLayer(layer);
+
   const end = document.createElement('div');
   end.className = 'endOfContent';
   layer.append(end);
@@ -285,6 +286,12 @@ function registerPdfSelectionLayer(layer) {
 
   if (!layer.dataset.selectionBound) {
     layer.dataset.selectionBound = 'yes';
+
+    layer.addEventListener('mousedown', () => {
+      // PDF.js uses this state while the user is dragging. It prevents the
+      // selection from jumping when the transparent text layer ends.
+      layer.classList.add('selecting');
+    });
 
     layer.addEventListener('copy', event => {
       const selection = document.getSelection();
@@ -295,21 +302,28 @@ function registerPdfSelectionLayer(layer) {
   }
 }
 
-document.addEventListener('selectionchange', () => {
+function pdfSelectionContainsLayer(selection, layer) {
+  if (!selection || selection.isCollapsed || !selection.rangeCount) return false;
+  for (let index = 0; index < selection.rangeCount; index++) {
+    try {
+      if (selection.getRangeAt(index).intersectsNode(layer)) return true;
+    } catch {}
+  }
+  return false;
+}
+
+function finishPdfSelection() {
   const selection = document.getSelection();
   pdfSelectionLayers.forEach((end, layer) => {
-    const active = Boolean(
-      selection &&
-      !selection.isCollapsed &&
-      selection.rangeCount &&
-      [...Array(selection.rangeCount)].some((_, index) => {
-        try { return selection.getRangeAt(index).intersectsNode(layer); }
-        catch { return false; }
-      })
-    );
+    const active = pdfSelectionContainsLayer(selection, layer);
     layer.classList.toggle('selecting', active);
   });
-});
+}
+
+document.addEventListener('selectionchange', finishPdfSelection);
+document.addEventListener('mouseup', finishPdfSelection);
+document.addEventListener('pointerup', finishPdfSelection);
+window.addEventListener('blur', finishPdfSelection);
 
 function pdfTextNodeAtPoint(x, y) {
   const point = document.caretPositionFromPoint?.(x, y);
