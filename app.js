@@ -211,11 +211,7 @@ async function drawPdfPage(pdf,number,frame) {
   const layer=frame.querySelector('.textLayer');
   unregisterPdfSelectionLayer(layer);
   layer.replaceChildren();
-  layer.style.left=`${canvas.offsetLeft}px`;
-  layer.style.top=`${canvas.offsetTop}px`;
-  layer.style.width=`${viewport.width}px`;
-  layer.style.height=`${viewport.height}px`;
-  layer.style.setProperty('--total-scale-factor',String(scale));
+  // Align the selectable layer to the canvas's actual screen geometry.\n  const frameRect = frame.getBoundingClientRect();\n  const canvasRect = canvas.getBoundingClientRect();\n  layer.style.left = `${canvasRect.left - frameRect.left}px`;\n  layer.style.top = `${canvasRect.top - frameRect.top}px`;\n  layer.style.width = `${canvasRect.width}px`;\n  layer.style.height = `${canvasRect.height}px`;\n  layer.style.setProperty('--total-scale-factor',String(scale));\n  layer.style.setProperty('--scale-factor',String(scale));
 
   try {
     const textContentSource=page.streamTextContent({
@@ -358,12 +354,32 @@ function wordRangeAtNode(node, x, y) {
 function wordAt(x, y) {
   const elements = document.elementsFromPoint(x, y);
   const span = elements.find(element =>
-    element.matches?.('.textLayer span:not(.markedContent)')
+    element.matches?.('.pdf-page .textLayer span:not(.markedContent)')
   );
 
   if (span?.firstChild?.nodeType === Node.TEXT_NODE) {
     const exact = wordRangeAtNode(span.firstChild, x, y);
     if (exact?.word) return exact;
+  }
+
+  // Mobile browsers can miss transparent transformed spans in hit-testing.
+  // Fall back to the actual rendered rectangles of the PDF.js spans.
+  const page = [...pdfPages.querySelectorAll('.pdf-page')].find(candidate => {
+    const rect = candidate.getBoundingClientRect();
+    return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+  });
+  const layer = page?.querySelector('.textLayer');
+  if (layer) {
+    for (const candidate of layer.querySelectorAll('span:not(.markedContent)')) {
+      const rects = candidate.getClientRects();
+      if (![...rects].some(rect =>
+        rect.width > 0 && rect.height > 0 &&
+        x >= rect.left && x <= rect.right &&
+        y >= rect.top && y <= rect.bottom
+      )) continue;
+      const exact = wordRangeAtNode(candidate.firstChild, x, y);
+      if (exact?.word) return exact;
+    }
   }
 
   const caret = pdfTextNodeAtPoint(x, y);
