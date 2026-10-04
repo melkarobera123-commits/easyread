@@ -61,7 +61,26 @@ const pdfRenderPromises = new Map();
 function toast(message) { const node = byId('toast'); node.textContent = message; node.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { node.hidden = true; }, 2800); }
 function status(message, error = false) { const node = byId('status'); node.textContent = message; node.classList.toggle('err', error); }
 function safeText(parent, tag, text, className = '') { const node = document.createElement(tag); if (className) node.className = className; node.textContent = text; parent.append(node); return node; }
-function setView(view) { document.body.dataset.view = view; for (const id of ['about-nav','sidebar-about','mobile-about']) byId(id)?.classList.toggle('active', view === 'about'); for (const id of ['reader-nav','sidebar-reader','mobile-reader']) byId(id)?.classList.toggle('active', view === 'reader'); if (view === 'reader') readerWrap.scrollIntoView({ behavior: 'smooth', block: 'start' }); else scrollTo({ top: 0, behavior: 'smooth' }); }
+function closeOverlayPanels(except='') {
+  for (const id of ['library','contents','settings','vocab','stats','privacy','shortcuts']) {
+    if (id === except) continue;
+    const panel = byId(id);
+    if (!panel) continue;
+    if (id === 'contents') panel.classList.remove('open');
+    else panel.hidden = true;
+  }
+  byId('contents-btn')?.setAttribute('aria-expanded','false');
+  byId('settings-btn')?.setAttribute('aria-expanded','false');
+}
+
+function setView(view) {
+  closeOverlayPanels();
+  document.body.dataset.view = view;
+  for (const id of ['about-nav','sidebar-about','mobile-about']) byId(id)?.classList.toggle('active', view === 'about');
+  for (const id of ['reader-nav','sidebar-reader','mobile-reader']) byId(id)?.classList.toggle('active', view === 'reader');
+  if (view === 'reader') readerWrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  else scrollTo({ top: 0, behavior: 'smooth' });
+}
 function goToUpload() { setView('about'); status('Choose a book to open the Reader.'); requestAnimationFrame(() => { drop.scrollIntoView({ behavior: 'smooth', block: 'center' }); drop.focus({ preventScroll: true }); drop.classList.add('guide-focus'); setTimeout(() => drop.classList.remove('guide-focus'), 900); }); }
 function closeDictionaryPanel(){const panel=byId('dictionary-panel');if(panel)panel.hidden=true;byId('dictionary-btn')?.setAttribute('aria-expanded','false');}
 function showPanel(id, open) { const panel = byId(id); if (!panel) return; closeDictionaryPanel();panel.hidden = open === undefined ? !panel.hidden : !open; if (id === 'library' && !panel.hidden) renderLibraryPanel(); if (id === 'vocab' && !panel.hidden) renderVocabulary(); if (id === 'stats' && !panel.hidden) renderStats(); if (id === 'privacy' && !panel.hidden) renderPrivacyState(); }
@@ -72,6 +91,12 @@ function initNavigation() {
   for (const id of ['about-nav','sidebar-about','mobile-about']) byId(id)?.addEventListener('click', () => setView('about'));
   for (const id of ['reader-nav','sidebar-reader','mobile-reader']) byId(id)?.addEventListener('click', () => readerWrap.hidden ? goToUpload() : setView('reader'));
   for (const id of ['sidebar-library','mobile-library','library-btn','library-home-btn']) byId(id)?.addEventListener('click', () => showPanel('library'));
+document.addEventListener('pointerdown', event => {
+  const library = byId('library');
+  if (!library || library.hidden) return;
+  if (event.target.closest('#library') || event.target.closest('#sidebar-library,#mobile-library,#library-btn,#library-home-btn')) return;
+  library.hidden = true;
+}, true);
   for (const id of ['sidebar-account','mobile-account','account-btn']) byId(id)?.addEventListener('click', openAccount);
   byId('saved-btn')?.addEventListener('click',()=>showPanel('vocab'));
   byId('sidebar-theme')?.addEventListener('click', () => byId('theme').click());
@@ -87,7 +112,7 @@ async function openFile(file) {
   const ext = file.name.split('.').pop().toLowerCase(), allowed = ['pdf','docx','pptx','epub','txt','png','jpg','jpeg'];
   if (!allowed.includes(ext)) return status('Choose a PDF, DOCX, PPTX, EPUB, TXT, or image file.', true);
   if (file.size > 150 * 1024 * 1024) return status('This file is larger than 150 MB. Try a smaller copy.', true);
-  hidePopup(); reader.replaceChildren(); pdfPages.replaceChildren(); pdfThumbs.replaceChildren(); activePdf = null; pdfTextPromise = null; pdfRenderPromises.clear(); pdfMode = true; byId('pdf-toolbar').hidden = true; byId('pdf-controls').hidden = true; pageCount = 0;
+  hidePopup(); reader.replaceChildren(); pdfPages.replaceChildren(); pdfThumbs.replaceChildren(); activePdf = null; pdfTextPromise = null; pdfRenderPromises.clear(); pdfMode = true; documentPageMode = false; byId('pdf-toolbar').hidden = true; byId('pdf-controls').hidden = true; pageCount = 0;
   byId('loading-skeleton').hidden = false; readerWrap.hidden = false; setView('reader'); if(byId('document-page-toggle')){byId('document-page-toggle').setAttribute('aria-pressed','false');byId('document-page-toggle').textContent='Page view';} status(`Preparing ${file.name}…`);
   const key = `${file.name}:${file.size}:${file.lastModified}`;
   activeBook = await getBook(key).catch(() => null) || { key, name: file.name, title: file.name.replace(/\.[^.]+$/, ''), file, type: ext, added: Date.now(), favorite: false, progress: 0 };
