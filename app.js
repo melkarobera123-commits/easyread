@@ -327,7 +327,7 @@ function wordRangeAtNode(node, x, y) {
   if (!node || node.nodeType !== Node.TEXT_NODE || !node.data.trim()) return null;
 
   const text = node.data;
-  const wordPattern = /[-'’\\p{L}\\p{M}]+/gu;
+  const wordPattern = /[-'’\p{L}\p{M}]+/gu;
   let match;
 
   while ((match = wordPattern.exec(text))) {
