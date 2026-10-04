@@ -170,6 +170,7 @@
 }
 
 .pdf-page canvas {
+  pointer-events: none;
   user-select: none;
   -webkit-user-select: none;
   -webkit-user-drag: none;
@@ -205,7 +206,7 @@
   flex: none;
 }
 
-.textLayer {
+.pdf-page .textLayer {
   color-scheme: only light;
   position: absolute;
   z-index: 3;
@@ -221,7 +222,7 @@
   transform-origin: 0 0;
   caret-color: CanvasText;
   pointer-events: auto;
-  touch-action: auto;
+  touch-action: pan-y;
   user-select: text;
   -webkit-user-select: text;
   -webkit-touch-callout: default;
@@ -281,6 +282,7 @@
 .pdf-page canvas {
   position: relative;
   z-index: 1;
+  pointer-events: none;
   user-select: none;
   -webkit-user-select: none;
   -webkit-user-drag: none;
