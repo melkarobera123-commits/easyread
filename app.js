@@ -189,6 +189,58 @@ async function buildFallbackPdfTextLayer(page, layer, viewport) {
   }
 }
 
+function pdfPointInQuad(x, y, quad) {
+  let sign = 0;
+  for (let i = 0; i < quad.length; i++) {
+    const a = quad[i], b = quad[(i + 1) % quad.length];
+    const cross = (b.x - a.x) * (y - a.y) - (b.y - a.y) * (x - a.x);
+    if (Math.abs(cross) < 0.01) continue;
+    const current = Math.sign(cross);
+    if (!sign) sign = current;
+    else if (current !== sign) return false;
+  }
+  return true;
+}
+
+function pdfItemQuad(viewport, item) {
+  const tx = pdfjsLib.Util.transform(viewport.transform, item.transform);
+  const width = Number(item.width || 0) * viewport.scale;
+  const height = Math.max(Math.hypot(tx[2], tx[3]), 1);
+  const origin = { x: tx[4], y: tx[5] };
+  const vx = { x: tx[0] / Math.max(Math.hypot(tx[0], tx[1]), 1), y: tx[1] / Math.max(Math.hypot(tx[0], tx[1]), 1) };
+  const vy = { x: -vx.y, y: vx.x };
+  return [
+    origin,
+    { x: origin.x + vx.x * width, y: origin.y + vx.y * width },
+    { x: origin.x + vx.x * width + vy.x * height, y: origin.y + vx.y * width + vy.y * height },
+    { x: origin.x + vy.x * height, y: origin.y + vy.y * height }
+  ];
+}
+
+async function buildPdfGeometryIndex(page, frame, viewport) {
+  const content = await page.getTextContent({
+    includeMarkedContent: true,
+    disableNormalization: true
+  });
+  const layer = frame.querySelector('.textLayer');
+  const spans = [...layer.querySelectorAll('span:not(.markedContent)')].filter(span => span.firstChild?.nodeType === Node.TEXT_NODE);
+  const items = content.items.filter(item => typeof item?.str === 'string' && item.str);
+  const index = [];
+  let spanIndex = 0;
+
+  for (const item of items) {
+    let span = spans[spanIndex];
+    while (span && span.textContent !== item.str && spanIndex + 1 < spans.length) {
+      span = spans[++spanIndex];
+    }
+    if (!span) break;
+    const quad = pdfItemQuad(viewport, item);
+    index.push({ item, quad, span });
+    spanIndex++;
+  }
+  frame._pdfGeometryIndex = index;
+}
+
 async function drawPdfPage(pdf,number,frame) {
   const page=await pdf.getPage(number),
     scale=pageScale(page),
@@ -211,7 +263,8 @@ async function drawPdfPage(pdf,number,frame) {
   const layer=frame.querySelector('.textLayer');
   unregisterPdfSelectionLayer(layer);
   layer.replaceChildren();
-  // Align the selectable layer to the canvas's actual screen geometry.\n  const frameRect = frame.getBoundingClientRect();\n  const canvasRect = canvas.getBoundingClientRect();\n  layer.style.left = `${canvasRect.left - frameRect.left}px`;\n  layer.style.top = `${canvasRect.top - frameRect.top}px`;\n  layer.style.width = `${canvasRect.width}px`;\n  layer.style.height = `${canvasRect.height}px`;\n  layer.style.setProperty('--total-scale-factor',String(scale));\n  layer.style.setProperty('--scale-factor',String(scale));
+  // Align the selectable layer to the canvas's actual screen geometry.
+  const frameRect = frame.getBoundingClientRect();\n  const canvasRect = canvas.getBoundingClientRect();\n  layer.style.left = `${canvasRect.left - frameRect.left}px`;\n  layer.style.top = `${canvasRect.top - frameRect.top}px`;\n  layer.style.width = `${canvasRect.width}px`;\n  layer.style.height = `${canvasRect.height}px`;\n  layer.style.setProperty('--total-scale-factor',String(scale));\n  layer.style.setProperty('--scale-factor',String(scale));
 
   try {
     const textContentSource=page.streamTextContent({
@@ -238,6 +291,7 @@ async function drawPdfPage(pdf,number,frame) {
     }
   }
 
+  await buildPdfGeometryIndex(page, frame, viewport).catch(error => console.warn('PDF geometry index unavailable', error));
   registerPdfSelectionLayer(layer);
 }
 function releasePdfPage(frame) { if(pdfRenderPromises.has(frame)){frame.dataset.releaseAfterRender='yes';return;} if(frame.dataset.rendered!=='yes') return; const canvas=frame.querySelector('canvas'), layer=frame.querySelector('.textLayer'); unregisterPdfSelectionLayer(layer); canvas.width=0; canvas.height=0; layer.replaceChildren(); frame.dataset.rendered=''; delete frame.dataset.releaseAfterRender; }
@@ -352,34 +406,50 @@ function wordRangeAtNode(node, x, y) {
   return null;
 }
 function wordAt(x, y) {
+  const pages = pdfPages.querySelectorAll('.pdf-page');
+  const page = [...pages].find(candidate => {
+    const rect = candidate.getBoundingClientRect();
+    return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+  });
+
+  // PDF coordinates are the source of truth. Each text item is transformed
+  // through the same viewport used to paint the PDF canvas.
+  const index = page?._pdfGeometryIndex || [];
+  const layer = page?.querySelector('.textLayer');
+
+  if (layer && index.length) {
+    const layerRect = layer.getBoundingClientRect();
+    const localX = x - layerRect.left;
+    const localY = y - layerRect.top;
+
+    for (const entry of index) {
+      const localQuad = entry.quad;
+      if (!pdfPointInQuad(localX, localY, localQuad)) continue;
+
+      const node = entry.span?.firstChild;
+      if (!node) continue;
+      const exact = wordRangeAtNode(node, x, y);
+      if (exact?.word) return exact;
+
+      // The PDF item geometry identified the correct text run, but the browser
+      // may have slightly different glyph hit rectangles. Retry against the
+      // span's actual rectangles without changing the selected PDF item.
+      const rects = [...entry.span.getClientRects()].filter(r => r.width > 0 && r.height > 0);
+      if (rects.some(r => x >= r.left && x <= r.right && y >= r.top && y <= r.bottom)) {
+        const fallback = wordRangeAtNode(node, x, y);
+        if (fallback?.word) return fallback;
+      }
+    }
+  }
+
+  // Browser hit-testing remains a compatibility fallback.
   const elements = document.elementsFromPoint(x, y);
   const span = elements.find(element =>
     element.matches?.('.pdf-page .textLayer span:not(.markedContent)')
   );
-
   if (span?.firstChild?.nodeType === Node.TEXT_NODE) {
     const exact = wordRangeAtNode(span.firstChild, x, y);
     if (exact?.word) return exact;
-  }
-
-  // Mobile browsers can miss transparent transformed spans in hit-testing.
-  // Fall back to the actual rendered rectangles of the PDF.js spans.
-  const page = [...pdfPages.querySelectorAll('.pdf-page')].find(candidate => {
-    const rect = candidate.getBoundingClientRect();
-    return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
-  });
-  const layer = page?.querySelector('.textLayer');
-  if (layer) {
-    for (const candidate of layer.querySelectorAll('span:not(.markedContent)')) {
-      const rects = candidate.getClientRects();
-      if (![...rects].some(rect =>
-        rect.width > 0 && rect.height > 0 &&
-        x >= rect.left && x <= rect.right &&
-        y >= rect.top && y <= rect.bottom
-      )) continue;
-      const exact = wordRangeAtNode(candidate.firstChild, x, y);
-      if (exact?.word) return exact;
-    }
   }
 
   const caret = pdfTextNodeAtPoint(x, y);
