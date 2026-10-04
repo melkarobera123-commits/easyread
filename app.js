@@ -408,6 +408,7 @@ function submitDictionaryQuery(event){event.preventDefault();const input=byId('d
 function hidePopup(){lookupController?.abort();popup.hidden=true;if(CSS.highlights)CSS.highlights.delete('picked');const target=popupReturnFocus;popupReturnFocus=null;if(target&&target!==document.body&&target.isConnected)target.focus({preventScroll:true});}
 function placePopup(range){
   const mobile=matchMedia('(max-width: 640px)').matches;
+
   if(mobile){
     popup.style.position='fixed';
     popup.style.left='10px';
@@ -418,6 +419,7 @@ function placePopup(range){
     popup.classList.toggle('dictionary-search-popup',!range);
     return;
   }
+
   if(!range){
     popup.classList.add('dictionary-search-popup');
     popup.style.position='fixed';
@@ -430,32 +432,30 @@ function placePopup(range){
   }
 
   popup.classList.remove('dictionary-search-popup');
-  popup.style.position='absolute';
+  popup.style.position='fixed';
   popup.style.right='';
   popup.style.bottom='';
-  popup.style.transform='';
+  popup.style.transform='none';
 
-  // Anchor to the exact rendered rectangle of the clicked word, not the
-  // whole range bounding box. This keeps the dictionary glued to the word.
-  const rects=[...range.getClientRects()].filter(rect=>rect.width>0&&rect.height>0);
+  const rects=[...range.getClientRects()].filter(r=>r.width>0&&r.height>0);
   const rect=rects[0]||range.getBoundingClientRect();
   const width=popup.offsetWidth||350;
   const height=popup.offsetHeight||160;
-  const gap=4;
-  const minLeft=scrollX+12;
-  const maxLeft=Math.max(minLeft,scrollX+innerWidth-width-12);
-  const left=Math.max(minLeft,Math.min(scrollX+rect.left,maxLeft));
+  const gap=8;
+  const margin=12;
 
-  // Prefer directly below the word. If there is not enough room, place it
-  // directly above instead, keeping the same horizontal anchor.
-  const below=scrollY+rect.bottom+gap;
-  const above=scrollY+rect.top-height-gap;
-  const top=below+height<=scrollY+innerHeight-12
+  // Center the popup over the tapped word, then clamp it to the viewport.
+  const desiredLeft=rect.left+(rect.width/2)-(width/2);
+  const left=Math.max(margin,Math.min(desiredLeft,innerWidth-width-margin));
+
+  const below=rect.bottom+gap;
+  const above=rect.top-height-gap;
+  const top=below+height<=innerHeight-margin
     ? below
-    : Math.max(scrollY+12,above);
+    : Math.max(margin,above);
 
-  popup.style.left=`${left}px`;
-  popup.style.top=`${top}px`;
+  popup.style.left=left+'px';
+  popup.style.top=top+'px';
 }
 function plainDefinition(value){let text=String(value||'');for(let attempt=0;attempt<2;attempt++){const parsed=new DOMParser().parseFromString(text,'text/html');parsed.querySelectorAll('script,style,template').forEach(node=>node.remove());const next=parsed.body.textContent||'';if(next===text)break;text=next;}return text.replace(/\s+/g,' ').trim();}
 const FALLBACK_DEFINITIONS = {
