@@ -11,3 +11,13 @@ main,.site-footer{margin-left:232px}.site-footer{display:flex;justify-content:ce
 @media(min-width:901px){.top{margin-left:232px}main,.site-footer{margin-left:232px}}
 @media(max-width:900px){.app-sidebar{display:none}.top{padding-inline:16px}.top .nav-links,.top-library{display:none}.mobile-nav{position:fixed;z-index:55;inset:auto 10px 10px;display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:6px;background:color-mix(in srgb,var(--sheet) 94%,transparent);border:1px solid var(--line);border-radius:15px;box-shadow:var(--shadow);backdrop-filter:blur(14px)}.mobile-nav .shell-nav{display:grid;justify-items:center;gap:2px;padding:5px 3px;font-size:.69rem}.mobile-nav .nav-icon{width:19px;height:19px}main,.site-footer{margin-left:0}body{padding-bottom:78px}.hero{grid-template-columns:1fr;padding-top:48px}.stack{max-width:620px;width:100%;margin-inline:auto}.steps ol{grid-template-columns:1fr}.bar{top:66px}.pdf-controls{flex-wrap:wrap}.reader-wrap{padding-inline:10px}}
 @media(max-width:420px){.theme-toggle{padding:7px}.top{gap:7px}.brand{font-size:1.15rem}.hero h1{font-size:2.75rem}.drop{padding:20px 13px}.pdf-page{padding:7px;min-height:280px}.textLayer{top:7px}.pdf-controls #pdf-fullscreen{display:none}.reader-tools .btn{min-height:44px;padding:8px 10px}.contact-cards{grid-template-columns:1fr}.panel{inset:58px 0 0;width:100%}.signin-card{padding:25px}}
+
+.document-page-reader{width:min(100%,var(--reader-width));margin:0 auto;padding:0;background:transparent;border:0;box-shadow:none}
+.document-page-reader .page{min-height:min(78vh,900px);margin:0 auto 20px;display:flex;flex-direction:column;padding:clamp(32px,6vw,72px) clamp(24px,7vw,78px);background:var(--sheet);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:auto}
+.document-page-reader .page-mark{flex:0 0 auto}
+.text-view-divider{width:1px;height:26px;background:var(--line);margin:0 4px}
+.text-view-controls .icon-btn:disabled{opacity:.45;cursor:not-allowed}
+@media (max-width:700px){
+  .document-page-reader .page{min-height:calc(100vh - 190px);padding:28px 20px 34px;border-radius:12px}
+  .text-view-divider{display:none}
+}
