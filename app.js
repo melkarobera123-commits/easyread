@@ -375,7 +375,46 @@ function wordAt(x, y) {
   return null;
 }
 
-document.addEventListener('click',event=>{if(event.target.closest('button,a,input,select,textarea,#popup,.pdf-thumb'))return;const readable=event.target.closest('.readable');if(!readable)return;const selection=getSelection();if(selection&&!selection.isCollapsed)return;const hit=wordAt(event.clientX,event.clientY);if(hit)showWord(hit);else hidePopup();});
+let pdfTapStart = null;
+let suppressPdfClick = false;
+
+function handleReadableTap(event) {
+  if (event.target.closest('button,a,input,select,textarea,#popup,.pdf-thumb')) return;
+  const readable = event.target.closest('.readable');
+  if (!readable) return;
+  const selection = getSelection();
+  if (selection && !selection.isCollapsed) return;
+  const hit = wordAt(event.clientX, event.clientY);
+  if (hit) showWord(hit);
+  else hidePopup();
+}
+
+pdfPages.addEventListener('pointerdown', event => {
+  if (event.pointerType !== 'touch' && event.pointerType !== 'pen') return;
+  if (event.target.closest('button,a,input,select,textarea,#popup,.pdf-thumb')) return;
+  pdfTapStart = { x: event.clientX, y: event.clientY, pointerId: event.pointerId };
+}, { passive: true });
+
+pdfPages.addEventListener('pointerup', event => {
+  if (!pdfTapStart || event.pointerId !== pdfTapStart.pointerId) return;
+  const distance = Math.hypot(event.clientX - pdfTapStart.x, event.clientY - pdfTapStart.y);
+  pdfTapStart = null;
+  if (distance > 12) return;
+  const readable = event.target.closest('.readable');
+  if (!readable) return;
+  const selection = getSelection();
+  if (selection && !selection.isCollapsed) return;
+  suppressPdfClick = true;
+  handleReadableTap(event);
+  setTimeout(() => { suppressPdfClick = false; }, 350);
+}, { passive: true });
+
+pdfPages.addEventListener('pointercancel', () => { pdfTapStart = null; }, { passive: true });
+
+document.addEventListener('click', event => {
+  if (suppressPdfClick && event.target.closest('.pdf-page')) return;
+  handleReadableTap(event);
+});
 document.addEventListener('dblclick',event=>{if(event.target.closest('button,a,input,select,textarea,#popup,.pdf-thumb'))return;const readable=event.target.closest('.readable'),selection=getSelection();if(!readable||!selection||selection.isCollapsed)return;const selected=selection.toString().trim().match(/^[\p{L}\p{M}]+(?:[-'’][\p{L}\p{M}]+)*$/u);if(selected)showWord({word:selected[0].toLowerCase(),range:selection.getRangeAt(0).cloneRange()});});
 function popupShell(word,message){popup.replaceChildren();const close=safeText(popup,'button','×','close');close.type='button';close.setAttribute('aria-label','Close definition');close.addEventListener('click',hidePopup);const heading=safeText(popup,'h2',word);heading.id='popup-word';popup.setAttribute('aria-labelledby','popup-word');if(message)safeText(popup,'p',message,'note');}
 async function showWord(hit,options={}){const word=String(hit.word||'').trim().toLowerCase();if(!word)return;lookupController?.abort();lookupController=new AbortController();popupReturnFocus=options.returnFocus||document.activeElement;const range=hit.range||null;if(range&&CSS.highlights)CSS.highlights.set('picked',new Highlight(range));popup.hidden=false;popupShell(word,'Looking up…');placePopup(range);if(options.focus)popup.querySelector('.close')?.focus();try{const result=await define(word,lookupController.signal),clean={...result,meanings:result.meanings.map(item=>({...item,definition:plainDefinition(item.definition),example:plainDefinition(item.example)}))};renderDefinition(clean,word);popup.setAttribute('aria-labelledby','popup-word');popup.querySelector('h2').id='popup-word';popup.querySelector('.close')?.setAttribute('aria-label','Close definition');placePopup(range);if(options.focus)popup.querySelector('.close')?.focus();}catch(error){if(error.name==='AbortError')return;popupShell(word,error.message||'Could not load this definition.');placePopup(range);if(options.focus)popup.querySelector('.close')?.focus();}}
