@@ -218,10 +218,12 @@ async function drawPdfPage(pdf,number,frame) {
   const layerLeft=canvasRect.left-frameRect.left;
   const layerTop=canvasRect.top-frameRect.top;
 
+  layer.style.inset='auto';
   layer.style.left=layerLeft+'px';
   layer.style.top=layerTop+'px';
   layer.style.width=canvasRect.width+'px';
   layer.style.height=canvasRect.height+'px';
+  layer.style.transform='none';
   layer.style.setProperty('--total-scale-factor',String(scale));
   layer.style.setProperty('--scale-factor',String(scale));
   layer.style.setProperty('--min-font-size','1');
