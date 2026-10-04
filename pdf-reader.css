@@ -232,7 +232,8 @@
   --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
   --min-font-size-inv: calc(1 / var(--min-font-size));
 
-  :is(span, br) {
+  /* Explicit selectors keep PDF.js geometry reliable in mobile WebViews. */
+  .pdf-page .textLayer :is(span, br) {
     color: transparent;
     position: absolute;
     white-space: pre;
@@ -244,8 +245,8 @@
     touch-action: auto;
   }
 
-  > :not(.markedContent),
-  .markedContent span:not(.markedContent) {
+  .pdf-page .textLayer > :not(.markedContent),
+  .pdf-page .textLayer .markedContent span:not(.markedContent) {
     z-index: 1;
     --font-height: 0;
     font-size: calc(var(--text-scale-factor) * var(--font-height));
@@ -255,7 +256,7 @@
       scale(var(--min-font-size-inv));
   }
 
-  .markedContent {
+  .pdf-page .textLayer .markedContent {
     display: contents;
   }
 
