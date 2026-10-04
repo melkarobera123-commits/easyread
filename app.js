@@ -211,11 +211,20 @@ async function drawPdfPage(pdf,number,frame) {
   const layer=frame.querySelector('.textLayer');
   unregisterPdfSelectionLayer(layer);
   layer.replaceChildren();
-  layer.style.left=`${canvas.offsetLeft}px`;
-  layer.style.top=`${canvas.offsetTop}px`;
-  layer.style.width=`${viewport.width}px`;
-  layer.style.height=`${viewport.height}px`;
+
+  // Lock the selectable text layer to the canvas's actual CSS-space rectangle.
+  const frameRect=frame.getBoundingClientRect();
+  const canvasRect=canvas.getBoundingClientRect();
+  const layerLeft=canvasRect.left-frameRect.left;
+  const layerTop=canvasRect.top-frameRect.top;
+
+  layer.style.left=layerLeft+'px';
+  layer.style.top=layerTop+'px';
+  layer.style.width=canvasRect.width+'px';
+  layer.style.height=canvasRect.height+'px';
   layer.style.setProperty('--total-scale-factor',String(scale));
+  layer.style.setProperty('--scale-factor',String(scale));
+  layer.style.setProperty('--min-font-size','1');
 
   try {
     const textContentSource=page.streamTextContent({
