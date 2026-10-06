@@ -141,3 +141,7 @@ main,.site-footer{margin-left:232px}.site-footer{display:flex;justify-content:ce
   .pdf-page{padding:3px}
   .document-page-reader .page{padding:20px 14px 28px}
 }
+
+
+#reader-wrap:fullscreen{position:relative;overflow:auto;min-height:100vh;background:var(--bg)}
+#reader-wrap:fullscreen #popup,#reader-wrap:-webkit-full-screen #popup{z-index:1000}
