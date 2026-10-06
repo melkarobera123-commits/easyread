@@ -1399,31 +1399,28 @@ async function init() {
   if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
 }
 let matches=[],matchIndex=-1;async function searchBook(){const query=byId('search-input').value.trim().toLowerCase(),token=++searchToken;if(CSS.highlights)CSS.highlights.delete('search');matches=[];pdfSearchMatches=[];matchIndex=pdfSearchIndex=-1;if(!query){byId('search-count').textContent='';return;}if(activePdf&&pdfMode){for(let pageNumber=1;pageNumber<=activePdf.numPages;pageNumber++){if(token!==searchToken)return;const page=await activePdf.getPage(pageNumber),content=await page.getTextContent(),text=content.items.map(item=>item.str).join(' ').toLowerCase();let from=0,index;while((index=text.indexOf(query,from))>=0){pdfSearchMatches.push({page:pageNumber});from=index+query.length;}if(pageNumber%20===0){byId('search-count').textContent=`Searching ${pageNumber} of ${activePdf.numPages}…`;await new Promise(requestAnimationFrame);}}if(token!==searchToken)return;byId('search-count').textContent=`${pdfSearchMatches.length} results`;if(pdfSearchMatches.length)moveMatch(1);return;}const walker=document.createTreeWalker(reader,NodeFilter.SHOW_TEXT);while(walker.nextNode()){const node=walker.currentNode;let from=0,index;while((index=node.data.toLowerCase().indexOf(query,from))>=0){const range=new Range();range.setStart(node,index);range.setEnd(node,index+query.length);matches.push(range);from=index+query.length;}}if(CSS.highlights&&matches.length)CSS.highlights.set('search',new Highlight(...matches));byId('search-count').textContent=`${matches.length} results`;if(matches.length)moveMatch(1);}
+function fullscreenReaderHost(){return document.fullscreenElement===readerWrap||document.fullscreenElement===pdfPages?document.fullscreenElement:null;}
+function movePopupToFullscreenHost(){
+  const host=fullscreenReaderHost();
+  if(host){if(popup.parentElement!==host)host.appendChild(popup);}
+  else if(popup.parentElement!==document.body)document.body.appendChild(popup);
+  if(!popup.hidden)placePopup(activeDictionaryRange);
+}
 async function toggleReaderFullscreen(){
   try{
-    if(document.fullscreenElement===readerWrap){
-      if(popup.parentElement===readerWrap)document.body.appendChild(popup);
+    if(fullscreenReaderHost()){
+      if(popup.parentElement!==document.body)document.body.appendChild(popup);
       await document.exitFullscreen();
-      if(!popup.hidden)placePopup(activeDictionaryRange);
     }else{
       await readerWrap.requestFullscreen();
-      if(popup.parentElement!==readerWrap)readerWrap.appendChild(popup);
-      if(!popup.hidden)placePopup(activeDictionaryRange);
     }
+    movePopupToFullscreenHost();
   }catch(error){
-    if(popup.parentElement===readerWrap&&!document.fullscreenElement)document.body.appendChild(popup);
+    movePopupToFullscreenHost();
     toast('Fullscreen is not available in this browser.');
   }
 }
-document.addEventListener('fullscreenchange',()=>{
-  const fullscreen=document.fullscreenElement===readerWrap;
-  if(fullscreen){
-    if(popup.parentElement!==readerWrap)readerWrap.appendChild(popup);
-  }else if(popup.parentElement===readerWrap){
-    document.body.appendChild(popup);
-  }
-  if(!popup.hidden)placePopup(activeDictionaryRange);
-});
+document.addEventListener('fullscreenchange',movePopupToFullscreenHost);
 async function moveMatch(direction){if(activePdf&&pdfMode&&pdfSearchMatches.length){pdfSearchIndex=(pdfSearchIndex+direction+pdfSearchMatches.length)%pdfSearchMatches.length;const page=pdfSearchMatches[pdfSearchIndex].page;goPdfPage(page);await renderPdfPage(page);const query=byId('search-input').value.trim().toLowerCase(),layer=pdfPages.querySelector(`[data-page="${page}"] .textLayer`),ranges=[];const walker=document.createTreeWalker(layer,NodeFilter.SHOW_TEXT);while(walker.nextNode()){const node=walker.currentNode;let from=0,index;while((index=node.data.toLowerCase().indexOf(query,from))>=0){const range=new Range();range.setStart(node,index);range.setEnd(node,index+query.length);ranges.push(range);from=index+query.length;}}if(CSS.highlights&&ranges.length)CSS.highlights.set('search',new Highlight(...ranges));return;}if(!matches.length)return;matchIndex=(matchIndex+direction+matches.length)%matches.length;matches[matchIndex].startContainer.parentElement.scrollIntoView({behavior:'smooth',block:'center'});}
 function speakCurrent(){const text=(pdfMode?reader:reader).innerText;if(!text)return toast('Open a readable document first.');speechSynthesis.cancel();const utterance=new SpeechSynthesisUtterance(text.slice(0,50000));const rate=Number(byId('speech-rate')?.value||1);utterance.rate=rate;speechSynthesis.speak(utterance);toast('Reading aloud.');}
 function exportData(){const data={vocabulary:local.get('er-vocabulary',[]),notes:local.get('er-notes',[]),highlights:local.get('er-highlights',[]),bookmarks:local.get('er-bookmarks',[]),stats:local.get('er-stats',{})};const link=document.createElement('a');link.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));link.download='easyread-data.json';link.click();URL.revokeObjectURL(link.href);toast('Your data was exported.');}
