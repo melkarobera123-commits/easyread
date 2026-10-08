@@ -1113,7 +1113,7 @@ function popupShell(word,message){popup.replaceChildren();const close=safeText(p
 async function showWord(hit,options={}){const word=String(hit.word||'').trim().toLowerCase();if(!word)return;lookupController?.abort();lookupController=new AbortController();popupReturnFocus=options.returnFocus||document.activeElement;const range=hit.range||null;activeDictionaryRange=range?range.cloneRange():null;if(range&&CSS.highlights)CSS.highlights.set('picked',new Highlight(range));popup.hidden=false;popupShell(word,'Looking up…');placePopup(range);if(options.focus)popup.querySelector('.close')?.focus();try{const result=await define(word,lookupController.signal),clean={...result,meanings:result.meanings.map(item=>({...item,definition:plainDefinition(item.definition),example:plainDefinition(item.example)}))};renderDefinition(clean,word);popup.setAttribute('aria-labelledby','popup-word');popup.querySelector('h2').id='popup-word';popup.querySelector('.close')?.setAttribute('aria-label','Close definition');placePopup(range);if(options.focus)popup.querySelector('.close')?.focus();}catch(error){if(error.name==='AbortError')return;popupShell(word,error.message||'Could not load this definition.');placePopup(range);if(options.focus)popup.querySelector('.close')?.focus();}}
 function submitDictionaryQuery(event){event.preventDefault();const input=byId('dictionary-query'),word=input.value.trim().toLowerCase();if(!/^[a-z][a-z'-]{0,59}$/.test(word)){input.setCustomValidity('Enter one English word using letters, apostrophes, or hyphens.');input.reportValidity();return;}input.setCustomValidity('');showWord({word,range:null},{focus:true,returnFocus:input});}
 function hidePopup(){lookupController?.abort();popup.hidden=true;activeDictionaryRange=null;if(CSS.highlights)CSS.highlights.delete('picked');const target=popupReturnFocus;popupReturnFocus=null;if(target&&target!==document.body&&target.isConnected)target.focus({preventScroll:true});}
-function placePopup(range){const mobile=matchMedia('(max-width: 640px)').matches;if(mobile){popup.style.position='fixed';popup.style.left='10px';popup.style.right='10px';popup.style.top='auto';popup.style.bottom='max(10px, env(safe-area-inset-bottom))';popup.style.transform='none';popup.classList.toggle('dictionary-search-popup',!range);return;}if(!range){popup.classList.add('dictionary-search-popup');popup.style.position='fixed';popup.style.left='50%';popup.style.right='';popup.style.top='18vh';popup.style.bottom='';popup.style.transform='translateX(-50%)';return;}popup.classList.remove('dictionary-search-popup');popup.style.position='fixed';popup.style.left='0';popup.style.right='auto';popup.style.bottom='auto';popup.style.transform='none';const rect=range.getBoundingClientRect();const width=popup.offsetWidth||350;const height=popup.offsetHeight||180;const gap=8;const x=Math.max(12,Math.min(rect.left,Math.max(12,innerWidth-width-12)));const below=rect.bottom+gap;const above=rect.top-height-gap;let y=below;if(below+height>innerHeight-12&&above>=12)y=above;else if(below+height>innerHeight-12)y=Math.max(12,innerHeight-height-12);popup.style.left=`${x}px`;popup.style.top=`${y}px`;}
+function placePopup(range){const fullscreenLayer=popup.dataset.fullscreenLayer==='true';const positionMode=fullscreenLayer?'absolute':'fixed';const mobile=matchMedia('(max-width: 640px)').matches;if(mobile){popup.style.position=positionMode;popup.style.left='10px';popup.style.right='10px';popup.style.top='auto';popup.style.bottom='max(10px, env(safe-area-inset-bottom))';popup.style.transform='none';popup.classList.toggle('dictionary-search-popup',!range);return;}if(!range){popup.classList.add('dictionary-search-popup');popup.style.position=positionMode;popup.style.left='50%';popup.style.right='';popup.style.top='18vh';popup.style.bottom='';popup.style.transform='translateX(-50%)';return;}popup.classList.remove('dictionary-search-popup');popup.style.position=positionMode;popup.style.left='0';popup.style.right='auto';popup.style.bottom='auto';popup.style.transform='none';const rect=range.getBoundingClientRect();const width=popup.offsetWidth||350;const height=popup.offsetHeight||180;const gap=8;const x=Math.max(12,Math.min(rect.left,Math.max(12,innerWidth-width-12)));const below=rect.bottom+gap;const above=rect.top-height-gap;let y=below;if(below+height>innerHeight-12&&above>=12)y=above;else if(below+height>innerHeight-12)y=Math.max(12,innerHeight-height-12);popup.style.left=`${x}px`;popup.style.top=`${y}px`;}
 function plainDefinition(value){let text=String(value||'');for(let attempt=0;attempt<2;attempt++){const parsed=new DOMParser().parseFromString(text,'text/html');parsed.querySelectorAll('script,style,template').forEach(node=>node.remove());const next=parsed.body.textContent||'';if(next===text)break;text=next;}return text.replace(/\s+/g,' ').trim();}
 const FALLBACK_DEFINITIONS = {
   ominous: { word: 'ominous', phonetic: '/ˈɒmɪnəs/', meanings: [{ partOfSpeech: 'adjective', definition: 'giving the impression that something bad or unpleasant is going to happen.', example: 'The sky looked ominous before the storm.' }] },
@@ -1466,21 +1466,40 @@ async function init() {
 }
 let matches=[],matchIndex=-1;async function searchBook(){const query=byId('search-input').value.trim().toLowerCase(),token=++searchToken;if(CSS.highlights)CSS.highlights.delete('search');matches=[];pdfSearchMatches=[];matchIndex=pdfSearchIndex=-1;if(!query){byId('search-count').textContent='';return;}if(activePdf&&pdfMode){for(let pageNumber=1;pageNumber<=activePdf.numPages;pageNumber++){if(token!==searchToken)return;const page=await activePdf.getPage(pageNumber),content=await page.getTextContent(),text=content.items.map(item=>item.str).join(' ').toLowerCase();let from=0,index;while((index=text.indexOf(query,from))>=0){pdfSearchMatches.push({page:pageNumber});from=index+query.length;}if(pageNumber%20===0){byId('search-count').textContent=`Searching ${pageNumber} of ${activePdf.numPages}…`;await new Promise(requestAnimationFrame);}}if(token!==searchToken)return;byId('search-count').textContent=`${pdfSearchMatches.length} results`;if(pdfSearchMatches.length)moveMatch(1);return;}const walker=document.createTreeWalker(reader,NodeFilter.SHOW_TEXT);while(walker.nextNode()){const node=walker.currentNode;let from=0,index;while((index=node.data.toLowerCase().indexOf(query,from))>=0){const range=new Range();range.setStart(node,index);range.setEnd(node,index+query.length);matches.push(range);from=index+query.length;}}if(CSS.highlights&&matches.length)CSS.highlights.set('search',new Highlight(...matches));byId('search-count').textContent=`${matches.length} results`;if(matches.length)moveMatch(1);}
 function fullscreenReaderHost(){return document.fullscreenElement===readerWrap||document.fullscreenElement===pdfPages?document.fullscreenElement:null;}
+function getFullscreenDictionaryLayer(host){
+  if(!host)return null;
+  let layer=host.querySelector(':scope > #fullscreen-dictionary-layer');
+  if(!layer){
+    layer=document.createElement('div');
+    layer.id='fullscreen-dictionary-layer';
+    layer.setAttribute('aria-live','polite');
+    host.append(layer);
+  }
+  return layer;
+}
 function movePopupToFullscreenHost(){
   const host=fullscreenReaderHost();
-  if(host){if(popup.parentElement!==host)host.appendChild(popup);}
-  else if(popup.parentElement!==document.body)document.body.appendChild(popup);
+  if(host){
+    const layer=getFullscreenDictionaryLayer(host);
+    if(layer&&popup.parentElement!==layer)layer.appendChild(popup);
+    popup.dataset.fullscreenLayer='true';
+    popup.style.zIndex='2147483647';
+  }else{
+    const layer=popup.parentElement?.id==='fullscreen-dictionary-layer'?popup.parentElement:null;
+    if(popup.parentElement!==document.body)document.body.appendChild(popup);
+    popup.dataset.fullscreenLayer='false';
+    popup.style.zIndex='';
+    layer?.remove();
+  }
   if(!popup.hidden)placePopup(activeDictionaryRange);
 }
 async function toggleReaderFullscreen(){
   try{
     if(fullscreenReaderHost()){
-      if(popup.parentElement!==document.body)document.body.appendChild(popup);
       await document.exitFullscreen();
     }else{
       await readerWrap.requestFullscreen();
     }
-    movePopupToFullscreenHost();
   }catch(error){
     movePopupToFullscreenHost();
     toast('Fullscreen is not available in this browser.');
