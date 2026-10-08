@@ -186,3 +186,21 @@ main,.site-footer{margin-left:232px}.site-footer{display:flex;justify-content:ce
   .bar-primary .btn{padding-inline:9px}
   .page-jump-inline input{width:54px}
 }
+
+/* Paste-to-read surface */
+.paste-reader{width:min(760px,100%);margin:22px 0 0;padding:18px;border:1px solid var(--line);border-radius:16px;background:var(--sheet);box-shadow:var(--shadow)}
+.paste-reader-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:12px}
+.paste-reader-head h2{margin:3px 0 0;font:500 1.45rem var(--display)}
+.paste-badge{padding:5px 9px;border:1px solid var(--line);border-radius:999px;color:var(--muted);font-size:.72rem;font-weight:700}
+#paste-input{display:block;width:100%;min-height:170px;resize:vertical;padding:13px 14px;border:1px solid var(--line);border-radius:11px;background:var(--bg);color:var(--ink);font:1rem/1.7 var(--reader-font);outline:none}
+#paste-input:focus{border-color:var(--accent);outline:2px solid color-mix(in srgb,var(--accent) 22%,transparent)}
+.paste-actions{display:flex;align-items:center;gap:9px;margin-top:10px}
+.paste-actions .account-action{width:auto;margin:0}
+.paste-reader>small{display:block;margin-top:9px;color:var(--muted);font-size:.78rem;line-height:1.5}
+@media(max-width:700px){
+  .paste-reader{margin-top:18px;padding:15px;border-radius:14px}
+  .paste-reader-head h2{font-size:1.25rem}
+  #paste-input{min-height:190px;font-size:16px}
+  .paste-actions{flex-wrap:wrap}
+  .paste-actions .account-action{flex:1;min-width:180px}
+}
