@@ -53,6 +53,7 @@ const STORE_KEYS = { vocabulary: 'er-vocabulary', notes: 'er-notes', highlights:
 let activeBook = null, activePdf = null, pdfMode = true, documentPageMode = false, zoom = 1, pageCount = 0, lookupController = null, toastTimer, saveTimer, auth = null, firestore = null, storage = null, user = null, installPromptEvent = null;
 let pageObserver = null, thumbObserver = null, activePage = 1, pdfTextPromise = null, pdfSearchMatches = [], pdfSearchIndex = -1, searchToken = 0, firebaseInitPromise = null, cloudSyncTimer = null;
 let popupReturnFocus = null;
+let positionFrame = 0, positionWriteTimer = null, searchDebounceTimer = null;
 let activeDictionaryRange = null;
 let activeNoteWord = '';
 let pdfPreviewsVisible = local.get('er-pdf-previews', true) !== false;
@@ -1283,21 +1284,35 @@ async function renderContents(){const outline=byId('outline'),empty=byId('outlin
 function renderStats(){const stats=local.get('er-stats',{}),seconds=Object.values(stats).reduce((sum,item)=>sum+(item.seconds||0),0);const node=byId('stats-content');node.replaceChildren();safeText(node,'strong',`${Math.round(seconds/60)} minutes read`);safeText(node,'p',`${local.get('er-vocabulary',[]).length} saved words`);}
 function updateDocMeta(){if(activeBook){byId('doc-meta').textContent=activePdf?`${pageCount} pages · original PDF layout`:`${pageCount?pageCount+' sections · ':''}${(activeBook.words||0).toLocaleString()} words`;if(byId('jump'))byId('jump').max=String(Math.max(1,pageCount));if(byId('reader-page-jump'))byId('reader-page-jump').max=String(Math.max(1,pageCount));}}
 function restorePosition(){setTimeout(()=>{if(activePdf)goPdfPage(activeBook.position?.page||1);else scrollTo({top:activeBook.position?.scroll||0});},120);}
-function savePosition(){
+function savePosition(force=false){
   if(!activeBook)return;
-  const savedAt=Date.now();
-  const scrollingPdf=Boolean(activePdf&&pdfMode);
-  const scroll=scrollingPdf?pdfPages.scrollTop:scrollY;
-  activeBook.position={page:activePage,scroll,savedAt};
-  local.set(`er-position:${activeBook.key}`,activeBook.position);
-  clearTimeout(saveTimer);
-  saveTimer=setTimeout(async()=>{
-    activeBook.opened=savedAt;
-    const maxScroll=scrollingPdf?Math.max(pdfPages.scrollHeight-pdfPages.clientHeight,1):Math.max(document.documentElement.scrollHeight-innerHeight,1);
-    activeBook.progress=Math.round(Math.min(100,scroll/maxScroll*100));
-    await putBook(activeBook).catch(()=>{});
-    queueCloudSync();
-  },650);
+  const write=()=>{
+    const savedAt=Date.now();
+    const scrollingPdf=Boolean(activePdf&&pdfMode);
+    const scroll=scrollingPdf?pdfPages.scrollTop:scrollY;
+    activeBook.position={page:activePage,scroll,savedAt};
+    local.set(`er-position:${activeBook.key}`,activeBook.position);
+    clearTimeout(saveTimer);
+    saveTimer=setTimeout(async()=>{
+      activeBook.opened=savedAt;
+      const maxScroll=scrollingPdf?Math.max(pdfPages.scrollHeight-pdfPages.clientHeight,1):Math.max(document.documentElement.scrollHeight-innerHeight,1);
+      activeBook.progress=Math.round(Math.min(100,scroll/maxScroll*100));
+      await putBook(activeBook).catch(()=>{});
+      queueCloudSync();
+    },650);
+  };
+  if(force){
+    if(positionFrame){cancelAnimationFrame(positionFrame);positionFrame=0;}
+    clearTimeout(positionWriteTimer);positionWriteTimer=null;
+    write();
+    return;
+  }
+  if(positionFrame)return;
+  positionFrame=requestAnimationFrame(()=>{
+    positionFrame=0;
+    clearTimeout(positionWriteTimer);
+    positionWriteTimer=setTimeout(()=>{positionWriteTimer=null;write();},180);
+  });
 }
 function todayKey(){return new Date().toISOString().slice(0,10);}
 function elapsedReadingSeconds(){return readerTimerSeconds+(readerTimerRunning?Math.floor((Date.now()-readerTimerStart)/1000):0);}
@@ -1428,7 +1443,11 @@ async function init() {
   byId('timer-toggle').addEventListener('click',()=>readerTimerRunning?pauseReadingTimer():startReadingTimer());byId('timer-reset').addEventListener('click',resetReadingTimer);byId('reading-goal').addEventListener('change',event=>{readerTimerGoal=Math.max(0,Number(event.target.value)||0);local.set('er-reading-goal',readerTimerGoal);updateReadingTimer();});
   byId('pdf-mode-btn').addEventListener('click',()=>setPdfMode(!pdfMode));byId('pdf-prev').addEventListener('click',()=>goPdfPage(activePage-1));byId('pdf-next').addEventListener('click',()=>goPdfPage(activePage+1));byId('pdf-zoom-in').addEventListener('click',()=>scalePdf(.15));byId('pdf-zoom-out').addEventListener('click',()=>scalePdf(-.15));byId('pdf-fullscreen').addEventListener('click',()=>pdfPages.requestFullscreen?.());byId('pdf-preview-toggle').addEventListener('click',()=>{pdfPreviewsVisible=!pdfPreviewsVisible;local.set('er-pdf-previews',pdfPreviewsVisible);pdfThumbs.hidden=!pdfMode||!pdfPreviewsVisible;byId('pdf-preview-toggle').textContent=pdfPreviewsVisible?'Hide previews':'Show previews';byId('pdf-preview-toggle').setAttribute('aria-pressed',String(pdfPreviewsVisible));});
   byId('fullscreen-btn').addEventListener('click',toggleReaderFullscreen);
-  byId('search-btn').addEventListener('click',()=>{closeDictionaryPanel();byId('reader-tools').hidden=!byId('reader-tools').hidden;byId('search-input').focus();});byId('search-input').addEventListener('input',searchBook);
+  byId('search-btn').addEventListener('click',()=>{closeDictionaryPanel();byId('reader-tools').hidden=!byId('reader-tools').hidden;byId('search-input').focus();});
+  byId('search-input').addEventListener('input',()=>{
+    clearTimeout(searchDebounceTimer);
+    searchDebounceTimer=setTimeout(()=>searchBook(),120);
+  });
   byId('search-prev').addEventListener('click',()=>moveMatch(-1));byId('search-next').addEventListener('click',()=>moveMatch(1));
   byId('highlight-btn').addEventListener('click',()=>{const text=getSelection()?.toString().trim();if(!text)return;const values=local.get('er-highlights',[]);values.unshift({text,book:activeBook?.key});local.set('er-highlights',values);queueCloudSync();toast('Highlight saved.');});
   byId('bookmark-btn').addEventListener('click',()=>{const values=local.get('er-bookmarks',[]);values.unshift({name:activeBook?.title,book:activeBook?.key,scroll:scrollY,page:activePage,created:Date.now()});local.set('er-bookmarks',values);queueCloudSync();toast('Bookmark saved.');});
@@ -1438,7 +1457,7 @@ async function init() {
   byId('autoscroll-btn').addEventListener('click',()=>{const button=byId('autoscroll-btn');if(button.dataset.running){clearInterval(Number(button.dataset.running));delete button.dataset.running;button.textContent='Auto-scroll';}else button.dataset.running=String(setInterval(()=>scrollBy(0,1),45));});
   byId('font-choice').addEventListener('change',event=>{const settings=local.get('er-reader-settings',{});settings.font=event.target.value;local.set('er-reader-settings',settings);document.documentElement.style.setProperty('--reader-font',event.target.value==='serif'?'Georgia,serif':event.target.value==='dyslexic'?'Arial,sans-serif':"'Literata',Georgia,serif");});byId('spacing').addEventListener('input',event=>{const settings=local.get('er-reader-settings',{});settings.spacing=Number(event.target.value);local.set('er-reader-settings',settings);document.documentElement.style.setProperty('--reader-leading',event.target.value);});byId('width').addEventListener('input',event=>{const settings=local.get('er-reader-settings',{});settings.width=Number(event.target.value);local.set('er-reader-settings',settings);document.documentElement.style.setProperty('--reader-width',event.target.value+'px');});
   for(const id of ['signin-modal-close','signin-modal-later'])byId(id).addEventListener('click',()=>{byId('signin-modal').hidden=true;local.set('er-signin-dismissed',true);});
-  addEventListener('scroll',()=>{if(!readerWrap.hidden)savePosition();},{passive:true});addEventListener('beforeunload',()=>{savePosition();pauseReadingTimer();});document.addEventListener('visibilitychange',()=>{if(document.hidden&&readerTimerRunning){timerResumeOnVisible=true;pauseReadingTimer();}else if(!document.hidden&&timerResumeOnVisible&&!readerWrap.hidden){timerResumeOnVisible=false;startReadingTimer();}});addEventListener('resize',()=>{if(activePdf)scalePdf(0);});
+  addEventListener('scroll',()=>{if(!readerWrap.hidden)savePosition();},{passive:true});addEventListener('beforeunload',()=>{savePosition(true);pauseReadingTimer();});document.addEventListener('visibilitychange',()=>{if(document.hidden&&readerTimerRunning){timerResumeOnVisible=true;pauseReadingTimer();}else if(!document.hidden&&timerResumeOnVisible&&!readerWrap.hidden){timerResumeOnVisible=false;startReadingTimer();}});addEventListener('resize',()=>{if(activePdf)scalePdf(0);});
   document.addEventListener('keydown',event=>{if(event.key==='Escape'){hidePopup();hidePanels();byId('contents').classList.remove('open');byId('signin-modal').hidden=true;}if((event.ctrlKey||event.altKey)&&event.key==='Enter'&&!event.target.matches('input,textarea,select')){const selection=getSelection();if(selection&&!selection.isCollapsed&&selection.rangeCount){const text=selection.toString().trim();if(/^[\p{L}\p{M}]+(?:[-'’][\p{L}\p{M}]+)*$/u.test(text)){event.preventDefault();showWord({word:text.toLowerCase(),range:selection.getRangeAt(0).cloneRange()},{focus:true});return;}}}if(event.target.matches('input,textarea,select'))return;if(event.key==='/ '||event.key==='/'){event.preventDefault();if(!readerWrap.hidden){byId('reader-tools').hidden=false;byId('search-input').focus();}}if(event.key.toLowerCase()==='f'&&!readerWrap.hidden)document.body.classList.toggle('focus-mode');if(event.key.toLowerCase()==='t')byId('theme').click();});
   await renderLibrary().catch(()=>{});addEventListener('online',()=>{if(user)syncCloud();});
   const showSigninPrompt = () => { if (!user && !local.get('er-signin-dismissed', false) && !local.get('er-onboarding-done', false)) byId('signin-modal').hidden = false; };
