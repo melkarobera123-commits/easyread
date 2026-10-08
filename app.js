@@ -1382,12 +1382,20 @@ function updateInstallButton() {
 }
 
 async function init() {
-  // Boot each independent UI layer safely. One broken optional feature must never
-  // prevent the rest of EasyRead's buttons from being wired.
+  // Keep the UI interactive even if an optional reader feature fails during boot.
   const boot = (name, fn) => {
     try { return fn(); }
     catch (error) { console.error(`EasyRead ${name} failed:`, error); return null; }
   };
+  // These must work before any other initialization, because the sign-in prompt
+  // and overlays can otherwise sit above the whole app.
+  for (const id of ['signin-modal-close','signin-modal-later']) {
+    byId(id)?.addEventListener('click', () => {
+      const modal = byId('signin-modal');
+      if (modal) modal.hidden = true;
+      local.set('er-signin-dismissed', true);
+    });
+  }
   boot('navigation', initNavigation);
   boot('contact', initContact);
   boot('reader preferences', loadReaderPreferences);
@@ -1466,8 +1474,12 @@ async function init() {
   addEventListener('scroll',()=>{if(!readerWrap.hidden)savePosition();},{passive:true});addEventListener('beforeunload',()=>{savePosition(true);pauseReadingTimer();});document.addEventListener('visibilitychange',()=>{if(document.hidden&&readerTimerRunning){timerResumeOnVisible=true;pauseReadingTimer();}else if(!document.hidden&&timerResumeOnVisible&&!readerWrap.hidden){timerResumeOnVisible=false;startReadingTimer();}});addEventListener('resize',()=>{if(activePdf)scalePdf(0);});
   document.addEventListener('keydown',event=>{if(event.key==='Escape'){hidePopup();hidePanels();byId('contents').classList.remove('open');byId('signin-modal').hidden=true;}if((event.ctrlKey||event.altKey)&&event.key==='Enter'&&!event.target.matches('input,textarea,select')){const selection=getSelection();if(selection&&!selection.isCollapsed&&selection.rangeCount){const text=selection.toString().trim();if(/^[\p{L}\p{M}]+(?:[-'’][\p{L}\p{M}]+)*$/u.test(text)){event.preventDefault();showWord({word:text.toLowerCase(),range:selection.getRangeAt(0).cloneRange()},{focus:true});return;}}}if(event.target.matches('input,textarea,select'))return;if(event.key==='/ '||event.key==='/'){event.preventDefault();if(!readerWrap.hidden){byId('reader-tools').hidden=false;byId('search-input').focus();}}if(event.key.toLowerCase()==='f'&&!readerWrap.hidden)document.body.classList.toggle('focus-mode');if(event.key.toLowerCase()==='t')byId('theme').click();});
   await renderLibrary().catch(()=>{});addEventListener('online',()=>{if(user)syncCloud();});
-  const showSigninPrompt = () => { if (!user && !local.get('er-signin-dismissed', false) && !local.get('er-onboarding-done', false)) byId('signin-modal').hidden = false; };
-  if ('requestIdleCallback' in window) requestIdleCallback(() => setTimeout(showSigninPrompt, 300)); else setTimeout(showSigninPrompt, 800);
+  // Do not automatically place a modal over the application on a fresh/private
+  // session. Sign-in is available from the account buttons and must never block
+  // normal reading controls.
+  const showSigninPrompt = () => {
+    if (user || local.get('er-signin-dismissed', false) || local.get('er-onboarding-done', false)) return;
+  };
   if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
   window.__easyReadReady = true;
 }
