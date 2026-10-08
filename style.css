@@ -224,3 +224,25 @@ main,.site-footer{margin-left:232px}.site-footer{display:flex;justify-content:ce
   content-visibility:auto;
   contain-intrinsic-size:auto 520px;
 }
+
+/* Fullscreen dictionary overlay: keep the definition above every PDF canvas/text layer. */
+#fullscreen-dictionary-layer{
+  position:fixed;
+  inset:0;
+  z-index:2147483646;
+  pointer-events:none;
+  isolation:isolate;
+}
+#fullscreen-dictionary-layer #popup{
+  pointer-events:auto;
+  z-index:2147483647 !important;
+}
+#reader-wrap:fullscreen,#pdf-pages:fullscreen{
+  position:relative;
+  isolation:isolate;
+}
+#reader-wrap:fullscreen #fullscreen-dictionary-layer,
+#pdf-pages:fullscreen #fullscreen-dictionary-layer{
+  display:block;
+  z-index:2147483646;
+}
