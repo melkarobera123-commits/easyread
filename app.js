@@ -288,6 +288,8 @@ async function buildPdfGeometryIndex(page, frame, viewport) {
     includeMarkedContent: true,
     disableNormalization: true
   });
+  frame._pdfViewportWidth = viewport.width;
+  frame._pdfWordBoxes = buildPdfWordBoxes(content, viewport);
   const layer = frame.querySelector('.textLayer');
   const spans = [...layer.querySelectorAll('span:not(.markedContent)')].filter(span => span.firstChild?.nodeType === Node.TEXT_NODE);
   const items = content.items.filter(item => typeof item?.str === 'string' && item.str);
@@ -305,6 +307,101 @@ async function buildPdfGeometryIndex(page, frame, viewport) {
     spanIndex++;
   }
   frame._pdfGeometryIndex = index;
+}
+
+const pdfMeasureCtx = document.createElement('canvas').getContext('2d');
+let activePdfWordMarker = null;
+
+// Builds one exact box per word straight from PDF coordinates, so taps do not
+// depend on how the browser lays out the invisible text-layer spans.
+function buildPdfWordBoxes(content, viewport) {
+  const boxes = [];
+  const wordPattern = /[-'’\p{L}\p{M}]+/gu;
+  for (const item of content.items) {
+    const text = item?.str;
+    if (typeof text !== 'string' || !text.trim() || !item.transform) continue;
+    const tx = pdfjsLib.Util.transform(viewport.transform, item.transform);
+    const aLen = Math.hypot(tx[0], tx[1]);
+    const dLen = Math.hypot(tx[2], tx[3]);
+    const width = Number(item.width || 0) * viewport.scale;
+    if (aLen < 0.01 || dLen < 0.01 || width <= 0) continue;
+    const ux = { x: tx[0] / aLen, y: tx[1] / aLen };
+    const uy = { x: tx[2] / dLen, y: tx[3] / dLen };
+    const style = content.styles?.[item.fontName] || {};
+    let total = 0;
+    if (!style.vertical) {
+      pdfMeasureCtx.font = `100px ${style.fontFamily || 'sans-serif'}`;
+      total = pdfMeasureCtx.measureText(text).width;
+    }
+    const at = index => total > 0
+      ? pdfMeasureCtx.measureText(text.slice(0, index)).width / total * width
+      : index / text.length * width;
+
+    wordPattern.lastIndex = 0;
+    let match;
+    while ((match = wordPattern.exec(text))) {
+      const word = match[0].replace(/^[-'’]+|[-'’]+$/g, '').toLowerCase();
+      if (!word) continue;
+      boxes.push({
+        word,
+        ox: tx[4], oy: tx[5], ux, uy, h: dLen,
+        t0: at(match.index), t1: at(match.index + match[0].length)
+      });
+    }
+  }
+  return boxes;
+}
+
+function clearPdfWordMarker() {
+  activePdfWordMarker?.remove();
+  activePdfWordMarker = null;
+}
+
+function pdfWordHitAt(frame, x, y) {
+  const boxes = frame._pdfWordBoxes;
+  const canvas = frame.querySelector('canvas');
+  if (!boxes?.length || !canvas) return null;
+  const canvasRect = canvas.getBoundingClientRect();
+  if (!canvasRect.width) return null;
+  const ratio = (frame._pdfViewportWidth || canvasRect.width) / canvasRect.width;
+  const px = (x - canvasRect.left) * ratio;
+  const py = (y - canvasRect.top) * ratio;
+
+  let best = null;
+  let bestScore = Infinity;
+  for (const box of boxes) {
+    const dx = px - box.ox, dy = py - box.oy;
+    const t = dx * box.ux.x + dy * box.ux.y;
+    const s = dx * box.uy.x + dy * box.uy.y;   // positive = above the baseline
+    const dt = t < box.t0 ? box.t0 - t : t > box.t1 ? t - box.t1 : 0;
+    const low = -0.28 * box.h, high = box.h;
+    const ds = s < low ? low - s : s > high ? s - high : 0;
+    const dist = Math.hypot(dt, ds);
+    // Small touch allowance so a fingertip just beside a word still picks it.
+    const tolerance = Math.min(Math.max(7 * ratio, 0.3 * box.h), 14 * ratio);
+    if (dist > tolerance) continue;
+    const score = dist + 0.01 * Math.abs(s - 0.35 * box.h);
+    if (score < bestScore) { bestScore = score; best = box; }
+  }
+  if (!best) return null;
+
+  const layer = frame.querySelector('.textLayer');
+  if (!layer) return null;
+  clearPdfWordMarker();
+  const top = best.h, bottom = 0.28 * best.h;
+  const marker = document.createElement('div');
+  marker.className = 'pdf-word-hit';
+  marker.style.cssText =
+    `position:absolute;left:0;top:0;pointer-events:none;z-index:0;` +
+    `width:${best.t1 - best.t0}px;height:${top + bottom}px;transform-origin:0 0;` +
+    `transform:matrix(${best.ux.x},${best.ux.y},${-best.uy.x},${-best.uy.y},` +
+    `${best.ox + best.ux.x * best.t0 + best.uy.x * top},` +
+    `${best.oy + best.ux.y * best.t0 + best.uy.y * top})`;
+  layer.append(marker);
+  activePdfWordMarker = marker;
+  const range = document.createRange();
+  range.selectNode(marker);
+  return { word: best.word, range };
 }
 
 function buildPdfWordIndex(frame) {
@@ -526,38 +623,7 @@ function wordAt(x, y) {
     return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
   });
 
-  if (page) {
-    const words = page._pdfWordIndex || [];
-    let best = null;
-    let bestArea = Infinity;
-
-    // The rendered PDF.js text layer is the final authority for the finger hit.
-    // Range rectangles follow the actual font, size, transform, rotation and
-    // current browser layout, so whitespace and neighboring words are excluded.
-    for (const entry of words) {
-      const rects = entry.range.getClientRects();
-      for (const rect of rects) {
-        if (
-          rect.width > 0 &&
-          rect.height > 0 &&
-          x >= rect.left &&
-          x <= rect.right &&
-          y >= rect.top &&
-          y <= rect.bottom
-        ) {
-          const area = rect.width * rect.height;
-          if (area < bestArea) {
-            bestArea = area;
-            best = { word: entry.word, range: entry.range.cloneRange() };
-          }
-        }
-      }
-    }
-
-    // Page View must never guess a nearby word. If the finger is not actually
-    // inside rendered text, let the tap do nothing.
-    return best;
-  }
+  if (page) return pdfWordHitAt(page, x, y);
 
   // Non-PDF content keeps the normal browser text hit-testing path.
   const elements = document.elementsFromPoint(x, y);
@@ -622,7 +688,7 @@ document.addEventListener('dblclick',event=>{if(event.target.closest('button,a,i
 function popupShell(word,message){popup.replaceChildren();const close=safeText(popup,'button','×','close');close.type='button';close.setAttribute('aria-label','Close definition');close.addEventListener('click',hidePopup);const heading=safeText(popup,'h2',word);heading.id='popup-word';popup.setAttribute('aria-labelledby','popup-word');if(message)safeText(popup,'p',message,'note');}
 async function showWord(hit,options={}){const word=String(hit.word||'').trim().toLowerCase();if(!word)return;lookupController?.abort();lookupController=new AbortController();popupReturnFocus=options.returnFocus||document.activeElement;const range=hit.range||null;activeDictionaryRange=range?range.cloneRange():null;if(range&&CSS.highlights)CSS.highlights.set('picked',new Highlight(range));popup.hidden=false;popupShell(word,'Looking up…');placePopup(range);if(options.focus)popup.querySelector('.close')?.focus();try{const result=await define(word,lookupController.signal),clean={...result,meanings:result.meanings.map(item=>({...item,definition:plainDefinition(item.definition),example:plainDefinition(item.example)}))};renderDefinition(clean,word);popup.setAttribute('aria-labelledby','popup-word');popup.querySelector('h2').id='popup-word';popup.querySelector('.close')?.setAttribute('aria-label','Close definition');placePopup(range);if(options.focus)popup.querySelector('.close')?.focus();}catch(error){if(error.name==='AbortError')return;popupShell(word,error.message||'Could not load this definition.');placePopup(range);if(options.focus)popup.querySelector('.close')?.focus();}}
 function submitDictionaryQuery(event){event.preventDefault();const input=byId('dictionary-query'),word=input.value.trim().toLowerCase();if(!/^[a-z][a-z'-]{0,59}$/.test(word)){input.setCustomValidity('Enter one English word using letters, apostrophes, or hyphens.');input.reportValidity();return;}input.setCustomValidity('');showWord({word,range:null},{focus:true,returnFocus:input});}
-function hidePopup(){lookupController?.abort();popup.hidden=true;activeDictionaryRange=null;if(CSS.highlights)CSS.highlights.delete('picked');const target=popupReturnFocus;popupReturnFocus=null;if(target&&target!==document.body&&target.isConnected)target.focus({preventScroll:true});}
+function hidePopup(){clearPdfWordMarker();lookupController?.abort();popup.hidden=true;activeDictionaryRange=null;if(CSS.highlights)CSS.highlights.delete('picked');const target=popupReturnFocus;popupReturnFocus=null;if(target&&target!==document.body&&target.isConnected)target.focus({preventScroll:true});}
 function placePopup(range){const fullscreenLayer=popup.dataset.fullscreenLayer==='true';const positionMode=fullscreenLayer?'absolute':'fixed';const mobile=matchMedia('(max-width: 640px)').matches;if(mobile){popup.style.position=positionMode;popup.style.left='10px';popup.style.right='10px';popup.style.top='auto';popup.style.bottom='max(10px, env(safe-area-inset-bottom))';popup.style.transform='none';popup.classList.toggle('dictionary-search-popup',!range);return;}if(!range){popup.classList.add('dictionary-search-popup');popup.style.position=positionMode;popup.style.left='50%';popup.style.right='';popup.style.top='18vh';popup.style.bottom='';popup.style.transform='translateX(-50%)';return;}popup.classList.remove('dictionary-search-popup');popup.style.position=positionMode;popup.style.left='0';popup.style.right='auto';popup.style.bottom='auto';popup.style.transform='none';const rect=range.getBoundingClientRect();const width=popup.offsetWidth||350;const height=popup.offsetHeight||180;const gap=8;const x=Math.max(12,Math.min(rect.left,Math.max(12,innerWidth-width-12)));const below=rect.bottom+gap;const above=rect.top-height-gap;let y=below;if(below+height>innerHeight-12&&above>=12)y=above;else if(below+height>innerHeight-12)y=Math.max(12,innerHeight-height-12);popup.style.left=`${x}px`;popup.style.top=`${y}px`;}
 function plainDefinition(value){let text=String(value||'');for(let attempt=0;attempt<2;attempt++){const parsed=new DOMParser().parseFromString(text,'text/html');parsed.querySelectorAll('script,style,template').forEach(node=>node.remove());const next=parsed.body.textContent||'';if(next===text)break;text=next;}return text.replace(/\s+/g,' ').trim();}
 const FALLBACK_DEFINITIONS = {
