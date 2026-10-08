@@ -87,11 +87,13 @@
           </div>
           <span class="paste-badge">Text</span>
         </div>
-        <textarea id="paste-input" rows="7" maxlength="500000" placeholder="Copy text from anywhere and paste it here…"></textarea>
-        <div class="paste-actions">
-          <button id="paste-open" class="btn account-action" type="button">Read pasted text</button>
-          <button id="paste-clear" class="text-button" type="button">Clear</button>
-        </div>
+        <form id="paste-form" class="paste-form">
+          <textarea id="paste-input" rows="7" maxlength="500000" placeholder="Copy text from anywhere and paste it here…"></textarea>
+          <div class="paste-actions">
+            <button id="paste-open" class="btn account-action" type="button">Read pasted text</button>
+            <button id="paste-clear" class="text-button" type="reset">Clear</button>
+          </div>
+        </form>
         <small>Nothing is uploaded. The pasted text stays in this browser and opens in the same EasyRead reader.</small>
       </section>
       <p id="status" role="status"></p>
