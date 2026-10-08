@@ -1382,10 +1382,16 @@ function updateInstallButton() {
 }
 
 async function init() {
-  initNavigation();
-  initContact();
-  loadReaderPreferences();
-  updateInstallButton();
+  // Boot each independent UI layer safely. One broken optional feature must never
+  // prevent the rest of EasyRead's buttons from being wired.
+  const boot = (name, fn) => {
+    try { return fn(); }
+    catch (error) { console.error(`EasyRead ${name} failed:`, error); return null; }
+  };
+  boot('navigation', initNavigation);
+  boot('contact', initContact);
+  boot('reader preferences', loadReaderPreferences);
+  boot('install state', updateInstallButton);
   window.addEventListener('beforeinstallprompt', event => {
     event.preventDefault();
     installPromptEvent = event;
@@ -1404,24 +1410,24 @@ async function init() {
     updateInstallButton();
     toast(choice.outcome === 'accepted' ? 'App installed.' : 'Install cancelled.');
   });
-  fileInput.addEventListener('change',()=>{openFile(fileInput.files?.[0]);fileInput.value='';});
-  byId('paste-open')?.addEventListener('click',()=>{
-    const input=byId('paste-input');
-    const text=input?.value||'';
-    if(!text.trim()) return toast('Paste some text first.');
-    const file=new File([text], 'Pasted text.txt', {type:'text/plain'});
-    openFile(file);
+  // Core upload/paste controls are guarded so a single optional control cannot
+  // abort initialization of every remaining reader button.
+  boot('file input', () => fileInput?.addEventListener('change',()=>{openFile(fileInput.files?.[0]);fileInput.value='';}));
+  boot('paste controls', () => {
+    byId('paste-open')?.addEventListener('click',()=>{
+      const input=byId('paste-input');
+      const text=input?.value||'';
+      if(!text.trim()) return toast('Paste some text first.');
+      openFile(new File([text], 'Pasted text.txt', {type:'text/plain'}));
+    });
+    byId('paste-clear')?.addEventListener('click',event=>{
+      event.preventDefault(); event.stopPropagation();
+      const input=byId('paste-input'); if(!input)return;
+      input.value=''; input.dispatchEvent(new Event('input',{bubbles:true}));
+      input.focus({preventScroll:true}); toast('Pasted text cleared.');
+    });
   });
-  byId('paste-clear')?.addEventListener('click',event=>{
-    event.preventDefault();
-    event.stopPropagation();
-    const input=byId('paste-input');
-    if(!input)return;
-    input.value='';
-    input.dispatchEvent(new Event('input',{bubbles:true}));
-    input.focus({preventScroll:true});
-    toast('Pasted text cleared.');
-  });
+
   drop.addEventListener('click',event=>{if(event.target!==fileInput)fileInput.click();}); drop.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();fileInput.click();}});
   for(const eventName of ['dragover','dragleave','drop'])drop.addEventListener(eventName,event=>{event.preventDefault();drop.classList.toggle('over',eventName==='dragover');if(eventName==='drop'&&event.dataTransfer.files[0])openFile(event.dataTransfer.files[0]);});
   byId('jump').addEventListener('change',goToRequestedPage);
@@ -1463,6 +1469,8 @@ async function init() {
   const showSigninPrompt = () => { if (!user && !local.get('er-signin-dismissed', false) && !local.get('er-onboarding-done', false)) byId('signin-modal').hidden = false; };
   if ('requestIdleCallback' in window) requestIdleCallback(() => setTimeout(showSigninPrompt, 300)); else setTimeout(showSigninPrompt, 800);
   if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
+  window.__easyReadReady = true;
+}
 }
 let matches=[],matchIndex=-1;async function searchBook(){const query=byId('search-input').value.trim().toLowerCase(),token=++searchToken;if(CSS.highlights)CSS.highlights.delete('search');matches=[];pdfSearchMatches=[];matchIndex=pdfSearchIndex=-1;if(!query){byId('search-count').textContent='';return;}if(activePdf&&pdfMode){for(let pageNumber=1;pageNumber<=activePdf.numPages;pageNumber++){if(token!==searchToken)return;const page=await activePdf.getPage(pageNumber),content=await page.getTextContent(),text=content.items.map(item=>item.str).join(' ').toLowerCase();let from=0,index;while((index=text.indexOf(query,from))>=0){pdfSearchMatches.push({page:pageNumber});from=index+query.length;}if(pageNumber%20===0){byId('search-count').textContent=`Searching ${pageNumber} of ${activePdf.numPages}…`;await new Promise(requestAnimationFrame);}}if(token!==searchToken)return;byId('search-count').textContent=`${pdfSearchMatches.length} results`;if(pdfSearchMatches.length)moveMatch(1);return;}const walker=document.createTreeWalker(reader,NodeFilter.SHOW_TEXT);while(walker.nextNode()){const node=walker.currentNode;let from=0,index;while((index=node.data.toLowerCase().indexOf(query,from))>=0){const range=new Range();range.setStart(node,index);range.setEnd(node,index+query.length);matches.push(range);from=index+query.length;}}if(CSS.highlights&&matches.length)CSS.highlights.set('search',new Highlight(...matches));byId('search-count').textContent=`${matches.length} results`;if(matches.length)moveMatch(1);}
 function fullscreenReaderHost(){return document.fullscreenElement===readerWrap||document.fullscreenElement===pdfPages?document.fullscreenElement:null;}
