@@ -213,3 +213,14 @@ main,.site-footer{margin-left:232px}.site-footer{display:flex;justify-content:ce
   .library-grid{grid-template-columns:1fr;gap:10px}
   .book-card{min-height:112px}
 }
+
+/* Performance: keep long text documents light while preserving their layout. */
+#reader .page{
+  content-visibility:auto;
+  contain-intrinsic-size:auto 680px;
+}
+.library-home,
+.steps{
+  content-visibility:auto;
+  contain-intrinsic-size:auto 520px;
+}
