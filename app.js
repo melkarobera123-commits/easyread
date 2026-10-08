@@ -1367,7 +1367,16 @@ async function init() {
     const file=new File([text], 'Pasted text.txt', {type:'text/plain'});
     openFile(file);
   });
-  byId('paste-clear')?.addEventListener('click',()=>{const input=byId('paste-input');if(input){input.value='';input.focus();}});
+  byId('paste-clear')?.addEventListener('click',event=>{
+    event.preventDefault();
+    event.stopPropagation();
+    const input=byId('paste-input');
+    if(!input)return;
+    input.value='';
+    input.dispatchEvent(new Event('input',{bubbles:true}));
+    input.focus({preventScroll:true});
+    toast('Pasted text cleared.');
+  });
   drop.addEventListener('click',event=>{if(event.target!==fileInput)fileInput.click();}); drop.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();fileInput.click();}});
   for(const eventName of ['dragover','dragleave','drop'])drop.addEventListener(eventName,event=>{event.preventDefault();drop.classList.toggle('over',eventName==='dragover');if(eventName==='drop'&&event.dataTransfer.files[0])openFile(event.dataTransfer.files[0]);});
   byId('jump').addEventListener('change',goToRequestedPage);
