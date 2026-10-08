@@ -119,14 +119,18 @@ async function openFile(file) {
   const ext = file.name.split('.').pop().toLowerCase(), allowed = ['pdf','docx','pptx','epub','txt','png','jpg','jpeg'];
   if (!allowed.includes(ext)) return status('Choose a PDF, DOCX, PPTX, EPUB, TXT, or image file.', true);
   if (file.size > 150 * 1024 * 1024) return status('This file is larger than 150 MB. Try a smaller copy.', true);
-  hidePopup(); reader.replaceChildren(); pdfPages.replaceChildren(); pdfThumbs.replaceChildren(); activePdf = null; pdfTextPromise = null; pdfRenderPromises.clear(); pdfMode = true; documentPageMode = false; byId('pdf-toolbar').hidden = true; byId('pdf-controls').hidden = true; pageCount = 0;
+  hidePopup(); reader.replaceChildren(); pdfPages.replaceChildren(); pdfThumbs.replaceChildren();
+  pageObserver?.disconnect(); thumbObserver?.disconnect();
+  pageObserver=null; thumbObserver=null;
+  activePdf = null; pdfTextPromise = null; pdfRenderPromises.clear(); pdfMode = true; documentPageMode = false; byId('pdf-toolbar').hidden = true; byId('pdf-controls').hidden = true; pageCount = 0;
   byId('loading-skeleton').hidden = false; readerWrap.hidden = false; setView('reader'); if(byId('document-page-toggle')){byId('document-page-toggle').setAttribute('aria-pressed','false');byId('document-page-toggle').textContent='Page view';} status(`Preparing ${file.name}…`);
   const key = `${file.name}:${file.size}:${file.lastModified}`;
   activeBook = await getBook(key).catch(() => null) || { key, name: file.name, title: file.name.replace(/\.[^.]+$/, ''), file, type: ext, added: Date.now(), favorite: false, progress: 0 };
   const rememberedPosition = local.get(`er-position:${key}`);
   if (rememberedPosition && rememberedPosition.savedAt > (activeBook.position?.savedAt || 0)) activeBook.position = rememberedPosition;
   activeBook.file = file; activeBook.opened = Date.now(); activeBook.type = ext;
-  try { if (navigator.storage?.persist) await navigator.storage.persist().catch(() => false);
+  try {
+    if (navigator.storage?.persist) navigator.storage.persist().catch(() => false);
     if (ext === 'pdf') await parsePdf(file);
     else if (ext === 'docx') await parseDocx(file);
     else if (ext === 'pptx') await parsePptx(file);
@@ -153,16 +157,43 @@ async function parsePdf(file) {
   activePdf=pdf; pageCount=pdf.numPages; zoom=1; pdfPages.hidden=false; pdfThumbs.hidden=!pdfPreviewsVisible; byId('pdf-toolbar').hidden=false; byId('pdf-controls').hidden=false; byId('pdf-mode-btn').textContent='Text view';byId('jump').max=String(pageCount);byId('pdf-preview-toggle').textContent=pdfPreviewsVisible?'Hide previews':'Show previews';byId('pdf-preview-toggle').setAttribute('aria-pressed',String(pdfPreviewsVisible));reader.hidden=true;
   pageObserver=new IntersectionObserver(entries=>entries.forEach(entry=>{ if(entry.isIntersecting){ const page=Number(entry.target.dataset.page); activePage=page; byId('pdf-page-label').textContent=`Page ${page} of ${pageCount}`; renderPdfPage(page).catch(console.error); } else if(Math.abs(Number(entry.target.dataset.page)-activePage)>1) releasePdfPage(entry.target); }),{rootMargin:'30% 0px'});
   thumbObserver=new IntersectionObserver(entries=>entries.forEach(entry=>{ if(entry.isIntersecting) renderThumbnail(Number(entry.target.dataset.page)); }),{rootMargin:'0px 240px'});
+  const pageFragment=document.createDocumentFragment();
+  const thumbFragment=document.createDocumentFragment();
+  const frames=[];
+  const thumbs=[];
   for(let number=1;number<=pdf.numPages;number++){
-    const frame=document.createElement('figure'); frame.className='pdf-page readable'; frame.dataset.page=String(number);
-    const canvas=document.createElement('canvas'); canvas.setAttribute('aria-label',`PDF page ${number}`);
-    const textLayer=document.createElement('div'); textLayer.className='textLayer';
-    frame.append(canvas,textLayer,safeText(document.createElement('div'),'span',`Page ${number}`,'pdf-caption')); pdfPages.append(frame); pageObserver.observe(frame);
-    const thumbButton=document.createElement('button'); thumbButton.className='pdf-thumb'; thumbButton.type='button'; thumbButton.dataset.page=String(number); thumbButton.setAttribute('aria-label',`Go to page ${number}`); safeText(thumbButton,'span',String(number)); thumbButton.addEventListener('click',()=>goPdfPage(number)); pdfThumbs.append(thumbButton); thumbObserver.observe(thumbButton);
-    if(number%80===0) await new Promise(requestAnimationFrame);
+    const frame=document.createElement('figure');
+    frame.className='pdf-page readable';
+    frame.dataset.page=String(number);
+    const canvas=document.createElement('canvas');
+    canvas.setAttribute('aria-label',`PDF page ${number}`);
+    const textLayer=document.createElement('div');
+    textLayer.className='textLayer';
+    frame.append(canvas,textLayer,safeText(document.createElement('div'),'span',`Page ${number}`,'pdf-caption'));
+    pageFragment.append(frame);
+    frames.push(frame);
+
+    const thumbButton=document.createElement('button');
+    thumbButton.className='pdf-thumb';
+    thumbButton.type='button';
+    thumbButton.dataset.page=String(number);
+    thumbButton.setAttribute('aria-label',`Go to page ${number}`);
+    safeText(thumbButton,'span',String(number));
+    thumbFragment.append(thumbButton);
+    thumbs.push(thumbButton);
+
+    if(number%250===0) await new Promise(requestAnimationFrame);
   }
+  pdfPages.append(pageFragment);
+  pdfThumbs.append(thumbFragment);
+  for(const frame of frames) pageObserver.observe(frame);
+  for(const thumb of thumbs) thumbObserver.observe(thumb);
   pageCount=pdf.numPages;
 }
+pdfThumbs.addEventListener('click',event=>{
+  const thumb=event.target.closest('.pdf-thumb');
+  if(thumb) goPdfPage(Number(thumb.dataset.page));
+});
 async function buildPdfTextView(){
   if(!activePdf)return;
   if(pdfTextPromise)return pdfTextPromise;
@@ -363,7 +394,6 @@ async function drawPdfPage(pdf,number,frame) {
   }
 
   await buildPdfGeometryIndex(page, frame, viewport).catch(error => console.warn('PDF geometry index unavailable', error));
-  buildPdfWordIndex(frame);
   registerPdfSelectionLayer(layer);
 }
 function releasePdfPage(frame) { if(pdfRenderPromises.has(frame)){frame.dataset.releaseAfterRender='yes';return;} if(frame.dataset.rendered!=='yes') return; const canvas=frame.querySelector('canvas'), layer=frame.querySelector('.textLayer'); unregisterPdfSelectionLayer(layer); canvas.width=0; canvas.height=0; layer.replaceChildren(); frame.dataset.rendered=''; delete frame.dataset.releaseAfterRender; }
