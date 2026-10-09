@@ -476,3 +476,25 @@
   border-radius: 3px;
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent, #4f6bed) 45%, transparent);
 }
+
+/* Decluttered reader toolbars */
+.reading-timer .timer-state { display: none; }
+.reading-timer { margin-left: 0; }
+.bar { margin-bottom: 12px; }
+.pdf-toolbar { margin-bottom: 10px; padding: 5px 8px; gap: 6px; }
+.pdf-controls { gap: 5px; flex-wrap: wrap; }
+.pdf-controls .btn, .pdf-toolbar .btn { padding-inline: 12px; }
+.pdf-controls .icon-btn { min-width: 38px; min-height: 38px; }
+/* Previews scroll with the page instead of stacking under the sticky bars. */
+#pdf-thumbs.pdf-thumbs { position: static; max-height: 118px; margin-bottom: 12px; }
+.reader-tools { gap: 6px; }
+@media (max-width: 640px) {
+  .pdf-toolbar { top: 116px; }
+  #pdf-thumbs.pdf-thumbs { max-height: 96px; }
+}
+
+/* Move up / move down buttons */
+.scroll-nav { position: fixed; right: 14px; bottom: max(18px, env(safe-area-inset-bottom)); z-index: 40; display: grid; gap: 8px; }
+.scroll-nav .icon-btn { width: 46px; height: 46px; min-width: 46px; min-height: 46px; font-size: 1rem; box-shadow: var(--shadow); background: var(--sheet); color: var(--ink); opacity: .92; }
+.scroll-nav .icon-btn:active { transform: scale(.94); }
+#reader-wrap[hidden] .scroll-nav { display: none; }
