@@ -271,3 +271,9 @@ main,.site-footer{margin-left:232px}.site-footer{display:flex;justify-content:ce
     padding-bottom:calc(18px + env(safe-area-inset-bottom));
   }
 }
+
+/* Support the project */
+.support-project-link{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:40px;padding:8px 13px;border:1px solid color-mix(in srgb,#b87935 45%,var(--line));border-radius:999px;background:color-mix(in srgb,#f2c078 16%,var(--sheet));color:var(--ink);font-weight:700;text-decoration:none;white-space:nowrap;transition:transform .16s,border-color .16s,background .16s}
+.support-project-link:hover{transform:translateY(-1px);border-color:#b87935;background:color-mix(in srgb,#f2c078 27%,var(--sheet))}
+.support-project-link:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+@media(max-width:700px){.footer-links{flex-wrap:wrap}.support-project-link{min-height:44px}}
