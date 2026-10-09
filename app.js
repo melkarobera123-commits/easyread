@@ -721,7 +721,7 @@ async function define(word,signal){
   if(fallback){const result={...fallback,source:'Built-in'};await putDefinition({word:stem,result}).catch(()=>{});return result;}
   throw new Error(`No definition found for “${stem.replace(/_/g,' ')}”. Try checking the spelling or search another word.`);
 }
-function renderDefinition(result,asked){popup.replaceChildren();safeText(popup,'button','×','close').addEventListener('click',hidePopup);safeText(popup,'h2',result.word);const source=result.source||'';if(result.phonetic)safeText(popup,'p',result.phonetic,'ph');if(source)safeText(popup,'span',result.cached?'Cached · '+source:source,'dictionary-source');const actions=document.createElement('div');actions.className='word-actions';const button=(label,handler)=>{const control=document.createElement('button');control.className='btn';control.type='button';control.textContent=label;control.addEventListener('click',handler);actions.append(control);return control;};const savedValues=local.get('er-vocabulary',[]);const isSaved=savedValues.some(item=>String(item.word||'').trim().toLowerCase()===String(result.word||'').trim().toLowerCase());const saveButton=button(isSaved?'Remove':'Save',event=>{const values=local.get('er-vocabulary',[]);const target=String(result.word||'').trim().toLowerCase();const existing=values.findIndex(item=>String(item.word||'').trim().toLowerCase()===target);if(existing>=0){values.splice(existing,1);event.currentTarget.textContent='Save';toast('Word removed from your vocabulary.');}else{values.unshift({word:result.word,definition:result.meanings[0]?.definition});event.currentTarget.textContent='Remove';toast('Word saved to your vocabulary.');}local.set('er-vocabulary',values);queueCloudSync();renderVocabulary();});button('Listen',()=>speechSynthesis.speak(new SpeechSynthesisUtterance(result.word)));button('Translate',async event=>{const control=event.currentTarget;control.textContent='Translating…';try{const language=byId('translation-language').value,response=await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(result.word)}&langpair=en|${language}`,{signal:lookupController?.signal});if(!response.ok)throw new Error();const data=await response.json();safeText(popup,'p',data.responseData?.translatedText||'Translation unavailable','note');control.textContent='Translated';}catch{control.textContent='Try translate again';}});button('Note',()=>{const text=prompt(`Add a note for “${result.word}”`);if(text?.trim()){const notes=local.get('er-notes',[]);notes.unshift({word:result.word,text:text.trim(),book:activeBook?.key,created:Date.now()});local.set('er-notes',notes);queueCloudSync();toast('Note saved.');}});popup.append(actions);result.meanings.forEach(item=>{safeText(popup,'p',item.partOfSpeech,'pos');safeText(popup,'p',item.definition,'def');if(item.example)safeText(popup,'p',`“${item.example}”`,'ex');});if(result.word!==asked)safeText(popup,'p',`Showing the base form “${result.word}”.`,'note');}
+function renderDefinition(result,asked){popup.replaceChildren();safeText(popup,'button','×','close').addEventListener('click',hidePopup);safeText(popup,'h2',result.word);const source=result.source||'';if(result.phonetic)safeText(popup,'p',result.phonetic,'ph');if(source)safeText(popup,'span',result.cached?'Cached · '+source:source,'dictionary-source');const actions=document.createElement('div');actions.className='word-actions';const button=(label,handler)=>{const control=document.createElement('button');control.className='btn';control.type='button';control.textContent=label;control.addEventListener('click',handler);actions.append(control);return control;};const savedValues=local.get('er-vocabulary',[]);const isSaved=savedValues.some(item=>String(item.word||'').trim().toLowerCase()===String(result.word||'').trim().toLowerCase());const saveButton=button(isSaved?'Remove':'Save',event=>{const values=local.get('er-vocabulary',[]);const target=String(result.word||'').trim().toLowerCase();const existing=values.findIndex(item=>String(item.word||'').trim().toLowerCase()===target);if(existing>=0){values.splice(existing,1);event.currentTarget.textContent='Save';toast('Word removed from your vocabulary.');}else{values.unshift({word:result.word,definition:result.meanings[0]?.definition});event.currentTarget.textContent='Remove';toast('Word saved to your vocabulary.');}local.set('er-vocabulary',values);queueCloudSync();renderVocabulary();});button('Listen',()=>playWordAudio(result));button('Translate',async event=>{const control=event.currentTarget;control.textContent='Translating…';try{const language=byId('translation-language').value,response=await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(result.word)}&langpair=en|${language}`,{signal:lookupController?.signal});if(!response.ok)throw new Error();const data=await response.json();safeText(popup,'p',data.responseData?.translatedText||'Translation unavailable','note');control.textContent='Translated';}catch{control.textContent='Try translate again';}});button('Note',()=>{const text=prompt(`Add a note for “${result.word}”`);if(text?.trim()){const notes=local.get('er-notes',[]);notes.unshift({word:result.word,text:text.trim(),book:activeBook?.key,created:Date.now()});local.set('er-notes',notes);queueCloudSync();toast('Note saved.');}});popup.append(actions);result.meanings.forEach(item=>{safeText(popup,'p',item.partOfSpeech,'pos');safeText(popup,'p',item.definition,'def');if(item.example)safeText(popup,'p',`“${item.example}”`,'ex');});if(result.word!==asked)safeText(popup,'p',`Showing the base form “${result.word}”.`,'note');}
 
 function renderDefinition(result,asked){
   popup.replaceChildren();
@@ -758,7 +758,7 @@ function renderDefinition(result,asked){
     event.currentTarget.textContent='Saved';
     toast('Word saved to your vocabulary.');
   });
-  button('Listen',()=>speechSynthesis.speak(new SpeechSynthesisUtterance(result.word)));
+  button('Listen',()=>playWordAudio(result));
   button('Translate',async event=>{
     const control=event.currentTarget;
     control.disabled=true;
@@ -895,7 +895,7 @@ function elapsedReadingSeconds(){return readerTimerSeconds+(readerTimerRunning?M
 function formatTimer(seconds){const value=Math.max(0,Math.floor(seconds)),hours=Math.floor(value/3600),minutes=Math.floor(value%3600/60),remaining=value%60;return hours?`${String(hours).padStart(2,'0')}:${String(minutes).padStart(2,'0')}:${String(remaining).padStart(2,'0')}`:`${String(minutes).padStart(2,'0')}:${String(remaining).padStart(2,'0')}`;}
 function persistReadingTimer(){local.set('er-reading-timer',{day:readerTimerDay,seconds:elapsedReadingSeconds()});}
 function updateReadingTimer(){const elapsed=elapsedReadingSeconds(),remaining=readerTimerGoal?Math.max(0,readerTimerGoal*60-elapsed):elapsed,output=byId('timer-display'),toggle=byId('timer-toggle');if(output){output.textContent=formatTimer(remaining);output.setAttribute('aria-label',readerTimerGoal?`${formatTimer(remaining)} remaining toward today's goal`:`${formatTimer(elapsed)} elapsed reading time`);}if(toggle){toggle.textContent=readerTimerRunning?'Pause':'Start';toggle.setAttribute('aria-label',readerTimerRunning?'Pause reading timer':'Start reading timer');}}
-function recordReadingSeconds(total){const delta=total-readerTimerRecordedSeconds;readerTimerRecordedSeconds=total;if(delta<=0||!readerTimerBookKey)return;const stats=local.get('er-stats',{}),item=stats[readerTimerBookKey]||{seconds:0,day:readerTimerDay};item.seconds=(item.seconds||0)+delta;item.day=readerTimerDay;stats[readerTimerBookKey]=item;local.set('er-stats',stats);}
+function recordReadingSeconds(total){const delta=total-readerTimerRecordedSeconds;readerTimerRecordedSeconds=total;if(delta<=0||!readerTimerBookKey)return;const stats=local.get('er-stats',{}),item=stats[readerTimerBookKey]||{seconds:0,day:readerTimerDay};item.seconds=(item.seconds||0)+delta;item.day=readerTimerDay;stats[readerTimerBookKey]=item;local.set('er-stats',stats);recordReadingDay(delta);}
 function tickReadingTimer(){const today=todayKey();if(readerTimerDay!==today){readerTimerDay=today;readerTimerSeconds=0;readerTimerStart=Date.now();readerTimerRecordedSeconds=0;}const elapsed=elapsedReadingSeconds();recordReadingSeconds(elapsed);persistReadingTimer();updateReadingTimer();if(readerTimerGoal&&elapsed>=readerTimerGoal*60){pauseReadingTimer();toast("Today's reading goal is complete.");}}
 function startReadingTimer(){if(readerTimerRunning)return;readerTimerRunning=true;readerTimerStart=Date.now();readerTimerInterval=setInterval(tickReadingTimer,1000);updateReadingTimer();}
 function pauseReadingTimer(){if(!readerTimerRunning)return;readerTimerSeconds=elapsedReadingSeconds();readerTimerRunning=false;readerTimerStart=0;clearInterval(readerTimerInterval);readerTimerInterval=null;recordReadingSeconds(readerTimerSeconds);persistReadingTimer();updateReadingTimer();}
@@ -1049,7 +1049,7 @@ async function init() {
   for(const id of ['signin-modal-close','signin-modal-later'])byId(id).addEventListener('click',()=>{byId('signin-modal').hidden=true;local.set('er-signin-dismissed',true);});
   addEventListener('scroll',()=>{if(!readerWrap.hidden)savePosition();},{passive:true});addEventListener('beforeunload',()=>{savePosition(true);pauseReadingTimer();});document.addEventListener('visibilitychange',()=>{if(document.hidden&&readerTimerRunning){timerResumeOnVisible=true;pauseReadingTimer();}else if(!document.hidden&&timerResumeOnVisible&&!readerWrap.hidden){timerResumeOnVisible=false;startReadingTimer();}});addEventListener('resize',()=>{if(activePdf)scalePdf(0);});
   document.addEventListener('keydown',event=>{if(event.key==='Escape'){hidePopup();hidePanels();byId('contents').classList.remove('open');byId('signin-modal').hidden=true;}if((event.ctrlKey||event.altKey)&&event.key==='Enter'&&!event.target.matches('input,textarea,select')){const selection=getSelection();if(selection&&!selection.isCollapsed&&selection.rangeCount){const text=selection.toString().trim();if(/^[\p{L}\p{M}]+(?:[-'’][\p{L}\p{M}]+)*$/u.test(text)){event.preventDefault();showWord({word:text.toLowerCase(),range:selection.getRangeAt(0).cloneRange()},{focus:true});return;}}}if(event.target.matches('input,textarea,select'))return;if(event.key==='/ '||event.key==='/'){event.preventDefault();if(!readerWrap.hidden){byId('reader-tools').hidden=false;byId('search-input').focus();}}if(event.key.toLowerCase()==='f'&&!readerWrap.hidden)document.body.classList.toggle('focus-mode');if(event.key.toLowerCase()==='t')byId('theme').click();});
-  await renderLibrary().catch(()=>{});addEventListener('online',()=>{if(user)syncCloud();});
+  await renderLibrary().catch(()=>{});updateStreakChip();addEventListener('online',()=>{if(user)syncCloud();});
   // Do not automatically place a modal over the application on a fresh/private
   // session. Sign-in is available from the account buttons and must never block
   // normal reading controls.
@@ -1149,4 +1149,51 @@ function updateContinueCard(books) {
   button.textContent = percent >= 100 ? 'Read again' : percent > 0 ? `Resume · ${percent}%` : 'Start reading';
   button.onclick = () => openFile(latest.file);
   card.hidden = false;
+}
+
+// Pronunciation: use the dictionary's recorded audio when there is one, else the browser voice.
+let wordAudio = null;
+function speakWord(word) {
+  try { speechSynthesis.cancel(); const utterance = new SpeechSynthesisUtterance(word); utterance.lang = 'en'; speechSynthesis.speak(utterance); } catch {}
+}
+function playWordAudio(result) {
+  try { wordAudio?.pause(); } catch {}
+  const url = typeof result?.audio === 'string' && /^https:\/\//.test(result.audio) ? result.audio : '';
+  if (!url) { speakWord(result.word); return; }
+  wordAudio = new Audio(url);
+  wordAudio.play().catch(() => speakWord(result.word));
+}
+
+// Reading streak: consecutive days with at least a minute of reading.
+function localDayKey(date = new Date()) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+function recordReadingDay(seconds) {
+  if (!(seconds > 0)) return;
+  const days = local.get('er-reading-days', {});
+  const key = localDayKey();
+  days[key] = (days[key] || 0) + seconds;
+  local.set('er-reading-days', days);
+  updateStreakChip();
+}
+function readingStreak(days) {
+  const cursor = new Date();
+  if ((days[localDayKey(cursor)] || 0) < 60) cursor.setDate(cursor.getDate() - 1);
+  let count = 0;
+  while ((days[localDayKey(cursor)] || 0) >= 60) { count++; cursor.setDate(cursor.getDate() - 1); }
+  return count;
+}
+function updateStreakChip() {
+  const chip = byId('streak-chip');
+  if (!chip) return;
+  const days = local.get('er-reading-days', {});
+  const streak = readingStreak(days);
+  const todayMinutes = Math.floor((days[localDayKey()] || 0) / 60);
+  if (!streak && !todayMinutes) { chip.hidden = true; return; }
+  const goalMinutes = Number(readerTimerGoal) || 0;
+  const parts = [];
+  if (streak) parts.push(`${streak}-day streak`);
+  parts.push(goalMinutes ? `${todayMinutes} of ${goalMinutes} min today` : `${todayMinutes} min today`);
+  chip.textContent = parts.join(' \u00b7 ');
+  chip.hidden = false;
 }

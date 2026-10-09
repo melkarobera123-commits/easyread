@@ -13,14 +13,18 @@
   document.addEventListener('DOMContentLoaded', () => {
     const $ = id => document.getElementById(id);
 
-    // Light / dark theme
+    // Light / sepia / dark theme
+    const THEMES = ['light', 'sepia', 'dark'];
+    const NAMES = { light: 'Light mode', sepia: 'Sepia mode', dark: 'Dark mode' };
+    const nextTheme = () => THEMES[(THEMES.indexOf(root.dataset.theme) + 1) % THEMES.length];
+    if (!THEMES.includes(root.dataset.theme)) root.dataset.theme = 'light';
     const updateThemeLabel = () => {
-      const dark = root.dataset.theme === 'dark';
-      $('theme-label').textContent = dark ? 'Light mode' : 'Dark mode';
-      $('theme').setAttribute('aria-label', dark ? 'Switch to light mode' : 'Switch to dark mode');
+      const next = nextTheme();
+      $('theme-label').textContent = NAMES[next];
+      $('theme').setAttribute('aria-label', 'Switch to ' + NAMES[next].toLowerCase());
     };
     $('theme').addEventListener('click', () => {
-      const next = root.dataset.theme === 'dark' ? 'light' : 'dark';
+      const next = nextTheme();
       root.dataset.theme = next;
       store.set('er-theme', next);
       updateThemeLabel();

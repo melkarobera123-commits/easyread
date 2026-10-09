@@ -36,7 +36,12 @@ function fromDictionaryApi(data, requestedWord) {
   const synonyms = new Set();
   const antonyms = new Set();
   let phonetic = '';
+  let audio = '';
   for (const entry of data) {
+    if (!audio && Array.isArray(entry?.phonetics)) {
+      const clip = entry.phonetics.find(value => typeof value?.audio === 'string' && /^https:\/\//.test(value.audio));
+      if (clip) audio = clip.audio;
+    }
     if (!phonetic && entry?.phonetic) phonetic = cleanText(entry.phonetic);
     if (!phonetic && Array.isArray(entry?.phonetics)) {
       const item = entry.phonetics.find(value => value?.text);
@@ -54,7 +59,7 @@ function fromDictionaryApi(data, requestedWord) {
     }
   }
   if (!meanings.length) return null;
-  return { word: cleanText(data[0]?.word) || requestedWord, phonetic, meanings: uniqueMeanings(meanings), synonyms: [...synonyms].slice(0, 8), antonyms: [...antonyms].slice(0, 8), source: 'Dictionary API' };
+  return { word: cleanText(data[0]?.word) || requestedWord, phonetic, audio, meanings: uniqueMeanings(meanings), synonyms: [...synonyms].slice(0, 8), antonyms: [...antonyms].slice(0, 8), source: 'Dictionary API' };
 }
 
 function fromWiktionary(data, requestedWord) {
