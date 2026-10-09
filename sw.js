@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 const CACHE = 'easyread-shell-v22';
+=======
+const CACHE = 'easyread-shell-v21';
+>>>>>>> c3ebd34 (Fix corrupted app.js)
 const SHELL = ['./', './index.html', './style.css', './pdf-reader.css', './script.js', './app.js', './firebase-config.js', './manifest.webmanifest', './icon.svg', './pdfjs/pdf.mjs', './pdfjs/pdf.worker.mjs'];
 
 self.addEventListener('install', event => {
