@@ -53,10 +53,12 @@ const STORE_KEYS = { vocabulary: 'er-vocabulary', notes: 'er-notes', highlights:
 let activeBook = null, activePdf = null, pdfMode = true, documentPageMode = false, zoom = 1, pageCount = 0, lookupController = null, toastTimer, saveTimer, auth = null, firestore = null, storage = null, user = null, installPromptEvent = null;
 let pageObserver = null, thumbObserver = null, activePage = 1, pdfTextPromise = null, pdfSearchMatches = [], pdfSearchIndex = -1, searchToken = 0, firebaseInitPromise = null, cloudSyncTimer = null;
 let popupReturnFocus = null;
+let activeImageWords = [], activeImageElement = null, activeImageUrl = null;
 let positionFrame = 0, positionWriteTimer = null, searchDebounceTimer = null;
 let activeDictionaryRange = null;
+let aiExplainUnavailable = false;
 let activeNoteWord = '';
-let pdfPreviewsVisible = local.get('er-pdf-previews', true) !== false;
+let pdfPreviewsVisible = local.get('er-pdf-previews', false) === true;
 let readerTimerInterval = null, readerTimerStart = 0, readerTimerSeconds = 0, readerTimerGoal = 0, readerTimerDay = '', readerTimerRunning = false, readerTimerRecordedSeconds = 0, readerTimerBookKey = null, timerResumeOnVisible = false;
 const pdfRenderPromises = new Map();
 
@@ -64,7 +66,7 @@ function toast(message) { const node = byId('toast'); node.textContent = message
 function status(message, error = false) { const node = byId('status'); node.textContent = message; node.classList.toggle('err', error); }
 function safeText(parent, tag, text, className = '') { const node = document.createElement(tag); if (className) node.className = className; node.textContent = text; parent.append(node); return node; }
 function closeOverlayPanels(except='') {
-  for (const id of ['library','contents','settings','vocab','stats','privacy','shortcuts']) {
+  for (const id of ['library','contents','settings','vocab','stats','privacy','shortcuts','notes-panel']) {
     if (id === except) continue;
     const panel = byId(id);
     if (!panel) continue;
@@ -80,43 +82,100 @@ function closeOverlayPanels(except='') {
 function setView(view) {
   closeOverlayPanels();
   document.body.dataset.view = view;
+  updateDocumentTitle();
   for (const id of ['about-nav','sidebar-about','mobile-about']) byId(id)?.classList.toggle('active', view === 'about');
   for (const id of ['reader-nav','sidebar-reader','mobile-reader']) byId(id)?.classList.toggle('active', view === 'reader');
   if (view === 'reader') readerWrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
   else scrollTo({ top: 0, behavior: 'smooth' });
 }
-function goToUpload() { setView('about'); status('Choose a book to open the Reader.'); requestAnimationFrame(() => { drop.scrollIntoView({ behavior: 'smooth', block: 'center' }); drop.focus({ preventScroll: true }); drop.classList.add('guide-focus'); setTimeout(() => drop.classList.remove('guide-focus'), 900); }); }
+
+const EASYREAD_ROUTES = new Set(['home', 'library', 'reader', 'notes']);
+function routeFromLocation() {
+  const path = location.pathname.replace(/\/+$/, '') || '/';
+  const route = path === '/' || path === '/index.html' ? 'home' : path.slice(1);
+  return EASYREAD_ROUTES.has(route) ? route : 'home';
+}
+function navigateToRoute(route, replace = false) {
+  if (!EASYREAD_ROUTES.has(route)) route = 'home';
+  const path = route === 'home' ? '/home' : '/' + route;
+  if (location.pathname !== path) history[replace ? 'replaceState' : 'pushState']({ easyReadRoute: route }, '', path);
+  renderRoute(route, replace);
+}
+function renderRoute(route, replace = false) {
+  if (!EASYREAD_ROUTES.has(route)) route = 'home';
+  if (route === 'reader' && readerWrap.hidden) {
+    route = 'home';
+    if (replace) history.replaceState({ easyReadRoute: route }, '', '/home');
+    else history.replaceState({ easyReadRoute: route }, '', '/home');
+    status('Choose a book to open the Reader.');
+  }
+  document.body.dataset.route = route;
+  byId('library')?.classList.toggle('route-page', route === 'library');
+  byId('notes-panel')?.classList.toggle('route-page', route === 'notes');
+  byId('library')?.setAttribute('hidden', '');
+  byId('notes-panel')?.setAttribute('hidden', '');
+  if (route === 'library') {
+    setView('about');
+    document.body.dataset.route = route;
+    showPanel('library', true);
+  } else if (route === 'notes') {
+    setView('about');
+    document.body.dataset.route = route;
+    showPanel('notes-panel', true);
+    renderMyNotes();
+  } else {
+    hidePanels();
+    setView(route === 'reader' ? 'reader' : 'about');
+    document.body.dataset.route = route;
+  }
+  for (const id of ['about-nav','sidebar-about','mobile-about']) byId(id)?.classList.toggle('active', route === 'home');
+  for (const id of ['reader-nav','sidebar-reader','mobile-reader']) byId(id)?.classList.toggle('active', route === 'reader');
+  for (const id of ['sidebar-library','mobile-library']) byId(id)?.classList.toggle('active', route === 'library');
+  for (const id of ['sidebar-notes','mobile-notes']) byId(id)?.classList.toggle('active', route === 'notes');
+  if (route !== 'reader') scrollTo({ top: 0, behavior: 'auto' });
+}
+function goToUpload() { navigateToRoute('home'); status('Choose a book to open the Reader.'); requestAnimationFrame(() => { drop.scrollIntoView({ behavior: 'smooth', block: 'center' }); drop.focus({ preventScroll: true }); drop.classList.add('guide-focus'); setTimeout(() => drop.classList.remove('guide-focus'), 900); }); }
 function closeDictionaryPanel(){const panel=byId('dictionary-panel');if(panel)panel.hidden=true;byId('dictionary-btn')?.setAttribute('aria-expanded','false');}
-function showPanel(id, open) { const panel = byId(id); if (!panel) return; closeDictionaryPanel();panel.hidden = open === undefined ? !panel.hidden : !open; if (id === 'library') { const backdrop=byId('library-backdrop'); if(backdrop) backdrop.hidden=panel.hidden; } if (id === 'library' && !panel.hidden) renderLibraryPanel(); if (id === 'vocab' && !panel.hidden) renderVocabulary(); if (id === 'stats' && !panel.hidden) renderStats(); if (id === 'privacy' && !panel.hidden) renderPrivacyState(); }
-function hidePanels() { document.querySelectorAll('.panel, .contents').forEach(panel => { panel.hidden = true; panel.classList.remove('open'); }); }
+function showPanel(id, open) { const panel = byId(id); if (!panel) return; closeDictionaryPanel();panel.hidden = open === undefined ? !panel.hidden : !open; if (!panel.hidden) { closeOtherPanels(id); markPanelOpened(id); } if (id === 'library') { const backdrop=byId('library-backdrop'); if(backdrop) backdrop.hidden=panel.hidden; } if (id === 'library' && !panel.hidden) renderLibraryPanel(); if (id === 'vocab' && !panel.hidden) renderVocabulary(); if (id === 'stats' && !panel.hidden) renderStats(); if (id === 'privacy' && !panel.hidden) renderPrivacyState(); }
+function hidePanels() { document.querySelectorAll('.panel, .contents').forEach(panel => { panel.hidden = true; panel.classList.remove('open'); }); const toolsSheet = byId('tools-sheet'); if (toolsSheet) toolsSheet.hidden = true; }
 
 function initNavigation() {
-  document.querySelector('.brand')?.addEventListener('click', event => { event.preventDefault(); setView('about'); });
-  for (const id of ['about-nav','sidebar-about','mobile-about']) byId(id)?.addEventListener('click', () => { byId('library')?.setAttribute('hidden',''); setView('about'); });
-  for (const id of ['reader-nav','sidebar-reader','mobile-reader']) byId(id)?.addEventListener('click', () => { byId('library')?.setAttribute('hidden',''); readerWrap.hidden ? goToUpload() : setView('reader'); });
+  document.querySelectorAll('.brand, .sidebar-brand').forEach(brand => brand.addEventListener('click', event => { event.preventDefault(); navigateToRoute('home'); }));
+  for (const id of ['about-nav','sidebar-about','mobile-about']) byId(id)?.addEventListener('click', () => navigateToRoute('home'));
+  for (const id of ['reader-nav','sidebar-reader','mobile-reader']) byId(id)?.addEventListener('click', () => readerWrap.hidden ? goToUpload() : navigateToRoute('reader'));
   for (const id of ['sidebar-library','mobile-library','library-btn','library-home-btn']) byId(id)?.addEventListener('click', event => {
     event.stopPropagation();
-    showPanel('library', true);
+    navigateToRoute('library');
   });
+  for (const id of ['sidebar-notes','mobile-notes']) byId(id)?.addEventListener('click', () => navigateToRoute('notes'));
+  window.addEventListener('popstate', () => renderRoute(routeFromLocation(), true));
+  navigateToRoute(routeFromLocation(), true);
   byId('library-backdrop')?.addEventListener('click',()=>showPanel('library',false));
 document.addEventListener('pointerdown', event => {
   const library = byId('library');
-  if (!library || library.hidden) return;
+  if (!library || library.hidden || document.body.dataset.route === 'library') return;
   if (event.target.closest('#library')) return;
   library.hidden = true;
 }, true);
   for (const id of ['sidebar-account','mobile-account','account-btn']) byId(id)?.addEventListener('click', openAccount);
   byId('saved-btn')?.addEventListener('click',()=>showPanel('vocab'));
-  byId('sidebar-theme')?.addEventListener('click', () => byId('theme').click());
+  byId('notes-btn')?.addEventListener('click',()=>{showPanel('notes-panel');renderMyNotes();});
+  byId('notes-search')?.addEventListener('input',renderMyNotes);
+  for(const id of ['contents-notes-link','vocab-notes-link'])byId(id)?.addEventListener('click',()=>{showPanel('notes-panel');renderMyNotes();});
+  byId('full-document-btn')?.addEventListener('click',async()=>{try{readerWrap.hidden=false;if(activePdf){await setPdfMode(true);pdfPages.hidden=false;await pdfPages.requestFullscreen?.();}else{setDocumentPageMode(false);reader.hidden=false;await reader.requestFullscreen?.();}toast('Full-screen document view enabled.');}catch(error){console.error('Full-screen document view failed',error);toast('Could not open full-screen document view.');}});
   for (const [id, panel] of [['settings-btn','settings'],['vocab-btn','vocab'],['stats-btn','stats'],['flashcards-btn','learning'],['contact-link','contact'],['privacy-link','privacy'],['shortcuts-link','shortcuts']]) byId(id)?.addEventListener('click', event => { if (id === 'contact-link') event.preventDefault(); showPanel(panel); });
-  byId('contents-btn')?.addEventListener('click',()=>{const panel=byId('contents'),open=!panel.classList.contains('open');panel.hidden=false;panel.classList.toggle('open',open);byId('contents-btn').setAttribute('aria-expanded',String(open));if(open){renderContents();renderSavedItems();}});
+  byId('contents-btn')?.addEventListener('click',()=>{const panel=byId('contents'),open=!panel.classList.contains('open');if(open){closeOtherPanels('contents');markPanelOpened('contents');}panel.hidden=false;panel.classList.toggle('open',open);byId('contents-btn').setAttribute('aria-expanded',String(open));if(open){renderContents();renderSavedItems();}});
   document.querySelectorAll('[id$="-close"]').forEach(button => button.addEventListener('click', () => { const panel = button.closest('aside'); if (panel) showPanel(panel.id, false); if (panel?.id === 'contents') panel.classList.remove('open'); }));
   document.addEventListener('click',event=>{if(!byId('dictionary-panel').hidden&&!event.target.closest('#dictionary-panel,#dictionary-btn'))closeDictionaryPanel();});
-  byId('again')?.addEventListener('click', () => { pauseReadingTimer(); readerWrap.hidden = true; setView('about'); hidePopup(); });
+  byId('again')?.addEventListener('click', () => { pauseReadingTimer(); readerWrap.hidden = true; navigateToRoute('home'); hidePopup(); });
 }
 
 async function openFile(file) {
   if (!file) return;
+  if (activeImageUrl) URL.revokeObjectURL(activeImageUrl);
+  activeImageUrl = null;
+  activeImageElement = null;
+  activeImageWords = [];
   const ext = file.name.split('.').pop().toLowerCase(), allowed = ['pdf','docx','pptx','epub','txt','png','jpg','jpeg'];
   if (!allowed.includes(ext)) return status('Choose a PDF, DOCX, PPTX, EPUB, TXT, or image file.', true);
   if (file.size > 150 * 1024 * 1024) return status('This file is larger than 150 MB. Try a smaller copy.', true);
@@ -124,12 +183,12 @@ async function openFile(file) {
   pageObserver?.disconnect(); thumbObserver?.disconnect();
   pageObserver=null; thumbObserver=null;
   activePdf = null; pdfTextPromise = null; pdfRenderPromises.clear(); pdfMode = true; documentPageMode = false; byId('pdf-toolbar').hidden = true; byId('pdf-controls').hidden = true; pageCount = 0;
-  byId('loading-skeleton').hidden = false; readerWrap.hidden = false; setView('reader'); if(byId('document-page-toggle')){byId('document-page-toggle').setAttribute('aria-pressed','false');byId('document-page-toggle').textContent='Page view';} status(`Preparing ${file.name}…`);
+  byId('loading-skeleton').hidden = false; readerWrap.hidden = false; navigateToRoute('reader'); if(byId('document-page-toggle')){byId('document-page-toggle').setAttribute('aria-pressed','false');byId('document-page-toggle').textContent='Split pages';} status(`Preparing ${file.name}…`);
   const key = `${file.name}:${file.size}:${file.lastModified}`;
   activeBook = await getBook(key).catch(() => null) || { key, name: file.name, title: file.name.replace(/\.[^.]+$/, ''), file, type: ext, added: Date.now(), favorite: false, progress: 0 };
   const rememberedPosition = local.get(`er-position:${key}`);
   if (rememberedPosition && rememberedPosition.savedAt > (activeBook.position?.savedAt || 0)) activeBook.position = rememberedPosition;
-  activeBook.file = file; activeBook.opened = Date.now(); activeBook.type = ext;
+  activeBook.file = file; activeBook.opened = Date.now(); activeBook.type = ext; updateDocumentTitle();
   try {
     if (navigator.storage?.persist) navigator.storage.persist().catch(() => false);
     if (ext === 'pdf') await parsePdf(file);
@@ -140,23 +199,63 @@ async function openFile(file) {
     else await parseImage(file);
     if (!reader.textContent.trim() && ext !== 'pdf') throw new Error('No readable text was found in this file.');
     activeBook.words = wordCount(reader.textContent); await putBook(activeBook); byId('file-name').textContent = activeBook.title; updateDocMeta(); renderLibrary();
-    byId('loading-skeleton').hidden = true; status(''); if (activeBook.position) restorePosition(); byId('reader-page-jump').max=String(Math.max(1,pageCount)); byId('reader-page-jump').value=String(activeBook.position?.page||1); byId('text-view-controls').hidden=Boolean(activePdf&&pdfMode); updateDocumentPageControls(); readerTimerBookKey=activeBook.key;readerTimerRecordedSeconds=elapsedReadingSeconds();startReadingTimer(); toast('Book opened. Your reading position will be saved here.');
+    byId('loading-skeleton').hidden = true; status(''); if (activeBook.position) restorePosition(); byId('reader-page-jump').max=String(Math.max(1,pageCount)); byId('reader-page-jump').value=String(activeBook.position?.page||1); syncPageCounter(Number(activeBook.position?.page)||1); byId('text-view-controls').hidden=Boolean(activePdf&&pdfMode); updateDocumentPageControls(); readerTimerBookKey=activeBook.key;readerTimerRecordedSeconds=elapsedReadingSeconds();startReadingTimer(); toast('Book opened. Your reading position will be saved here.');
   } catch (error) { console.error(error); byId('loading-skeleton').hidden = true; status(error.message || 'Could not open this file. It may be damaged or password-protected.', true); }
 }
 function wordCount(text) { return (text.match(/\S+/g) || []).length; }
 function updateDocMeta() { byId('doc-meta').textContent = `${pageCount ? `${pageCount} pages · ` : ''}${(activeBook.words || 0).toLocaleString()} words`;byId('jump').max=String(Math.max(1,pageCount)); }
-function appendTextPages(text) { const blocks = String(text).split(/\n\s*\n/).map(part => part.trim()).filter(Boolean); const chunks = []; for (let i = 0; i < blocks.length; i += 20) chunks.push(blocks.slice(i, i + 20)); chunks.forEach((chunk, index) => { const section = document.createElement('section'); section.className = 'page'; section.dataset.page = String(index + 1); safeText(section, 'div', `Section ${index + 1}`, 'page-mark'); chunk.forEach(paragraph => safeText(section, 'p', paragraph)); reader.append(section); }); pageCount = chunks.length; }
+function appendTextPages(text) { const blocks = String(text).split(/\n\s*\n/).map(part => part.trim()).filter(Boolean); const chunks = []; for (let i = 0; i < blocks.length; i += 20) chunks.push(blocks.slice(i, i + 20)); chunks.forEach((chunk, index) => { const section = document.createElement('section'); section.className = 'page'; section.dataset.page = String(index + 1); safeText(section, 'div', `Section ${index + 1}`, 'page-mark'); chunk.forEach(paragraph => safeText(section, 'p', tidyLeaders(paragraph))); reader.append(section); }); pageCount = chunks.length; }
 async function parseDocx(file) { await loadLibrary('mammoth'); const result = await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() }); appendTextPages(result.value); }
 async function parsePptx(file) { await loadLibrary('zip'); const zip = await JSZip.loadAsync(await file.arrayBuffer()); const names = Object.keys(zip.files).filter(name => /^ppt\/slides\/slide\d+\.xml$/.test(name)).sort((a,b) => Number(a.match(/slide(\d+)/)[1])-Number(b.match(/slide(\d+)/)[1])); pageCount = names.length; for (let i=0;i<names.length;i++) { const xml = new DOMParser().parseFromString(await zip.file(names[i]).async('text'),'application/xml'); const text = [...xml.getElementsByTagName('a:t')].map(node => node.textContent).join(' ').trim(); const section = document.createElement('section'); section.className='page'; section.dataset.page=String(i+1); safeText(section,'div',`Slide ${i+1}`,'page-mark'); if(text) safeText(section,'p',text); reader.append(section); if(i%12===11) await new Promise(requestAnimationFrame); } }
 async function parseEpub(file) { await loadLibrary('zip'); const zip=await JSZip.loadAsync(await file.arrayBuffer()); const container=new DOMParser().parseFromString(await zip.file('META-INF/container.xml').async('text'),'application/xml'); const root=container.querySelector('rootfile')?.getAttribute('full-path'); if(!root) throw new Error('This EPUB has an invalid package file.'); const opf=new DOMParser().parseFromString(await zip.file(root).async('text'),'application/xml'); const title=opf.getElementsByTagNameNS('*','title')[0]?.textContent.trim(); if(title) activeBook.title=title; const base=root.includes('/')?root.slice(0,root.lastIndexOf('/')+1):''; const items=new Map([...opf.querySelectorAll('manifest item')].map(item=>[item.id,item.getAttribute('href')])); let index=0; for(const ref of opf.querySelectorAll('spine itemref')) { const path=items.get(ref.getAttribute('idref')); const entry=path&&zip.file(base+decodeURIComponent(path)); if(!entry) continue; const doc=new DOMParser().parseFromString(await entry.async('text'),'text/html'); const text=doc.body?.textContent||''; if(text.trim()){ const section=document.createElement('section'); section.className='page'; section.dataset.page=String(++index); appendTextNodes(section,text); reader.append(section); } if(index%8===0) await new Promise(requestAnimationFrame); } pageCount=index; }
 function appendTextNodes(section,text) { const paragraphs=String(text).split(/\n\s*\n/).map(value=>value.replace(/\s+/g,' ').trim()).filter(Boolean); paragraphs.forEach(value=>safeText(section,'p',value)); }
-async function parseImage(file) { await loadLibrary('ocr'); status('Reading image text…'); const worker=await Tesseract.createWorker('eng'); try { const result=await worker.recognize(file,{logger:message=>{ if(message.status==='recognizing text') status(`Reading image text… ${Math.round(message.progress*100)}%`); }}); appendTextPages(result.data.text); } finally { await worker.terminate(); } }
+async function parseImage(file) {
+  await loadLibrary('ocr');
+  status('Reading image text…');
+  const worker = await Tesseract.createWorker('eng');
+  try {
+    const result = await worker.recognize(file, {
+      logger: message => {
+        if (message.status === 'recognizing text') status(`Reading image text… ${Math.round(message.progress * 100)}%`);
+      }
+    });
+    activeImageWords = (result.data.words || []).map(item => {
+      const text = String(item.text || '').replace(/^[-'’]+|[-'’]+$/g, '').toLowerCase();
+      const box = item.bbox || {};
+      return {
+        word: text,
+        x0: Number(box.x0), y0: Number(box.y0),
+        x1: Number(box.x1), y1: Number(box.y1)
+      };
+    }).filter(item => item.word && /[\p{L}\p{M}]/u.test(item.word)
+      && Number.isFinite(item.x0) && Number.isFinite(item.y0)
+      && item.x1 > item.x0 && item.y1 > item.y0);
+
+    activeImageUrl = URL.createObjectURL(file);
+    const figure = document.createElement('figure');
+    figure.className = 'image-readable-page readable';
+    const image = document.createElement('img');
+    image.className = 'image-readable-photo';
+    image.src = activeImageUrl;
+    image.alt = `Photo of text from ${file.name}. Tap a word in the photo to look it up.`;
+    image.draggable = false;
+    activeImageElement = image;
+    figure.append(image);
+    reader.append(figure);
+
+    // Keep recognized text available for reading and selection below the photo.
+    appendTextPages(result.data.text);
+    if (!activeImageWords.length) status('Photo opened, but no tappable words were detected. Try a clearer, sharper photo.');
+  } finally {
+    await worker.terminate();
+  }
+}
 
 async function parsePdf(file) {
   await loadPdfLibrary();
   let pdf; try { pdf=await pdfjsLib.getDocument({data:new Uint8Array(await file.arrayBuffer())}).promise; } catch { throw new Error('Could not open this PDF. It may be damaged or password-protected.'); }
   activePdf=pdf; pageCount=pdf.numPages; zoom=1; pdfPages.hidden=false; pdfThumbs.hidden=!pdfPreviewsVisible; byId('pdf-toolbar').hidden=false; byId('pdf-controls').hidden=false; byId('pdf-mode-btn').textContent='Text view';byId('jump').max=String(pageCount);byId('pdf-preview-toggle').textContent=pdfPreviewsVisible?'Hide previews':'Show previews';byId('pdf-preview-toggle').setAttribute('aria-pressed',String(pdfPreviewsVisible));reader.hidden=true;
-  pageObserver=new IntersectionObserver(entries=>entries.forEach(entry=>{ if(entry.isIntersecting){ const page=Number(entry.target.dataset.page); activePage=page; byId('pdf-page-label').textContent=`Page ${page} of ${pageCount}`; renderPdfPage(page).catch(console.error); } else if(Math.abs(Number(entry.target.dataset.page)-activePage)>1) releasePdfPage(entry.target); }),{rootMargin:'30% 0px'});
+  pageObserver=new IntersectionObserver(entries=>entries.forEach(entry=>{ if(entry.isIntersecting){ const page=Number(entry.target.dataset.page); renderPdfPage(page).catch(console.error); } else if(Math.abs(Number(entry.target.dataset.page)-activePage)>1) releasePdfPage(entry.target); }),{rootMargin:'30% 0px'});
   thumbObserver=new IntersectionObserver(entries=>entries.forEach(entry=>{ if(entry.isIntersecting) renderThumbnail(Number(entry.target.dataset.page)); }),{rootMargin:'0px 240px'});
   const pageFragment=document.createDocumentFragment();
   const thumbFragment=document.createDocumentFragment();
@@ -189,7 +288,7 @@ async function parsePdf(file) {
   pdfThumbs.append(thumbFragment);
   for(const frame of frames) pageObserver.observe(frame);
   for(const thumb of thumbs) thumbObserver.observe(thumb);
-  pageCount=pdf.numPages;
+  pageCount=pdf.numPages;syncPageCounter(1);
 }
 pdfThumbs.addEventListener('click',event=>{
   const thumb=event.target.closest('.pdf-thumb');
@@ -198,10 +297,10 @@ pdfThumbs.addEventListener('click',event=>{
 async function buildPdfTextView(){
   if(!activePdf)return;
   if(pdfTextPromise)return pdfTextPromise;
-  pdfTextPromise=(async()=>{reader.replaceChildren();for(let number=1;number<=activePdf.numPages;number++){const page=await activePdf.getPage(number),content=await page.getTextContent(),section=document.createElement('section');section.className='page readable';section.dataset.page=String(number);safeText(section,'div',`Page ${number}`,'page-mark');const lines=[];let line='';for(const item of content.items){if(!item||typeof item.str!=='string')continue;const value=item.str.trim();if(value)line+=(line?' ':'')+value;if(item.hasEOL&&line){lines.push(line);line='';}}if(line)lines.push(line);const textLines=lines.length?lines:[content.items.map(item=>item?.str||'').join(' ').trim()];for(const value of textLines){if(value)safeText(section,'p',value);}reader.append(section);if(number%8===0)await new Promise(requestAnimationFrame);}return true;})();
+  pdfTextPromise=(async()=>{reader.replaceChildren();for(let number=1;number<=activePdf.numPages;number++){const page=await activePdf.getPage(number),content=await page.getTextContent(),section=document.createElement('section');section.className='page readable';section.dataset.page=String(number);safeText(section,'div',`Page ${number}`,'page-mark');const lines=[];let line='';for(const item of content.items){if(!item||typeof item.str!=='string')continue;const value=item.str.trim();if(value)line+=(line?' ':'')+value;if(item.hasEOL&&line){lines.push(line);line='';}}if(line)lines.push(line);const textLines=lines.length?lines:[content.items.map(item=>item?.str||'').join(' ').trim()];for(const value of textLines){if(value)safeText(section,'p',tidyLeaders(value));}reader.append(section);if(number%8===0)await new Promise(requestAnimationFrame);}return true;})();
   try{return await pdfTextPromise;}catch(error){pdfTextPromise=null;throw error;}
 }
-function pageScale(page) { const base=page.getViewport({scale:1}); const fit=Math.min((pdfPages.clientWidth-36)/base.width,1.5); return Math.max(.5,fit*zoom); }
+function pageScale(page) { const base=page.getViewport({scale:1}); const fit=Math.min((pdfPages.clientWidth-36)/base.width,1.5); return Math.max(.3,fit*zoom); }
 async function renderPdfPage(number) {
   const pdf=activePdf, frame=pdfPages.querySelector(`[data-page="${number}"]`);
   if(!pdf||!frame||frame.dataset.rendered==='yes') return;
@@ -488,6 +587,9 @@ async function drawPdfPage(pdf,number,frame) {
       viewport
     });
     await textLayer.render();
+    // PDF.js sizes the layer with CSS round(); older browsers ignore that and collapse it to zero width. Pin it to the canvas.
+    layer.style.width = `${canvasRect.width}px`;
+    layer.style.height = `${canvasRect.height}px`;
 
     if (!layer.querySelector('span')) {
       await buildFallbackPdfTextLayer(page,layer,viewport);
@@ -507,7 +609,8 @@ async function drawPdfPage(pdf,number,frame) {
 }
 function releasePdfPage(frame) { if(pdfRenderPromises.has(frame)){frame.dataset.releaseAfterRender='yes';return;} if(frame.dataset.rendered!=='yes') return; const canvas=frame.querySelector('canvas'), layer=frame.querySelector('.textLayer'); unregisterPdfSelectionLayer(layer); canvas.width=0; canvas.height=0; layer.replaceChildren(); frame.dataset.rendered=''; delete frame.dataset.releaseAfterRender; }
 async function renderThumbnail(number) { const button=pdfThumbs.querySelector(`[data-page="${number}"]`); if(!button||button.dataset.rendered) return; try { const page=await activePdf.getPage(number), viewport=page.getViewport({scale:.11}), canvas=document.createElement('canvas'); canvas.width=viewport.width*2; canvas.height=viewport.height*2; canvas.style.width='56px'; await page.render({canvasContext:canvas.getContext('2d'),viewport:page.getViewport({scale:.22})}).promise; button.prepend(canvas); button.dataset.rendered='yes'; } catch {} }
-function goPdfPage(number) { const page=Math.min(pageCount,Math.max(1,Number(number)||1)),target=pdfPages.querySelector(`[data-page="${page}"]`);if(!target)return;activePage=page;byId('pdf-page-label').textContent=`Page ${page} of ${pageCount}`;target.scrollIntoView({behavior:'smooth',block:'start'}); }
+function syncPageCounter(page=activePage){const input=byId('reader-page-jump');if(input)input.value=String(page);const total=byId('reader-page-total');if(total)total.textContent=pageCount?`of ${pageCount}`:'';}
+function goPdfPage(number) { const page=Math.min(pageCount,Math.max(1,Number(number)||1)),target=pdfPages.querySelector(`[data-page="${page}"]`);if(!target)return;activePage=page;byId('pdf-page-label').textContent=`Page ${page} of ${pageCount}`;syncPageCounter(page);target.scrollIntoView({behavior:'smooth',block:'start'}); }
 async function setPdfMode(visual) {
   closeDictionaryPanel();
   pdfMode=visual;
@@ -526,6 +629,25 @@ async function setPdfMode(visual) {
   updateDocumentPageControls();
 }
 function scalePdf(amount) { zoom=Math.min(2.4,Math.max(.65,zoom+amount)); pdfPages.querySelectorAll('.pdf-page[data-rendered="yes"]').forEach(releasePdfPage); pdfPages.querySelectorAll('.pdf-page').forEach(frame=>{ if(pageObserver) pageObserver.unobserve(frame); pageObserver?.observe(frame); }); }
+
+// Re-render the original PDF pages when entering or leaving fullscreen. The page canvas
+// must be laid out at the new available width, rather than stretching a previously rendered
+// canvas or switching to the extracted-text reading view.
+document.addEventListener('fullscreenchange', () => {
+  if (!activePdf || !pdfPages) return;
+  if (document.fullscreenElement && document.fullscreenElement !== pdfPages) return;
+  requestAnimationFrame(() => {
+    const frames = [...pdfPages.querySelectorAll('.pdf-page')];
+    for (const frame of frames) {
+      releasePdfPage(frame);
+      frame.style.minHeight = '';
+      pageObserver?.unobserve(frame);
+      pageObserver?.observe(frame);
+    }
+    const current = pdfPages.querySelector(`[data-page="${activePage}"]`);
+    if (current) renderPdfPage(activePage).catch(console.error);
+  });
+});
 
 const pdfSelectionLayers = new Map();
 
@@ -585,47 +707,83 @@ function pdfTextNodeAtPoint(x, y) {
   return null;
 }
 
-function wordRangeAtNode(node, x, y) {
+function wordRangeAtNode(node, x, y, caretIndex = null) {
   if (!node || node.nodeType !== Node.TEXT_NODE || !node.data.trim()) return null;
-
   const text = node.data;
   const wordPattern = /[-'’\p{L}\p{M}]+/gu;
+  const words = [];
   let match;
-
   while ((match = wordPattern.exec(text))) {
     const range = document.createRange();
     range.setStart(node, match.index);
     range.setEnd(node, match.index + match[0].length);
-
-    // Only accept a word when the actual rendered word rectangle contains
-    // the pointer. Do not guess from nearby words or whitespace.
     const rects = [...range.getClientRects()].filter(rect => rect.width > 0 && rect.height > 0);
+    words.push({ word: match[0], range, start: match.index, end: match.index + match[0].length, rects });
     for (const rect of rects) {
-      if (
-        x >= rect.left &&
-        x <= rect.right &&
-        y >= rect.top &&
-        y <= rect.bottom
-      ) {
-        return {
-          word: match[0].replace(/^[-'’]+|[-'’]+$/g, '').toLowerCase(),
-          range
-        };
+      if (x >= rect.left - 2 && x <= rect.right + 2 && y >= rect.top - 3 && y <= rect.bottom + 3) {
+        return { word: match[0].replace(/^[-'’]+|[-'’]+$/g, '').toLowerCase(), range };
       }
     }
   }
-
+  // Mobile browser caret APIs sometimes report the closest insertion point
+  // just outside a glyph's rectangle. If so, use its character offset, but
+  // only when the tap is still on that same rendered text line.
+  if (Number.isInteger(caretIndex)) {
+    const candidates = words.filter(item => caretIndex >= item.start - 1 && caretIndex <= item.end + 1);
+    for (const item of candidates) {
+      if (!item.rects.length) continue;
+      const nearLine = item.rects.some(rect => y >= rect.top - 7 && y <= rect.bottom + 7);
+      if (nearLine) return { word: item.word.replace(/^[-'’]+|[-'’]+$/g, '').toLowerCase(), range: item.range };
+    }
+  }
   return null;
 }
 function wordAt(x, y) {
+  // In the full-document PDF text view, hit-test the actual rendered text.
+  // This uses browser layout coordinates after responsive resizing, so a
+  // narrow/mobile layout cannot shift the selected word away from the tap.
+  if (!reader.hidden && reader.classList.contains('pdf-text-reader')) {
+    const textTarget = document.elementsFromPoint(x, y).find(element =>
+      element.closest?.('#reader .page.readable p, #reader .page.readable')
+    );
+    if (textTarget) {
+      const caret = pdfTextNodeAtPoint(x, y);
+      if (caret?.node && reader.contains(caret.node)) {
+        const exact = wordRangeAtNode(caret.node, x, y, caret.index);
+        if (exact?.word) return exact;
+      }
+      // Do not fall through to PDF-page coordinate guesses in text view.
+      return null;
+    }
+  }
+
+  // Map the touch point on a photo to Tesseract's original OCR word boxes.
+  // Strict bounds avoid selecting a neighboring word when tapping whitespace.
+  if (activeImageElement?.isConnected && activeImageWords.length) {
+    const rect = activeImageElement.getBoundingClientRect();
+    if (rect.width > 0 && rect.height > 0
+      && x >= rect.left && x <= rect.right
+      && y >= rect.top && y <= rect.bottom) {
+      const imageX = (x - rect.left) * activeImageElement.naturalWidth / rect.width;
+      const imageY = (y - rect.top) * activeImageElement.naturalHeight / rect.height;
+      let best = null;
+      let bestArea = Infinity;
+      for (const item of activeImageWords) {
+        if (imageX < item.x0 || imageX > item.x1 || imageY < item.y0 || imageY > item.y1) continue;
+        const area = (item.x1 - item.x0) * (item.y1 - item.y0);
+        if (area < bestArea) { best = item; bestArea = area; }
+      }
+      return best ? { word: best.word, range: null } : null;
+    }
+  }
+
   const page = [...pdfPages.querySelectorAll('.pdf-page')].find(candidate => {
     const rect = candidate.getBoundingClientRect();
     return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
   });
 
-  if (page) return pdfWordHitAt(page, x, y);
-
-  // Non-PDF content keeps the normal browser text hit-testing path.
+  // Prefer the actual text under the pointer. This prevents a nearby PDF
+  // geometry box from winning when the user taps the next word or a space.
   const elements = document.elementsFromPoint(x, y);
   const span = elements.find(element =>
     element.matches?.('.pdf-page .textLayer span:not(.markedContent)')
@@ -641,22 +799,50 @@ function wordAt(x, y) {
     if (exact?.word) return exact;
   }
 
+  // Use PDF-coordinate hit testing only as a fallback for text whose browser
+  // text-layer geometry cannot be resolved at the touched point.
+  if (page) return pdfWordHitAt(page, x, y);
   return null;
 }
 
 let pdfTapStart = null;
 let suppressPdfClick = false;
 
-function handleReadableTap(event) {
+function handleReadableTap(event, options = {}) {
   if (event.target.closest('button,a,input,select,textarea,#popup,.pdf-thumb')) return;
   const readable = event.target.closest('.readable');
   if (!readable) return;
   const selection = getSelection();
-  if (selection && !selection.isCollapsed) return;
+  // In text view, mobile browsers can create a temporary word selection on a
+  // single tap. Prefer the tapped word unless the user is actively selecting text.
+  if (selection && !selection.isCollapsed && !options.singleTapTextView) return;
   const hit = wordAt(event.clientX, event.clientY);
-  if (hit) showWord(hit);
-  else hidePopup();
+  if (hit) {
+    if (options.singleTapTextView && selection && !selection.isCollapsed) selection.removeAllRanges();
+    showWord(hit);
+  } else hidePopup();
 }
+
+// Handle a single touch/pen tap directly in extracted-text view before the browser's
+// synthetic click or automatic word selection can make the first tap appear ignored.
+let textViewTapStart = null;
+reader.addEventListener('pointerdown', event => {
+  if (reader.hidden || !reader.classList.contains('pdf-text-reader')) return;
+  if (event.pointerType !== 'touch' && event.pointerType !== 'pen') return;
+  if (event.target.closest('button,a,input,select,textarea,#popup')) return;
+  textViewTapStart = { x: event.clientX, y: event.clientY, pointerId: event.pointerId };
+}, { passive: true });
+reader.addEventListener('pointerup', event => {
+  if (!textViewTapStart || event.pointerId !== textViewTapStart.pointerId) return;
+  const distance = Math.hypot(event.clientX - textViewTapStart.x, event.clientY - textViewTapStart.y);
+  textViewTapStart = null;
+  if (distance > 12 || reader.hidden || !reader.classList.contains('pdf-text-reader')) return;
+  if (!event.target.closest('#reader .page.readable')) return;
+  suppressPdfClick = true;
+  handleReadableTap(event, { singleTapTextView: true });
+  setTimeout(() => { suppressPdfClick = false; }, 350);
+}, { passive: true });
+reader.addEventListener('pointercancel', () => { textViewTapStart = null; }, { passive: true });
 
 pdfPages.addEventListener('pointerdown', event => {
   if (event.pointerType !== 'touch' && event.pointerType !== 'pen') return;
@@ -689,7 +875,39 @@ function popupShell(word,message){popup.replaceChildren();const close=safeText(p
 async function showWord(hit,options={}){const word=String(hit.word||'').trim().toLowerCase();if(!word)return;lookupController?.abort();lookupController=new AbortController();popupReturnFocus=options.returnFocus||document.activeElement;const range=hit.range||null;activeDictionaryRange=range?range.cloneRange():null;if(range&&CSS.highlights)CSS.highlights.set('picked',new Highlight(range));popup.hidden=false;popupShell(word,'Looking up…');placePopup(range);if(options.focus)popup.querySelector('.close')?.focus();try{const result=await define(word,lookupController.signal),clean={...result,meanings:result.meanings.map(item=>({...item,definition:plainDefinition(item.definition),example:plainDefinition(item.example)}))};renderDefinition(clean,word);popup.setAttribute('aria-labelledby','popup-word');popup.querySelector('h2').id='popup-word';popup.querySelector('.close')?.setAttribute('aria-label','Close definition');placePopup(range);if(options.focus)popup.querySelector('.close')?.focus();}catch(error){if(error.name==='AbortError')return;popupShell(word,error.message||'Could not load this definition.');placePopup(range);if(options.focus)popup.querySelector('.close')?.focus();}}
 function submitDictionaryQuery(event){event.preventDefault();const input=byId('dictionary-query'),word=input.value.trim().toLowerCase();if(!/^[a-z][a-z'-]{0,59}$/.test(word)){input.setCustomValidity('Enter one English word using letters, apostrophes, or hyphens.');input.reportValidity();return;}input.setCustomValidity('');showWord({word,range:null},{focus:true,returnFocus:input});}
 function hidePopup(){clearPdfWordMarker();lookupController?.abort();popup.hidden=true;activeDictionaryRange=null;if(CSS.highlights)CSS.highlights.delete('picked');const target=popupReturnFocus;popupReturnFocus=null;if(target&&target!==document.body&&target.isConnected)target.focus({preventScroll:true});}
-function placePopup(range){const fullscreenLayer=popup.dataset.fullscreenLayer==='true';const positionMode=fullscreenLayer?'absolute':'fixed';const mobile=matchMedia('(max-width: 640px)').matches;if(mobile){popup.style.position=positionMode;popup.style.left='10px';popup.style.right='10px';popup.style.top='auto';popup.style.bottom='max(10px, env(safe-area-inset-bottom))';popup.style.transform='none';popup.classList.toggle('dictionary-search-popup',!range);return;}if(!range){popup.classList.add('dictionary-search-popup');popup.style.position=positionMode;popup.style.left='50%';popup.style.right='';popup.style.top='18vh';popup.style.bottom='';popup.style.transform='translateX(-50%)';return;}popup.classList.remove('dictionary-search-popup');popup.style.position=positionMode;popup.style.left='0';popup.style.right='auto';popup.style.bottom='auto';popup.style.transform='none';const rect=range.getBoundingClientRect();const width=popup.offsetWidth||350;const height=popup.offsetHeight||180;const gap=8;const x=Math.max(12,Math.min(rect.left,Math.max(12,innerWidth-width-12)));const below=rect.bottom+gap;const above=rect.top-height-gap;let y=below;if(below+height>innerHeight-12&&above>=12)y=above;else if(below+height>innerHeight-12)y=Math.max(12,innerHeight-height-12);popup.style.left=`${x}px`;popup.style.top=`${y}px`;}
+function placePopup(range){
+  const fullscreenLayer=popup.dataset.fullscreenLayer==='true';
+  const mobile=matchMedia('(max-width: 640px)').matches;
+  const host=fullscreenLayer?popup.parentElement:null;
+  const hostRect=host?.getBoundingClientRect();
+  const viewportWidth=fullscreenLayer&&hostRect?hostRect.width:innerWidth;
+  const viewportHeight=fullscreenLayer&&hostRect?hostRect.height:innerHeight;
+  const originX=fullscreenLayer&&hostRect?hostRect.left:0;
+  const originY=fullscreenLayer&&hostRect?hostRect.top:0;
+  popup.style.position=fullscreenLayer?'absolute':'fixed';
+  popup.style.right='auto';popup.style.bottom='auto';popup.style.transform='none';
+  popup.style.left='10px';popup.style.top='10px';
+  popup.classList.toggle('dictionary-search-popup',!range);
+  if(!range){
+    popup.style.left=mobile?'10px':'50%';
+    popup.style.top=mobile?'12px':'18vh';
+    popup.style.transform=mobile?'none':'translateX(-50%)';
+    popup.style.right=mobile?'10px':'auto';
+    return;
+  }
+  popup.classList.remove('dictionary-search-popup');
+  const rect=range.getBoundingClientRect();
+  const width=Math.min(popup.offsetWidth||350,viewportWidth-20);
+  const height=Math.min(popup.offsetHeight||180,viewportHeight-20);
+  const gap=10,edge=mobile?10:12;
+  const x=Math.max(edge,Math.min(rect.left-originX,viewportWidth-width-edge));
+  const below=rect.bottom-originY+gap,above=rect.top-originY-height-gap;
+  let y=below;
+  if(below+height>viewportHeight-edge&&above>=edge)y=above;
+  else if(below+height>viewportHeight-edge)y=Math.max(edge,viewportHeight-height-edge);
+  popup.style.left=`${x}px`;
+  popup.style.top=`${Math.max(edge,Math.min(y,viewportHeight-height-edge))}px`;
+}
 function plainDefinition(value){let text=String(value||'');for(let attempt=0;attempt<2;attempt++){const parsed=new DOMParser().parseFromString(text,'text/html');parsed.querySelectorAll('script,style,template').forEach(node=>node.remove());const next=parsed.body.textContent||'';if(next===text)break;text=next;}return text.replace(/\s+/g,' ').trim();}
 const FALLBACK_DEFINITIONS = {
   ominous: { word: 'ominous', phonetic: '/ˈɒmɪnəs/', meanings: [{ partOfSpeech: 'adjective', definition: 'giving the impression that something bad or unpleasant is going to happen.', example: 'The sky looked ominous before the storm.' }] },
@@ -721,8 +939,37 @@ async function define(word,signal){
   if(fallback){const result={...fallback,source:'Built-in'};await putDefinition({word:stem,result}).catch(()=>{});return result;}
   throw new Error(`No definition found for “${stem.replace(/_/g,' ')}”. Try checking the spelling or search another word.`);
 }
-function renderDefinition(result,asked){popup.replaceChildren();safeText(popup,'button','×','close').addEventListener('click',hidePopup);safeText(popup,'h2',result.word);const source=result.source||'';if(result.phonetic)safeText(popup,'p',result.phonetic,'ph');if(source)safeText(popup,'span',result.cached?'Cached · '+source:source,'dictionary-source');const actions=document.createElement('div');actions.className='word-actions';const button=(label,handler)=>{const control=document.createElement('button');control.className='btn';control.type='button';control.textContent=label;control.addEventListener('click',handler);actions.append(control);return control;};const savedValues=local.get('er-vocabulary',[]);const isSaved=savedValues.some(item=>String(item.word||'').trim().toLowerCase()===String(result.word||'').trim().toLowerCase());const saveButton=button(isSaved?'Remove':'Save',event=>{const values=local.get('er-vocabulary',[]);const target=String(result.word||'').trim().toLowerCase();const existing=values.findIndex(item=>String(item.word||'').trim().toLowerCase()===target);if(existing>=0){values.splice(existing,1);event.currentTarget.textContent='Save';toast('Word removed from your vocabulary.');}else{values.unshift({word:result.word,definition:result.meanings[0]?.definition});event.currentTarget.textContent='Remove';toast('Word saved to your vocabulary.');}local.set('er-vocabulary',values);queueCloudSync();renderVocabulary();});button('Listen',()=>speechSynthesis.speak(new SpeechSynthesisUtterance(result.word)));button('Translate',async event=>{const control=event.currentTarget;control.textContent='Translating…';try{const language=byId('translation-language').value,response=await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(result.word)}&langpair=en|${language}`,{signal:lookupController?.signal});if(!response.ok)throw new Error();const data=await response.json();safeText(popup,'p',data.responseData?.translatedText||'Translation unavailable','note');control.textContent='Translated';}catch{control.textContent='Try translate again';}});button('Note',()=>{const text=prompt(`Add a note for “${result.word}”`);if(text?.trim()){const notes=local.get('er-notes',[]);notes.unshift({word:result.word,text:text.trim(),book:activeBook?.key,created:Date.now()});local.set('er-notes',notes);queueCloudSync();toast('Note saved.');}});popup.append(actions);result.meanings.forEach(item=>{safeText(popup,'p',item.partOfSpeech,'pos');safeText(popup,'p',item.definition,'def');if(item.example)safeText(popup,'p',`“${item.example}”`,'ex');});if(result.word!==asked)safeText(popup,'p',`Showing the base form “${result.word}”.`,'note');}
-
+// ---------- Optional AI "Explain simply" (Gemini via /api/explain; the key stays on the server) ----------
+const aiExplainCache = new Map();
+function sentenceAroundRange(range) {
+  try {
+    if (!range) return '';
+    const start = range.startContainer;
+    const element = start.nodeType === Node.TEXT_NODE ? start.parentElement : start;
+    const block = element?.closest?.('p,li,blockquote,h1,h2,h3,.page,.pdf-page') || element;
+    if (!block) return '';
+    const before = document.createRange();
+    before.setStart(block, 0);
+    before.setEnd(range.startContainer, range.startOffset);
+    const full = block.textContent.replace(/\s+/g, ' ');
+    const at = Math.min(before.toString().replace(/\s+/g, ' ').length, full.length);
+    let from = Math.max(full.lastIndexOf('. ', at), full.lastIndexOf('? ', at), full.lastIndexOf('! ', at));
+    from = from < 0 ? Math.max(0, at - 150) : from + 2;
+    const tails = ['. ', '? ', '! '].map(mark => full.indexOf(mark, at)).filter(index => index >= 0);
+    const to = tails.length ? Math.min(...tails) + 1 : Math.min(full.length, at + 150);
+    return full.slice(Math.max(from, at - 220), Math.min(to, at + 220)).trim();
+  } catch { return ''; }
+}
+async function fetchAiExplanation(word, context, signal) {
+  const key = word + '|' + context;
+  if (aiExplainCache.has(key)) return aiExplainCache.get(key);
+  const response = await fetch('/api/explain?word=' + encodeURIComponent(word) + '&context=' + encodeURIComponent(context), { signal });
+  let data = {};
+  try { data = await response.json(); } catch {}
+  if (!response.ok) { const error = new Error(data.error || 'AI explain is unavailable right now.'); error.notConfigured = Boolean(data.notConfigured); throw error; }
+  aiExplainCache.set(key, data.explanation);
+  return data.explanation;
+}
 function renderDefinition(result,asked){
   popup.replaceChildren();
   const close=safeText(popup,'button','×','close');
@@ -732,12 +979,19 @@ function renderDefinition(result,asked){
   const heading=safeText(popup,'h2',result.word);
   heading.id='popup-word';
   popup.setAttribute('aria-labelledby','popup-word');
+  const translationResult=document.createElement('div');
+  translationResult.className='translation-result';
+  translationResult.hidden=true;
+  translationResult.setAttribute('role','status');
+  translationResult.setAttribute('aria-live','polite');
+  popup.append(translationResult);
   if(result.phonetic)safeText(popup,'p',result.phonetic,'ph');
   if(result.source)safeText(popup,'span',result.cached?'Cached · '+result.source:result.source,'dictionary-source');
-  const translated=safeText(popup,'p','','translation-result');
-  translated.hidden=true;
-  translated.setAttribute('role','status');
-  translated.setAttribute('aria-live','polite');
+  const explained=document.createElement('div');
+  explained.className='ai-explain';
+  explained.hidden=true;
+  explained.setAttribute('role','status');
+  explained.setAttribute('aria-live','polite');
   const actions=document.createElement('div');
   actions.className='word-actions';
   const button=(label,handler)=>{
@@ -751,35 +1005,72 @@ function renderDefinition(result,asked){
   };
   button('Save',event=>{
     const values=local.get('er-vocabulary',[]);
-    if(!values.some(item=>item.word===result.word))values.unshift({word:result.word,definition:plainDefinition(result.meanings[0]?.definition)});
+    const target=String(result.word||'').trim().toLowerCase();if(!values.some(item=>String(item.word||'').trim().toLowerCase()===target)){const tombstones=local.get('er-vocabulary-deleted',{}),created=Math.max(Date.now(),Number(tombstones[target]||0)+1);values.unshift({word:result.word,definition:plainDefinition(result.meanings[0]?.definition),created});}
     local.set('er-vocabulary',values);
     queueCloudSync();
     renderVocabulary();
     event.currentTarget.textContent='Saved';
     toast('Word saved to your vocabulary.');
   });
-  button('Listen',()=>speechSynthesis.speak(new SpeechSynthesisUtterance(result.word)));
-  button('Translate',async event=>{
+  button('Listen',()=>playWordAudio(result));
+  button('AI Translate',async event=>{
     const control=event.currentTarget;
+    const originalLabel=control.textContent;
     control.disabled=true;
     control.textContent='Translating…';
-    translated.hidden=false;
-    translated.textContent='Translating…';
+    translationResult.hidden=false;
+    translationResult.textContent='Translating into '+byId('translation-language').selectedOptions[0].text+'…';
     try{
       const language=byId('translation-language').value;
-      const response=await fetch('https://api.mymemory.translated.net/get?q='+encodeURIComponent(result.word)+'&langpair=en|'+language,{signal:lookupController?.signal});
-      if(!response.ok)throw new Error();
-      const data=await response.json();
-      const value=plainDefinition(data.responseData?.translatedText);
-      translated.textContent=value?'Translation ('+language+'): '+value:'No translation was returned.';
-      control.textContent='Translate';
-    }catch{
-      translated.textContent='Translation is unavailable right now.';
-      control.textContent='Translate';
-    }finally{control.disabled=false;}
+      const response=await fetch('/api/explain?mode=translate&text='+encodeURIComponent(result.word)+'&targetLanguage='+encodeURIComponent(language),{signal:lookupController?.signal});
+      const data=await response.json().catch(()=>({}));
+      if(response.status===503||response.status===404){
+        // AI not set up on this server: fall back to the free translator.
+        const fallback=await fetch('https://api.mymemory.translated.net/get?q='+encodeURIComponent(result.word)+'&langpair=en|'+language,{signal:lookupController?.signal});
+        if(!fallback.ok)throw new Error('Translation is unavailable right now.');
+        const value=plainDefinition((await fallback.json()).responseData?.translatedText);
+        if(!value)throw new Error('No translation was returned.');
+        translationResult.textContent=value;
+        control.textContent='Translate again';
+        return;
+      }
+      if(!response.ok)throw new Error(data.error||'AI translation is unavailable right now.');
+      translationResult.textContent=data.translation||data.explanation||'AI translation unavailable.';
+      control.textContent='Translate again';
+    }catch(error){
+      if(error.name==='AbortError')return;
+      translationResult.textContent=error.message||'AI translation is temporarily unavailable.';
+      control.textContent='Try again';
+    }finally{
+      control.disabled=false;
+      setTimeout(()=>{if(control.isConnected)control.textContent=originalLabel;},2200);
+    }
   });
+  if(!aiExplainUnavailable){
+    const aiButton=button('Explain simply',async event=>{
+      const control=event.currentTarget;
+      if(!navigator.onLine){explained.hidden=false;explained.textContent='Connect to the internet to use Explain simply.';return;}
+      control.disabled=true;control.textContent='Thinking…';
+      explained.hidden=false;explained.replaceChildren();safeText(explained,'p','Thinking…','ai-explain-text');
+      try{
+        const text=await fetchAiExplanation(result.word,sentenceAroundRange(activeDictionaryRange),lookupController?.signal);
+        explained.replaceChildren();
+        safeText(explained,'p',text,'ai-explain-text');
+        safeText(explained,'small','AI-generated by Gemini. It can make mistakes, so check the dictionary meaning below.','ai-explain-note');
+        control.textContent='Explain again';
+      }catch(error){
+        if(error.name==='AbortError')return;
+        explained.replaceChildren();
+        if(error.notConfigured){aiExplainUnavailable=true;control.remove();explained.hidden=true;return;}
+        safeText(explained,'p',error.message||'AI explain is unavailable right now.','ai-explain-text');
+        control.textContent='Explain simply';
+      }finally{control.disabled=false;}
+    });
+    aiButton.classList.add('ai-explain-btn');
+  }
   button('Note',()=>openNoteEditor(result.word));
   popup.append(actions);
+  popup.append(explained);
   result.meanings.forEach(item=>{
     safeText(popup,'p',item.partOfSpeech,'pos');
     safeText(popup,'p',plainDefinition(item.definition),'def');
@@ -796,27 +1087,140 @@ function renderDefinition(result,asked){
   if(result.word!==asked)safeText(popup,'p','Showing the base form “'+result.word+'”.','note');
 }
 function openNoteEditor(word){activeNoteWord=word;byId('note-word').textContent=`For “${word}”`;byId('note-editor-text').value='';byId('note-dialog').showModal();byId('note-editor-text').focus();}
-function saveNote(event){event.preventDefault();const text=byId('note-editor-text').value.trim();if(!text)return;const notes=local.get('er-notes',[]);notes.unshift({word:activeNoteWord,text,book:activeBook?.key,created:Date.now()});local.set('er-notes',notes);queueCloudSync();byId('note-dialog').close();toast('Note saved.');}
+function newSavedItemId(){return Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,10);}
+function savedItemLegacyKey(item,kind){return 'legacy:'+JSON.stringify([kind,Number(item.created)||0,String(item.book||''),String(item.word||''),String(item.text||'')]);}
+function savedItemTombstoneKeys(item,kind){const keys=[savedItemLegacyKey(item,kind)];if(item.id)keys.push('id:'+kind+':'+item.id);return keys;}
+function saveNote(event){event.preventDefault();const text=byId('note-editor-text').value.trim();if(!text)return;const notes=local.get('er-notes',[]);notes.unshift({id:newSavedItemId(),word:activeNoteWord,text,book:activeBook?.key,bookName:activeBook?.title||activeBook?.name||'',created:Date.now()});local.set('er-notes',notes);queueCloudSync();byId('note-dialog').close();renderMyNotes();renderSavedItems();toast('Note saved.');}
 async function renderLibraryPanel(){
   const list=byId('library-list'),favorites=byId('library-favorites');
   if(!list||!favorites)return;
   list.replaceChildren();favorites.replaceChildren();
+  const favOnly=local.get('er-library-favorites-only',false)===true;
   const search=(byId('library-search')?.value||'').trim().toLowerCase(),filter=byId('library-filter')?.value||'all',sort=byId('library-sort')?.value||'recent';
-  let books=await getBooks();
-  books=books.filter(book=>{const ext=String(book.type||book.name?.split('.').pop()||'').toLowerCase(),matchesType=filter==='all'||(filter==='favorite'?book.favorite:filter==='image'?['png','jpg','jpeg'].includes(ext):ext===filter),matchesText=`${book.title||''} ${book.name||''}`.toLowerCase().includes(search);return matchesType&&matchesText;});
+  const all=await getBooks();
+  const totalFavorites=all.filter(book=>book.favorite).length;
+  byId('library-view-all')?.setAttribute('aria-pressed',String(!favOnly));
+  byId('library-view-fav')?.setAttribute('aria-pressed',String(favOnly));
+  const count=byId('library-fav-count');if(count)count.textContent=String(totalFavorites);
+  const books=all.filter(book=>{const ext=String(book.type||book.name?.split('.').pop()||'').toLowerCase(),matchesType=filter==='all'||(filter==='image'?['png','jpg','jpeg'].includes(ext):ext===filter),matchesFavorite=!favOnly||book.favorite,matchesText=`${book.title||''} ${book.name||''}`.toLowerCase().includes(search);return matchesType&&matchesFavorite&&matchesText;});
   books.sort((a,b)=>sort==='title'?(a.title||a.name).localeCompare(b.title||b.name):sort==='progress'?(b.progress||0)-(a.progress||0):(b.opened||0)-(a.opened||0));
-  if(!books.length){safeText(list,'p',search||filter!=='all'?'No books match these filters.':'Your books will appear here after you open one.','note');return;}
-  const createRow=book=>{const row=document.createElement('div');row.className='library-row';const details=document.createElement('div');details.className='library-book-details';safeText(details,'strong',book.title||book.name);safeText(details,'small',`${String(book.type||'').toUpperCase()} · ${Math.round(book.progress||0)}% read`,'note');const progress=document.createElement('progress');progress.max=100;progress.value=book.progress||0;const actions=document.createElement('div');actions.className='library-book-actions';const open=safeText(actions,'button','Continue','btn');open.type='button';open.onclick=()=>openFile(book.file);const rename=safeText(actions,'button','Rename','icon-btn');rename.type='button';rename.setAttribute('aria-label',`Rename ${book.title||book.name}`);rename.onclick=async()=>{const value=prompt('Book title',book.title||book.name);if(value?.trim()){book.title=value.trim();await putBook(book);renderLibraryPanel();renderLibrary();}};const favorite=safeText(actions,'button',book.favorite?'★':'☆','icon-btn');favorite.type='button';favorite.setAttribute('aria-label',book.favorite?'Remove from favorites':'Add to favorites');favorite.onclick=async()=>{book.favorite=!book.favorite;await putBook(book);renderLibraryPanel();renderLibrary();};row.append(details,progress,actions);return {row,favorite};};
-  for(const book of books){const {row,favorite}=createRow(book);(book.favorite?favorites:list).append(row);}
+  const favoriteBooks=books.filter(book=>book.favorite),otherBooks=favOnly?[]:books.filter(book=>!book.favorite);
+  const favoriteTitle=byId('library-fav-title'),recentTitle=byId('library-recent-title'),hint=byId('library-fav-hint');
+  if(favoriteTitle)favoriteTitle.hidden=!favoriteBooks.length;
+  if(recentTitle){recentTitle.hidden=!otherBooks.length;recentTitle.textContent=favoriteBooks.length?'Other books':'Your books';}
+  if(hint)hint.hidden=!(all.length&&!totalFavorites&&!favOnly);
+  if(!books.length){safeText(list,'p',favOnly&&!totalFavorites?'No favorites yet. Tap the star on any book to add it.':(search||filter!=='all'||favOnly)?'No books match these filters.':'Your books will appear here after you open one.','note');return;}
+  const createRow=book=>{
+    const title=book.title||book.name;
+    const row=document.createElement('article');row.className='library-row'+(book.favorite?' is-favorite':'');
+    const star=document.createElement('button');star.type='button';star.className='library-star';star.textContent=book.favorite?'\u2605':'\u2606';star.setAttribute('aria-pressed',String(Boolean(book.favorite)));star.setAttribute('aria-label',(book.favorite?'Remove from favorites: ':'Add to favorites: ')+title);star.title=book.favorite?'Remove from favorites':'Add to favorites';
+    star.onclick=async()=>{book.favorite=!book.favorite;await putBook(book);renderLibraryPanel();renderLibrary();};
+    const details=document.createElement('div');details.className='library-book-details';safeText(details,'strong',title);safeText(details,'small',`${String(book.type||'').toUpperCase()} \u00b7 ${Math.round(book.progress||0)}% read`,'note');
+    const progress=document.createElement('progress');progress.className='library-progress';progress.max=100;progress.value=book.progress||0;progress.setAttribute('aria-label','Reading progress');
+    const actions=document.createElement('div');actions.className='library-book-actions';
+    const open=safeText(actions,'button','Continue','btn library-continue');open.type='button';open.onclick=()=>openFile(book.file);
+    const rename=safeText(actions,'button','Rename','btn');rename.type='button';rename.setAttribute('aria-label',`Rename ${title}`);
+    rename.onclick=async()=>{const value=prompt('Book title',title);if(value?.trim()){book.title=value.trim();await putBook(book);renderLibraryPanel();renderLibrary();}};
+    row.append(star,details,progress,actions);return row;
+  };
+  favoriteBooks.forEach(book=>favorites.append(createRow(book)));
+  otherBooks.forEach(book=>list.append(createRow(book)));
 }
-function removeSavedWord(word){const target=String(word||'').trim().toLowerCase();if(!target)return;const values=local.get('er-vocabulary',[]);const next=values.filter(item=>String(item.word||'').trim().toLowerCase()!==target);if(next.length===values.length)return;local.set('er-vocabulary',next);queueCloudSync();renderVocabulary();renderAccountPanel?.();toast(`“${word}” removed from your saved words.`);}
+function removeSavedWord(word){const target=String(word||'').trim().toLowerCase();if(!target)return;const values=local.get('er-vocabulary',[]);const next=values.filter(item=>String(item.word||'').trim().toLowerCase()!==target);if(next.length===values.length)return;const tombstones=local.get('er-vocabulary-deleted',{});tombstones[target]=Math.max(Date.now(),Number(tombstones[target]||0)+1);local.set('er-vocabulary-deleted',tombstones);local.set('er-vocabulary',next);queueCloudSync();renderVocabulary();renderSavedItems();const saveButton=popup.querySelector('.word-actions button');if(saveButton){saveButton.textContent='Save word';saveButton.setAttribute('aria-pressed','false');}toast(`“${word}” removed from your saved words.`);}
 function renderVocabulary(){const list=byId('vocab-list');list.replaceChildren();const values=local.get('er-vocabulary',[]);if(!values.length)return safeText(list,'p','Saved words will appear here.','note');values.forEach(item=>{const row=document.createElement('div');row.className='vocab-row';const info=document.createElement('div');info.className='vocab-info';safeText(info,'strong',item.word);safeText(info,'p',item.definition||'');const remove=document.createElement('button');remove.type='button';remove.className='vocab-remove';remove.textContent='Remove';remove.setAttribute('aria-label',`Remove ${item.word} from saved words`);remove.addEventListener('click',()=>removeSavedWord(item.word));row.append(info,remove);list.append(row);});}
-function renderSavedItems(){const bookmarks=local.get('er-bookmarks',[]),notes=local.get('er-notes',[]),highlights=local.get('er-highlights',[]);const b=byId('bookmark-list'),s=byId('saved-list');b.replaceChildren();s.replaceChildren();if(!bookmarks.length)safeText(b,'p','No bookmarks yet.','note');bookmarks.forEach(item=>{const button=safeText(b,'button',item.name||'Bookmark','saved-item');button.onclick=()=>scrollTo({top:item.scroll||0,behavior:'smooth'});});[...notes,...highlights].forEach(item=>safeText(s,'p',item.text||item.word||'Saved note','saved-item'));}
+function renderSavedItems(){const bookmarks=local.get('er-bookmarks',[]),b=byId('bookmark-list'),s=byId('saved-list');if(!b||!s)return;b.replaceChildren();s.replaceChildren();if(!bookmarks.length)safeText(b,'p','No bookmarks yet.','note');bookmarks.forEach((item,index)=>{const row=document.createElement('div');row.className='saved-bookmark-row';const label=(item.name||item.bookName||'Bookmark')+(item.page?' · Page '+item.page:'');const button=safeText(row,'button',label,'saved-item');button.onclick=()=>{if(item.page&&activePdf)goPdfPage(item.page);else if(item.page)goToReaderPage(item.page);else scrollTo({top:item.scroll||0,behavior:'smooth'});};const remove=safeText(row,'button','Delete','vocab-remove');remove.type='button';remove.setAttribute('aria-label','Delete bookmark');remove.onclick=()=>{const current=local.get('er-bookmarks',[]);const removed=current[index];if(!removed)return;const deleted=local.get('er-deleted-bookmarks',{});deleted[removed.id||savedItemLegacyKey(removed,'bookmark')]=Date.now();local.set('er-deleted-bookmarks',deleted);current.splice(index,1);local.set('er-bookmarks',current);queueCloudSync();renderSavedItems();toast('Bookmark deleted.');};row.append(button,remove);b.append(row);});safeText(s,'p','Notes and highlights are managed in My notes & highlights.','note');renderMyNotes();}
+function renderMyNotes(){
+  const list=byId('my-notes-list');
+  if(!list)return;
+  list.replaceChildren();
+  const query=(byId('notes-search')?.value||'').trim().toLowerCase();
+  const notes=local.get('er-notes',[]).map((item,index)=>({...item,kind:'note',index}));
+  const highlights=local.get('er-highlights',[]).map((item,index)=>({...item,kind:'highlight',index}));
+  const items=[...notes,...highlights]
+    .filter(item=>(String(item.word||'')+' '+String(item.text||'')+' '+String(item.book||'')).toLowerCase().includes(query))
+    .sort((a,b)=>a.kind.localeCompare(b.kind)||(b.created||0)-(a.created||0));
+  if(!items.length){
+    safeText(list,'p',query?'No notes match your search.':'Your saved notes and highlights will appear here.','note');
+    return;
+  }
+  let renderedKind='';
+  items.forEach(item=>{
+    if(renderedKind!==item.kind){renderedKind=item.kind;safeText(list,'h3',item.kind==='note'?'Notes':'Highlights','saved-note-group-title');}
+    const row=document.createElement('article');
+    row.className='saved-note-row';
+    const content=document.createElement('div');
+    content.className='saved-note-content';
+    if(item.book){content.tabIndex=0;content.setAttribute('role','button');content.setAttribute('aria-label','Open source book for this '+item.kind);const openSource=async()=>{const book=await getBook(item.book).catch(()=>null);if(book?.file)openFile(book.file);else toast('The original book is not available in this browser library.');};content.addEventListener('click',openSource);content.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();openSource();}});}
+    safeText(content,'strong',item.word?'Note for '+item.word:(item.kind==='highlight'?'Highlight':'Note'));
+    safeText(content,'p',item.text||item.word||'Saved item','saved-note-text');
+    safeText(content,'small',(item.kind==='highlight'?'Highlight':'Note')+(item.bookName||item.book?' · '+(item.bookName||item.book):'')+(item.created?' · '+new Date(item.created).toLocaleDateString():''));
+    const actions=document.createElement('div');
+    actions.className='saved-note-actions';
+    if(item.kind==='note'){
+      const edit=safeText(actions,'button','Edit','btn');
+      edit.type='button';
+      edit.addEventListener('click',()=>{
+        const updated=prompt('Edit your note',item.text||'');
+        if(updated===null)return;
+        const text=updated.trim();
+        if(!text){toast('A note cannot be empty.');return;}
+        const current=local.get('er-notes',[]);
+        if(!current[item.index])return;
+        const previous=current[item.index],tombstones=local.get('er-deleted-saved-items',{});
+        if(!previous.id)tombstones[savedItemLegacyKey(previous,'note')]=Date.now();
+        current[item.index]={...previous,id:previous.id||newSavedItemId(),text,updated:Date.now()};
+        local.set('er-deleted-saved-items',tombstones);
+        local.set('er-notes',current);
+        queueCloudSync();renderMyNotes();renderSavedItems();toast('Note updated.');
+      });
+    }
+    const remove=safeText(actions,'button','Delete','btn');
+    remove.type='button';
+    remove.classList.add('saved-note-delete');
+    remove.setAttribute('aria-label','Delete '+(item.kind==='highlight'?'highlight':'note'));
+    remove.addEventListener('click',()=>openSavedItemDeleteDialog(item));
+    row.append(content,actions);
+    list.append(row);
+  });
+}
+function openSavedItemDeleteDialog(item){
+  const dialog=byId('delete-item-dialog');
+  if(!dialog)return;
+  dialog.dataset.kind=item.kind;
+  dialog.dataset.index=String(item.index);
+  const isNote=item.kind==='note';
+  byId('delete-item-title').textContent=isNote?'Delete this note?':'Delete this highlight?';
+  byId('delete-item-message').textContent=isNote
+    ?'This note will be removed from your saved notes. This action cannot be undone.'
+    :'This highlight will be removed from your saved items. This action cannot be undone.';
+  byId('delete-item-confirm').textContent=isNote?'Delete note':'Delete highlight';
+  dialog.showModal();
+}
+function confirmDeleteSavedItem(){
+  const dialog=byId('delete-item-dialog');
+  if(!dialog)return;
+  const kind=dialog.dataset.kind,index=Number(dialog.dataset.index);
+  if(!['note','highlight'].includes(kind)||!Number.isInteger(index)||index<0)return;
+  const key=kind==='note'?'er-notes':'er-highlights';
+  const current=local.get(key,[]);
+  const deleted=current[index];
+  if(!deleted)return;
+  const tombstones=local.get('er-deleted-saved-items',{});
+  for(const tombstoneKey of savedItemTombstoneKeys(deleted,kind))tombstones[tombstoneKey]=Date.now();
+  local.set('er-deleted-saved-items',tombstones);
+  current.splice(index,1);
+  local.set(key,current);
+  dialog.close();
+  queueCloudSync();
+  renderMyNotes();
+  renderSavedItems();
+  toast(kind==='note'?'Note deleted.':'Highlight deleted.');
+}
 function updateDocumentPageControls(){
   const toggle=byId('document-page-toggle'),label=byId('document-page-label'),prev=byId('document-page-prev'),next=byId('document-page-next');
   if(!toggle||activePdf)return;
-  const total=Math.max(1,pageCount),page=Math.min(total,Math.max(1,activePage||1));
-  toggle.textContent=documentPageMode?'Reading view':'Page view';
+  const total=Math.max(1,pageCount),page=Math.min(total,Math.max(1,activePage||1));syncPageCounter(page);
+  toggle.textContent=documentPageMode?'Continuous':'Split pages';
   toggle.setAttribute('aria-pressed',String(documentPageMode));
   if(label)label.textContent=`Page ${page} of ${total}`;
   if(prev)prev.disabled=!documentPageMode||page<=1;
@@ -849,7 +1253,7 @@ function goToReaderPage(value){
     updateDocumentPageControls();
   }
   target.scrollIntoView({behavior:'smooth',block:'start'});
-  if(!activePdf)byId('reader-page-jump').value=String(page);
+  if(byId('reader-page-jump'))byId('reader-page-jump').value=String(page);
   return true;
 }
 function goToRequestedPage(event){event?.preventDefault();const input=byId('jump'),requested=Number.parseInt(input.value,10);if(!Number.isInteger(requested)||requested<1||requested>pageCount){input.setCustomValidity(`Enter a page from 1 to ${pageCount}.`);input.reportValidity();return;}input.setCustomValidity('');input.value=String(requested);goToReaderPage(requested);}
@@ -895,7 +1299,7 @@ function elapsedReadingSeconds(){return readerTimerSeconds+(readerTimerRunning?M
 function formatTimer(seconds){const value=Math.max(0,Math.floor(seconds)),hours=Math.floor(value/3600),minutes=Math.floor(value%3600/60),remaining=value%60;return hours?`${String(hours).padStart(2,'0')}:${String(minutes).padStart(2,'0')}:${String(remaining).padStart(2,'0')}`:`${String(minutes).padStart(2,'0')}:${String(remaining).padStart(2,'0')}`;}
 function persistReadingTimer(){local.set('er-reading-timer',{day:readerTimerDay,seconds:elapsedReadingSeconds()});}
 function updateReadingTimer(){const elapsed=elapsedReadingSeconds(),remaining=readerTimerGoal?Math.max(0,readerTimerGoal*60-elapsed):elapsed,output=byId('timer-display'),toggle=byId('timer-toggle');if(output){output.textContent=formatTimer(remaining);output.setAttribute('aria-label',readerTimerGoal?`${formatTimer(remaining)} remaining toward today's goal`:`${formatTimer(elapsed)} elapsed reading time`);}if(toggle){toggle.textContent=readerTimerRunning?'Pause':'Start';toggle.setAttribute('aria-label',readerTimerRunning?'Pause reading timer':'Start reading timer');}}
-function recordReadingSeconds(total){const delta=total-readerTimerRecordedSeconds;readerTimerRecordedSeconds=total;if(delta<=0||!readerTimerBookKey)return;const stats=local.get('er-stats',{}),item=stats[readerTimerBookKey]||{seconds:0,day:readerTimerDay};item.seconds=(item.seconds||0)+delta;item.day=readerTimerDay;stats[readerTimerBookKey]=item;local.set('er-stats',stats);}
+function recordReadingSeconds(total){const delta=total-readerTimerRecordedSeconds;readerTimerRecordedSeconds=total;if(delta<=0||!readerTimerBookKey)return;const stats=local.get('er-stats',{}),item=stats[readerTimerBookKey]||{seconds:0,day:readerTimerDay};item.seconds=(item.seconds||0)+delta;item.day=readerTimerDay;stats[readerTimerBookKey]=item;local.set('er-stats',stats);recordReadingDay(delta);}
 function tickReadingTimer(){const today=todayKey();if(readerTimerDay!==today){readerTimerDay=today;readerTimerSeconds=0;readerTimerStart=Date.now();readerTimerRecordedSeconds=0;}const elapsed=elapsedReadingSeconds();recordReadingSeconds(elapsed);persistReadingTimer();updateReadingTimer();if(readerTimerGoal&&elapsed>=readerTimerGoal*60){pauseReadingTimer();toast("Today's reading goal is complete.");}}
 function startReadingTimer(){if(readerTimerRunning)return;readerTimerRunning=true;readerTimerStart=Date.now();readerTimerInterval=setInterval(tickReadingTimer,1000);updateReadingTimer();}
 function pauseReadingTimer(){if(!readerTimerRunning)return;readerTimerSeconds=elapsedReadingSeconds();readerTimerRunning=false;readerTimerStart=0;clearInterval(readerTimerInterval);readerTimerInterval=null;recordReadingSeconds(readerTimerSeconds);persistReadingTimer();updateReadingTimer();}
@@ -926,23 +1330,37 @@ async function initFirebase(){
   try{return await firebaseInitPromise;}catch(error){firebaseInitPromise=null;throw error;}
 }
 async function openAccount(){showPanel('account');try{await initFirebase();setAuthMode('signin');}catch(error){setAuthStatus('Sign-in is temporarily unavailable. '+error.message,'error');}}
+function updateWelcomeSignin(){
+  const welcome=byId('welcome-signin');
+  if(welcome)welcome.hidden=!!user||local.get('er-signin-dismissed',false);
+}
 function updateProfile(){
   const label=user?.displayName?.split(' ')[0]||'Sign in';for(const id of ['account-label','sidebar-account-label'])if(byId(id))byId(id).textContent=label;
   if(byId('sidebar-account-meta'))byId('sidebar-account-meta').textContent=user?.email||'Sync your reading';
-  for(const id of ['account-avatar','account-photo','sidebar-avatar'])if(byId(id)){byId(id).src=user?.photoURL||'';byId(id).hidden=!user?.photoURL;}
+  const pic=profilePhoto();for(const id of ['account-avatar','account-photo','sidebar-avatar'])if(byId(id)){byId(id).src=pic;byId(id).hidden=!pic;}
+  if(byId('photo-remove'))byId('photo-remove').hidden=!(user&&local.get('er-photo-'+user.uid,''));
   if(byId('account-name'))byId('account-name').textContent=user?.displayName||'';if(byId('account-email'))byId('account-email').textContent=user?.email||'';
   if(byId('account-signed-out'))byId('account-signed-out').hidden=!!user;if(byId('account-signed-in'))byId('account-signed-in').hidden=!user;
+  updateWelcomeSignin();
 }
 async function signInWithGoogle(){
-  try{setAuthStatus('Opening Google sign-in…');await initFirebase();const provider=new firebase.auth.GoogleAuthProvider();provider.setCustomParameters({prompt:'select_account'});await auth.signInWithPopup(provider);showPanel('account',false);toast('Signed in with Google.');}
+  try{setAuthStatus('Opening Google sign-in…');await initFirebase();const provider=new firebase.auth.GoogleAuthProvider();provider.setCustomParameters({prompt:'select_account'});await auth.signInWithPopup(provider);const intro=byId('signin-modal');if(intro)intro.hidden=true;local.set('er-welcome-intro-dismissed',true);showPanel('account',false);toast('Signed in with Google.');}
   catch(error){setAuthStatus(friendlyAuthError(error),'error');if(error?.code==='auth/popup-blocked')try{await auth.signInWithRedirect(new firebase.auth.GoogleAuthProvider());}catch(redirectError){setAuthStatus(friendlyAuthError(redirectError),'error');}}
 }
 async function submitEmailAuth(event){
   event.preventDefault();const email=byId('auth-email')?.value.trim(),password=byId('auth-password')?.value,name=byId('auth-name')?.value.trim();
   if(!email||!password)return setAuthStatus('Enter your email and password.','error');if(authMode==='signup'&&!name)return setAuthStatus('Enter your name to create your account.','error');
   const submit=byId('email-auth-submit');submit?.classList.add('auth-loading');if(submit)submit.disabled=true;setAuthStatus(authMode==='signup'?'Creating your account…':'Signing you in…');
-  try{await initFirebase();if(authMode==='signup'){const credential=await auth.createUserWithEmailAndPassword(email,password);if(name&&credential.user)await credential.user.updateProfile({displayName:name});user=auth.currentUser;updateProfile();showPanel('account',false);toast('Your EasyRead account is ready.');}else{await auth.signInWithEmailAndPassword(email,password);showPanel('account',false);toast('Welcome back to EasyRead.');}}
-  catch(error){setAuthStatus(friendlyAuthError(error),'error');}finally{submit?.classList.remove('auth-loading');if(submit)submit.disabled=false;}
+  try{
+    await initFirebase();
+    if(authMode==='signup'){
+      const credential=await auth.createUserWithEmailAndPassword(email,password);
+      if(name&&credential.user)await credential.user.updateProfile({displayName:name});
+      user=auth.currentUser;updateProfile();showPanel('account',false);
+      toast('Your EasyRead account is ready.');
+    }else{await auth.signInWithEmailAndPassword(email,password);showPanel('account',false);toast('Welcome back to EasyRead.');}
+  }catch(error){setAuthStatus(friendlyAuthError(error),'error');}
+  finally{submit?.classList.remove('auth-loading');if(submit)submit.disabled=false;}
 }
 async function resetPassword(){
   const email=byId('auth-email')?.value.trim();if(!email)return setAuthStatus('Enter your email first, then choose “Forgot password?”.','error');
@@ -950,7 +1368,7 @@ async function resetPassword(){
 }
 async function signIn(){return signInWithGoogle();}
 function queueCloudSync(){if(!user)return;clearTimeout(cloudSyncTimer);cloudSyncTimer=setTimeout(syncCloud,800);}
-async function syncCloud(){if(!user||!navigator.onLine)return;try{if(!firestore)await initFirebase();const ref=firestore.collection('users').doc(user.uid),snapshot=await ref.get(),remote=snapshot.exists?snapshot.data():{},data={};for(const [name,key]of Object.entries(STORE_KEYS)){const localItems=local.get(key,[]),remoteItems=Array.isArray(remote[name])?remote[name]:[],seen=new Set(),merged=[];for(const item of [...remoteItems,...localItems]){const signature=JSON.stringify(item);if(!seen.has(signature)){seen.add(signature);merged.push(item);}}data[name]=merged.slice(-1000);local.set(key,data[name]);}await ref.set(data,{merge:true});byId('sync-label').textContent='Synced just now';byId('last-synced').textContent='Last synced '+new Date().toLocaleString();toast('Reading data synced.');}catch(error){byId('sync-label').textContent='Sync needs attention';console.warn('Sync failed',error);}}
+async function syncCloud(){if(!user||!navigator.onLine)return;try{if(!firestore)await initFirebase();const ref=firestore.collection('users').doc(user.uid),snapshot=await ref.get(),remote=snapshot.exists?snapshot.data():{},data={};if(typeof remote.photoData==='string'&&remote.photoData.startsWith('data:image/')&&remote.photoData.length<200000&&remote.photoData!==local.get('er-photo-'+user.uid,'')){local.set('er-photo-'+user.uid,remote.photoData);updateProfile();}const localTombstones=local.get('er-vocabulary-deleted',{}),remoteTombstones=remote.vocabularyDeleted&&typeof remote.vocabularyDeleted==='object'?remote.vocabularyDeleted:{},tombstones={};for(const key of new Set([...Object.keys(remoteTombstones),...Object.keys(localTombstones)]))tombstones[key]=Math.max(Number(remoteTombstones[key]||0),Number(localTombstones[key]||0));const localDeletedSaved=local.get('er-deleted-saved-items',{}),remoteDeletedSaved=remote.deletedSavedItems&&typeof remote.deletedSavedItems==='object'?remote.deletedSavedItems:{},deletedSaved={};for(const key of new Set([...Object.keys(remoteDeletedSaved),...Object.keys(localDeletedSaved)]))deletedSaved[key]=Math.max(Number(remoteDeletedSaved[key]||0),Number(localDeletedSaved[key]||0));const localDeletedBookmarks=local.get('er-deleted-bookmarks',{}),remoteDeletedBookmarks=remote.deletedBookmarks&&typeof remote.deletedBookmarks==='object'?remote.deletedBookmarks:{},deletedBookmarks={};for(const key of new Set([...Object.keys(remoteDeletedBookmarks),...Object.keys(localDeletedBookmarks)]))deletedBookmarks[key]=Math.max(Number(remoteDeletedBookmarks[key]||0),Number(localDeletedBookmarks[key]||0));for(const [name,key]of Object.entries(STORE_KEYS)){const localItems=local.get(key,name==='stats'?{}:[]),remoteItems=Array.isArray(remote[name])?remote[name]:[];if(name==='stats'){const localStats=localItems&&typeof localItems==='object'&&!Array.isArray(localItems)?localItems:{},remoteStats=remote[name]&&typeof remote[name]==='object'&&!Array.isArray(remote[name])?remote[name]:{};data[name]={...remoteStats,...localStats};local.set(key,data[name]);continue;}let merged;if(name==='notes'||name==='highlights'){const kind=name==='notes'?'note':'highlight',byIdentity=new Map();for(const item of remoteItems)byIdentity.set(item.id?'id:'+item.id:savedItemLegacyKey(item,kind),item);for(const item of localItems)byIdentity.set(item.id?'id:'+item.id:savedItemLegacyKey(item,kind),item);merged=[...byIdentity.values()];}else{const seen=new Set();merged=[];for(const item of [...remoteItems,...localItems]){const identity=JSON.stringify(item);if(!seen.has(identity)){seen.add(identity);merged.push(item);}}}let finalItems=merged;if(name==='vocabulary'){finalItems=merged.filter(item=>{const word=String(item.word||'').trim().toLowerCase(),deletedAt=Number(tombstones[word]||0),savedAt=Number(item.created||0);return !deletedAt||savedAt>deletedAt;});}if(name==='notes'||name==='highlights'){const kind=name==='notes'?'note':'highlight';finalItems=merged.filter(item=>!savedItemTombstoneKeys(item,kind).some(tombstoneKey=>deletedSaved[tombstoneKey]));}if(name==='bookmarks'){finalItems=merged.filter(item=>!deletedBookmarks[item.id||savedItemLegacyKey(item,'bookmark')]);}data[name]=finalItems.slice(-1000);local.set(key,data[name]);}data.vocabularyDeleted=tombstones;data.deletedSavedItems=deletedSaved;data.deletedBookmarks=deletedBookmarks;local.set('er-vocabulary-deleted',tombstones);local.set('er-deleted-saved-items',deletedSaved);local.set('er-deleted-bookmarks',deletedBookmarks);await ref.set(data,{merge:true});byId('sync-label').textContent='Synced just now';byId('last-synced').textContent='Last synced '+new Date().toLocaleString();toast('Reading data synced.');}catch(error){byId('sync-label').textContent='Sync needs attention';console.warn('Sync failed',error);}}
 function updateInstallButton() {
   const button = byId('install-btn');
   if (!button) return;
@@ -969,11 +1387,38 @@ async function init() {
     byId(id)?.addEventListener('click', () => {
       const modal = byId('signin-modal');
       if (modal) modal.hidden = true;
-      local.set('er-signin-dismissed', true);
+      local.set('er-signin-dismissed', true); local.set('er-welcome-intro-dismissed', true);
     });
   }
   boot('navigation', initNavigation);
+  // Use an explicit toggle for the reader's More disclosure so touch browsers
+  // reliably open it instead of losing the tap to horizontal toolbar scrolling.
+  document.querySelectorAll('.toolbar-more > summary').forEach(summary => summary.addEventListener('click', event => {
+    event.preventDefault();
+    event.stopPropagation();
+    const details = summary.parentElement;
+    if (!details) return;
+    const menu = details.querySelector('.toolbar-menu');
+    const opening = !details.open;
+    if (matchMedia('(max-width: 700px)').matches && menu) {
+      if (opening) {
+        menu.dataset.portaled = 'true';
+        document.body.append(menu);
+        menu.style.position = 'fixed'; menu.style.left = 'auto'; menu.style.right = '10px'; menu.style.bottom = 'auto'; menu.style.top = '12px';
+        menu.style.maxHeight = 'calc(100dvh - 150px)'; menu.style.overflowY = 'auto'; menu.style.zIndex = '200';
+        const rect = summary.getBoundingClientRect();
+        const height = Math.min(menu.scrollHeight, Math.max(180, window.innerHeight - 150));
+        menu.style.maxHeight = `${height}px`;
+        const desiredTop = rect.top - Math.min(height, 360) - 8;
+        menu.style.top = `${Math.max(12, Math.min(desiredTop, window.innerHeight - height - 100))}px`;
+      } else if (menu.dataset.portaled === 'true') {
+        details.append(menu); delete menu.dataset.portaled; menu.removeAttribute('style');
+      }
+    }
+    details.open = opening;
+  }));
   boot('contact', initContact);
+  updateWelcomeSignin();
   boot('reader preferences', loadReaderPreferences);
   boot('install state', updateInstallButton);
   window.addEventListener('beforeinstallprompt', event => {
@@ -1028,7 +1473,7 @@ async function init() {
   byId('global-view-next')?.addEventListener('click',()=>{ if(activePdf) goPdfPage(activePage+1); else goToReaderPage(activePage+1); });
   byId('document-page-prev')?.addEventListener('click',()=>goToReaderPage(activePage-1));
   byId('document-page-next')?.addEventListener('click',()=>goToReaderPage(activePage+1));
-  byId('note-form').addEventListener('submit',saveNote);byId('note-cancel').addEventListener('click',()=>byId('note-dialog').close());
+  byId('note-form').addEventListener('submit',saveNote);byId('note-cancel').addEventListener('click',()=>byId('note-dialog').close());byId('delete-item-cancel')?.addEventListener('click',()=>byId('delete-item-dialog').close());byId('delete-item-confirm')?.addEventListener('click',confirmDeleteSavedItem);
   for(const id of ['library-search'])byId(id)?.addEventListener('input',renderLibraryPanel);for(const id of ['library-filter','library-sort'])byId(id)?.addEventListener('change',renderLibraryPanel);byId('home-library-sort')?.addEventListener('change',renderLibrary);
   byId('timer-toggle').addEventListener('click',()=>readerTimerRunning?pauseReadingTimer():startReadingTimer());byId('timer-reset').addEventListener('click',resetReadingTimer);byId('reading-goal').addEventListener('change',event=>{readerTimerGoal=Math.max(0,Number(event.target.value)||0);local.set('er-reading-goal',readerTimerGoal);updateReadingTimer();});
   byId('pdf-mode-btn').addEventListener('click',()=>setPdfMode(!pdfMode));byId('pdf-prev').addEventListener('click',()=>goPdfPage(activePage-1));byId('pdf-next').addEventListener('click',()=>goPdfPage(activePage+1));byId('pdf-zoom-in').addEventListener('click',()=>scalePdf(.15));byId('pdf-zoom-out').addEventListener('click',()=>scalePdf(-.15));byId('pdf-fullscreen').addEventListener('click',()=>pdfPages.requestFullscreen?.());byId('pdf-preview-toggle').addEventListener('click',()=>{pdfPreviewsVisible=!pdfPreviewsVisible;local.set('er-pdf-previews',pdfPreviewsVisible);pdfThumbs.hidden=!pdfMode||!pdfPreviewsVisible;byId('pdf-preview-toggle').textContent=pdfPreviewsVisible?'Hide previews':'Show previews';byId('pdf-preview-toggle').setAttribute('aria-pressed',String(pdfPreviewsVisible));});
@@ -1039,28 +1484,27 @@ async function init() {
     searchDebounceTimer=setTimeout(()=>searchBook(),120);
   });
   byId('search-prev').addEventListener('click',()=>moveMatch(-1));byId('search-next').addEventListener('click',()=>moveMatch(1));
-  byId('highlight-btn').addEventListener('click',()=>{const text=getSelection()?.toString().trim();if(!text)return;const values=local.get('er-highlights',[]);values.unshift({text,book:activeBook?.key});local.set('er-highlights',values);queueCloudSync();toast('Highlight saved.');});
-  byId('bookmark-btn').addEventListener('click',()=>{const values=local.get('er-bookmarks',[]);values.unshift({name:activeBook?.title,book:activeBook?.key,scroll:scrollY,page:activePage,created:Date.now()});local.set('er-bookmarks',values);queueCloudSync();toast('Bookmark saved.');});
+  byId('highlight-btn').addEventListener('click',()=>{const text=getSelection()?.toString().trim();if(!text)return;const values=local.get('er-highlights',[]);values.unshift({id:newSavedItemId(),text,book:activeBook?.key,bookName:activeBook?.title||activeBook?.name||'',created:Date.now()});local.set('er-highlights',values);queueCloudSync();renderMyNotes();renderSavedItems();toast('Highlight saved.');});
+  byId('bookmark-btn').addEventListener('click',()=>{const values=local.get('er-bookmarks',[]);values.unshift({id:newSavedItemId(),name:activeBook?.title||activeBook?.name||'Bookmark',book:activeBook?.key,bookName:activeBook?.title||activeBook?.name||'',scroll:scrollY,page:activePage,created:Date.now()});local.set('er-bookmarks',values);queueCloudSync();toast('Bookmark saved.');});
   byId('export-btn').addEventListener('click',exportData);byId('export-all').addEventListener('click',exportData);byId('delete-all').addEventListener('click',deleteLocalData);
-  byId('google-signin').addEventListener('click',signInWithGoogle);byId('signin-modal-google').addEventListener('click',signInWithGoogle);byId('email-auth-form')?.addEventListener('submit',submitEmailAuth);byId('auth-tab-signin')?.addEventListener('click',()=>setAuthMode('signin'));byId('auth-tab-signup')?.addEventListener('click',()=>setAuthMode('signup'));byId('forgot-password')?.addEventListener('click',resetPassword);byId('auth-password-toggle')?.addEventListener('click',()=>{const input=byId('auth-password'),button=byId('auth-password-toggle');if(!input||!button)return;const visible=input.type==='text';input.type=visible?'password':'text';button.textContent=visible?'Show':'Hide';button.setAttribute('aria-label',visible?'Show password':'Hide password');});byId('sync-now').addEventListener('click',syncCloud);byId('signout').addEventListener('click',()=>auth?.signOut());
+  byId('google-signin').addEventListener('click',signInWithGoogle);byId('signin-modal-google').addEventListener('click',signInWithGoogle);byId('welcome-signin-btn')?.addEventListener('click',signInWithGoogle);byId('welcome-dismiss')?.addEventListener('click',()=>{local.set('er-signin-dismissed',true);local.set('er-welcome-intro-dismissed',true);const welcome=byId('welcome-signin');if(welcome)welcome.hidden=true;});byId('email-auth-form')?.addEventListener('submit',submitEmailAuth);byId('auth-tab-signin')?.addEventListener('click',()=>setAuthMode('signin'));byId('auth-tab-signup')?.addEventListener('click',()=>setAuthMode('signup'));byId('forgot-password')?.addEventListener('click',resetPassword);byId('auth-password-toggle')?.addEventListener('click',()=>{const input=byId('auth-password'),button=byId('auth-password-toggle');if(!input||!button)return;const visible=input.type==='text';input.type=visible?'password':'text';button.textContent=visible?'Show':'Hide';button.setAttribute('aria-label',visible?'Show password':'Hide password');});byId('sync-now').addEventListener('click',syncCloud);byId('signout').addEventListener('click',()=>auth?.signOut());
   byId('speak-page-btn').addEventListener('click',speakCurrent);byId('stop-speech-btn').addEventListener('click',()=>speechSynthesis.cancel());
   byId('autoscroll-btn').addEventListener('click',()=>{const button=byId('autoscroll-btn');if(button.dataset.running){clearInterval(Number(button.dataset.running));delete button.dataset.running;button.textContent='Auto-scroll';}else button.dataset.running=String(setInterval(()=>scrollBy(0,1),45));});
   byId('font-choice').addEventListener('change',event=>{const settings=local.get('er-reader-settings',{});settings.font=event.target.value;local.set('er-reader-settings',settings);document.documentElement.style.setProperty('--reader-font',event.target.value==='serif'?'Georgia,serif':event.target.value==='dyslexic'?'Arial,sans-serif':"'Literata',Georgia,serif");});byId('spacing').addEventListener('input',event=>{const settings=local.get('er-reader-settings',{});settings.spacing=Number(event.target.value);local.set('er-reader-settings',settings);document.documentElement.style.setProperty('--reader-leading',event.target.value);});byId('width').addEventListener('input',event=>{const settings=local.get('er-reader-settings',{});settings.width=Number(event.target.value);local.set('er-reader-settings',settings);document.documentElement.style.setProperty('--reader-width',event.target.value+'px');});
-  for(const id of ['signin-modal-close','signin-modal-later'])byId(id).addEventListener('click',()=>{byId('signin-modal').hidden=true;local.set('er-signin-dismissed',true);});
+  for(const id of ['signin-modal-close','signin-modal-later'])byId(id).addEventListener('click',()=>{byId('signin-modal').hidden=true;local.set('er-signin-dismissed',true);local.set('er-welcome-intro-dismissed',true);});
   addEventListener('scroll',()=>{if(!readerWrap.hidden)savePosition();},{passive:true});addEventListener('beforeunload',()=>{savePosition(true);pauseReadingTimer();});document.addEventListener('visibilitychange',()=>{if(document.hidden&&readerTimerRunning){timerResumeOnVisible=true;pauseReadingTimer();}else if(!document.hidden&&timerResumeOnVisible&&!readerWrap.hidden){timerResumeOnVisible=false;startReadingTimer();}});addEventListener('resize',()=>{if(activePdf)scalePdf(0);});
-  document.addEventListener('keydown',event=>{if(event.key==='Escape'){hidePopup();hidePanels();byId('contents').classList.remove('open');byId('signin-modal').hidden=true;}if((event.ctrlKey||event.altKey)&&event.key==='Enter'&&!event.target.matches('input,textarea,select')){const selection=getSelection();if(selection&&!selection.isCollapsed&&selection.rangeCount){const text=selection.toString().trim();if(/^[\p{L}\p{M}]+(?:[-'’][\p{L}\p{M}]+)*$/u.test(text)){event.preventDefault();showWord({word:text.toLowerCase(),range:selection.getRangeAt(0).cloneRange()},{focus:true});return;}}}if(event.target.matches('input,textarea,select'))return;if(event.key==='/ '||event.key==='/'){event.preventDefault();if(!readerWrap.hidden){byId('reader-tools').hidden=false;byId('search-input').focus();}}if(event.key.toLowerCase()==='f'&&!readerWrap.hidden)document.body.classList.toggle('focus-mode');if(event.key.toLowerCase()==='t')byId('theme').click();});
-  await renderLibrary().catch(()=>{});addEventListener('online',()=>{if(user)syncCloud();});
-  // Do not automatically place a modal over the application on a fresh/private
-  // session. Sign-in is available from the account buttons and must never block
-  // normal reading controls.
-  const showSigninPrompt = () => {
-    if (user || local.get('er-signin-dismissed', false) || local.get('er-onboarding-done', false)) return;
-  };
+  document.addEventListener('keydown',event=>{if(event.key==='Escape'){hidePopup();hidePanels();byId('contents').classList.remove('open');byId('signin-modal').hidden=true;}if((event.ctrlKey||event.altKey)&&event.key==='Enter'&&!event.target.matches('input,textarea,select')){const selection=getSelection();if(selection&&!selection.isCollapsed&&selection.rangeCount){const text=selection.toString().trim();if(/^[\p{L}\p{M}]+(?:[-'’][\p{L}\p{M}]+)*$/u.test(text)){event.preventDefault();showWord({word:text.toLowerCase(),range:selection.getRangeAt(0).cloneRange()},{focus:true});return;}}}if(event.target.matches('input,textarea,select'))return;if(event.key==='?'){event.preventDefault();showPanel('shortcuts',true);return;}if(event.key==='/ '||event.key==='/'){event.preventDefault();if(!readerWrap.hidden){byId('reader-tools').hidden=false;byId('search-input').focus();}}if(event.key.toLowerCase()==='f'&&!readerWrap.hidden)document.body.classList.toggle('focus-mode');if(event.key.toLowerCase()==='t')byId('theme').click();});
+  await renderLibrary().catch(()=>{});updateStreakChip();addEventListener('online',()=>{if(user)syncCloud();});
+  // Introduce EasyRead once for new visitors, without requiring an account.
+  const welcomeModal=byId('welcome-intro-modal');
+  if(welcomeModal&&!local.get('er-welcome-intro-dismissed',false))welcomeModal.hidden=false;
+  for(const id of ['welcome-intro-close','welcome-intro-continue'])byId(id)?.addEventListener('click',()=>{const intro=byId('welcome-intro-modal');if(intro)intro.hidden=true;local.set('er-welcome-intro-dismissed',true);});
+  byId('welcome-intro-modal')?.addEventListener('click',event=>{if(event.target===event.currentTarget){event.currentTarget.hidden=true;local.set('er-welcome-intro-dismissed',true);}});
   if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
   window.__easyReadReady = true;
 }
 let matches=[],matchIndex=-1;async function searchBook(){const query=byId('search-input').value.trim().toLowerCase(),token=++searchToken;if(CSS.highlights)CSS.highlights.delete('search');matches=[];pdfSearchMatches=[];matchIndex=pdfSearchIndex=-1;if(!query){byId('search-count').textContent='';return;}if(activePdf&&pdfMode){for(let pageNumber=1;pageNumber<=activePdf.numPages;pageNumber++){if(token!==searchToken)return;const page=await activePdf.getPage(pageNumber),content=await page.getTextContent(),text=content.items.map(item=>item.str).join(' ').toLowerCase();let from=0,index;while((index=text.indexOf(query,from))>=0){pdfSearchMatches.push({page:pageNumber});from=index+query.length;}if(pageNumber%20===0){byId('search-count').textContent=`Searching ${pageNumber} of ${activePdf.numPages}…`;await new Promise(requestAnimationFrame);}}if(token!==searchToken)return;byId('search-count').textContent=`${pdfSearchMatches.length} results`;if(pdfSearchMatches.length)moveMatch(1);return;}const walker=document.createTreeWalker(reader,NodeFilter.SHOW_TEXT);while(walker.nextNode()){const node=walker.currentNode;let from=0,index;while((index=node.data.toLowerCase().indexOf(query,from))>=0){const range=new Range();range.setStart(node,index);range.setEnd(node,index+query.length);matches.push(range);from=index+query.length;}}if(CSS.highlights&&matches.length)CSS.highlights.set('search',new Highlight(...matches));byId('search-count').textContent=`${matches.length} results`;if(matches.length)moveMatch(1);}
-function fullscreenReaderHost(){return document.fullscreenElement===readerWrap||document.fullscreenElement===pdfPages?document.fullscreenElement:null;}
+function fullscreenReaderHost(){return document.fullscreenElement===readerWrap||document.fullscreenElement===pdfPages||document.fullscreenElement===reader?document.fullscreenElement:null;}
 function getFullscreenDictionaryLayer(host){
   if(!host)return null;
   let layer=host.querySelector(':scope > #fullscreen-dictionary-layer');
@@ -1070,7 +1514,37 @@ function getFullscreenDictionaryLayer(host){
     layer.setAttribute('aria-live','polite');
     host.append(layer);
   }
+  ensureFullscreenReaderControls(layer);
   return layer;
+}
+function ensureFullscreenReaderControls(layer){
+  if(!layer || layer.querySelector('#fullscreen-reader-controls')) return;
+  const controls=document.createElement('div');
+  controls.id='fullscreen-reader-controls';
+  controls.className='fullscreen-reader-controls';
+  controls.setAttribute('role','group');
+  controls.setAttribute('aria-label','Fullscreen document controls');
+  const makeButton=(id,label,aria,action)=>{
+    const button=document.createElement('button');
+    button.type='button';button.id=id;button.className='btn';
+    button.textContent=label;button.setAttribute('aria-label',aria);
+    button.addEventListener('click',action);
+    controls.append(button);
+  };
+  makeButton('fullscreen-ask-ai','✦ Ask AI','Ask AI about this passage',()=>{
+    const trigger=byId('ask-ai-toggle')||byId('ask-ai-float');
+    if(trigger) trigger.click();
+  });
+  makeButton('fullscreen-zoom-out','−','Zoom out',()=>{
+    if(activePdf) scalePdf(-.15); else changeReaderTextSize(-.1);
+  });
+  makeButton('fullscreen-zoom-in','+','Zoom in',()=>{
+    if(activePdf) scalePdf(.15); else changeReaderTextSize(.1);
+  });
+  makeButton('fullscreen-exit','Exit fullscreen','Exit fullscreen document view',()=>{
+    if(document.fullscreenElement) document.exitFullscreen?.().catch(()=>{});
+  });
+  layer.append(controls);
 }
 function movePopupToFullscreenHost(){
   const host=fullscreenReaderHost();
@@ -1102,10 +1576,664 @@ async function toggleReaderFullscreen(){
 }
 document.addEventListener('fullscreenchange',movePopupToFullscreenHost);
 async function moveMatch(direction){if(activePdf&&pdfMode&&pdfSearchMatches.length){pdfSearchIndex=(pdfSearchIndex+direction+pdfSearchMatches.length)%pdfSearchMatches.length;const page=pdfSearchMatches[pdfSearchIndex].page;goPdfPage(page);await renderPdfPage(page);const query=byId('search-input').value.trim().toLowerCase(),layer=pdfPages.querySelector(`[data-page="${page}"] .textLayer`),ranges=[];const walker=document.createTreeWalker(layer,NodeFilter.SHOW_TEXT);while(walker.nextNode()){const node=walker.currentNode;let from=0,index;while((index=node.data.toLowerCase().indexOf(query,from))>=0){const range=new Range();range.setStart(node,index);range.setEnd(node,index+query.length);ranges.push(range);from=index+query.length;}}if(CSS.highlights&&ranges.length)CSS.highlights.set('search',new Highlight(...ranges));return;}if(!matches.length)return;matchIndex=(matchIndex+direction+matches.length)%matches.length;matches[matchIndex].startContainer.parentElement.scrollIntoView({behavior:'smooth',block:'center'});}
-function speakCurrent(){const text=(pdfMode?reader:reader).innerText;if(!text)return toast('Open a readable document first.');speechSynthesis.cancel();const utterance=new SpeechSynthesisUtterance(text.slice(0,50000));const rate=Number(byId('speech-rate')?.value||1);utterance.rate=rate;speechSynthesis.speak(utterance);toast('Reading aloud.');}
-function exportData(){const data={vocabulary:local.get('er-vocabulary',[]),notes:local.get('er-notes',[]),highlights:local.get('er-highlights',[]),bookmarks:local.get('er-bookmarks',[]),stats:local.get('er-stats',{})};const link=document.createElement('a');link.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));link.download='easyread-data.json';link.click();URL.revokeObjectURL(link.href);toast('Your data was exported.');}
-async function deleteLocalData(){if(!confirm('Delete all local reading data and books? This cannot be undone.'))return;localStorage.clear();await new Promise(resolve=>{const request=indexedDB.deleteDatabase('easyread-library-v2');request.onsuccess=request.onerror=request.onblocked=resolve;});toast('Local data deleted. Reload EasyRead.');}
+function speakCurrent(){const text=(pdfMode?reader:reader).innerText;if(!text)return toast('Open a readable document first.');speechSynthesis.cancel();const utterance=new SpeechSynthesisUtterance(text.slice(0,50000));const rate=Number(byId('speech-rate')?.value||1);utterance.rate=rate;applyPreferredVoice(utterance);speechSynthesis.speak(utterance);toast('Reading aloud.');}
+async function exportData(){
+  try{
+    const localData={};
+    for(let index=0;index<localStorage.length;index++){
+      const key=localStorage.key(index);
+      if(!key||!key.startsWith('er-'))continue;
+      const value=localStorage.getItem(key);
+      try{localData[key]=JSON.parse(value);}catch{localData[key]=value;}
+    }
+    const books=(await getBooks()).map(book=>({
+      key:book.key,name:book.name,title:book.title,type:book.type,added:book.added,
+      opened:book.opened,favorite:!!book.favorite,progress:book.progress||0,
+      position:book.position||null,words:book.words||0,
+      file:book.file?{name:book.file.name,size:book.file.size,type:book.file.type,lastModified:book.file.lastModified,contentIncluded:false}:null
+    }));
+    const data={format:'easyread-data-export-v1',exportedAt:new Date().toISOString(),localData,books,originalBookFilesIncluded:false};
+    const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));
+    const link=document.createElement('a');link.href=url;link.download='easyread-data.json';document.body.append(link);link.click();link.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+    toast('EasyRead data exported. Original book files are not included.');
+  }catch(error){console.error('Could not export EasyRead data',error);toast('Could not export data. Please try again.');}
+}
+async function deleteLocalData(){
+  if(!confirm('Delete all local reading data and books? This cannot be undone.'))return;
+  try{
+    // The app keeps this IndexedDB connection open. Clear its stores instead of
+    // deleting the database, which can be blocked by the active connection.
+    await Promise.all([
+      dbRequest('books','readwrite',store=>store.clear()),
+      dbRequest('definitions','readwrite',store=>store.clear())
+    ]);
+    localStorage.clear();
+    if(activeBook){activeBook=null;activePdf=null;reader.replaceChildren();pdfPages.replaceChildren();readerWrap.hidden=true;}
+    await renderLibrary().catch(()=>{});
+    updateWelcomeSignin();
+    toast('Local reading data deleted. Reload EasyRead to start fresh.');
+  }catch(error){
+    console.error('Could not delete local reading data',error);
+    toast('Some local data could not be deleted. Please try again.');
+  }
+}
 function renderPrivacyState(){byId('privacy-status').textContent='Books and reading position are stored in this browser. Sign-in sync is optional.';}
-async function renderLibrary(){const books=await getBooks(),list=byId('library-preview');if(!list)return;list.replaceChildren();if(!books.length){safeText(list,'p','Your books will appear here after you open one.','note');return;}const sort=byId('home-library-sort')?.value||'recent';books.sort((a,b)=>sort==='title'?(a.title||a.name).localeCompare(b.title||b.name):sort==='progress'?(b.progress||0)-(a.progress||0):(b.opened||0)-(a.opened||0)).slice(0,4).forEach(book=>{const card=document.createElement('article');card.className='book-card';safeText(card,'strong',book.title||book.name);const progress=document.createElement('progress');progress.max=100;progress.value=book.progress||0;card.append(progress);const open=safeText(card,'button','Continue reading','btn');open.onclick=()=>openFile(book.file);list.append(card);});}
-function initContact(){const contact=window.EASYREAD_CONTACT||{},telegram=String(contact.telegram||'').trim(),handle=telegram.replace(/^@/,'');const phone=String(contact.phone||'').trim().replace(/[\s().-]/g,'');const email=String(contact.email||'').trim();const telegramLink=byId('contact-telegram'),phoneLink=byId('contact-phone'),emailLink=byId('contact-email');byId('contact-telegram-label').textContent=telegram||'Unavailable';byId('contact-phone-label').textContent=contact.phone||'Unavailable';byId('contact-email-label').textContent=email||'Unavailable';if(handle)telegramLink.href=`https://t.me/${encodeURIComponent(handle)}`;if(phone)phoneLink.href=`tel:${phone}`;if(email)emailLink.href=`mailto:${email}`;byId('contact-send').addEventListener('click',()=>{if(!email)return toast('Email contact is unavailable.');const subject=encodeURIComponent('EasyRead feedback'),body=encodeURIComponent(byId('contact-message').value.trim());window.location.href=`mailto:${email}?subject=${subject}&body=${body}`;});}
+async function renderLibrary(){const books=await getBooks(),list=byId('library-preview');if(!list)return;updateContinueCard(books);list.replaceChildren();if(!books.length){safeText(list,'p','Your books will appear here after you open one.','note');return;}const sort=byId('home-library-sort')?.value||'recent';books.sort((a,b)=>sort==='favorites'?((b.favorite?1:0)-(a.favorite?1:0))||((b.opened||0)-(a.opened||0)):sort==='title'?(a.title||a.name).localeCompare(b.title||b.name):sort==='progress'?(b.progress||0)-(a.progress||0):(b.opened||0)-(a.opened||0)).slice(0,4).forEach(book=>{const card=document.createElement('article');card.className='book-card';safeText(card,'strong',(book.favorite?'\u2605 ':'')+(book.title||book.name));const progress=document.createElement('progress');progress.max=100;progress.value=book.progress||0;card.append(progress);const open=safeText(card,'button','Continue reading','btn');open.onclick=()=>openFile(book.file);list.append(card);});}
+function initContact(){
+  const contact=window.EASYREAD_CONTACT||{};
+  const telegram=String(contact.telegram||'').trim();
+  const handle=telegram.replace(/^@/,'');
+  const phoneDisplay=String(contact.phone||'').trim();
+  const phone=phoneDisplay.replace(/[\\s().-]/g,'');
+  const email=String(contact.email||'').trim();
+  const telegramLink=byId('contact-telegram');
+  const phoneLink=byId('contact-phone');
+  const emailLink=byId('contact-email');
+  const setContactLink=(link,label,value,href)=>{
+    byId(label).textContent=value||'Unavailable';
+    if(value&&href){link.href=href;link.classList.remove('unavailable');link.removeAttribute('aria-disabled');}
+    else{link.removeAttribute('href');link.classList.add('unavailable');link.setAttribute('aria-disabled','true');}
+  };
+  setContactLink(telegramLink,'contact-telegram-label',telegram,handle?'https://t.me/'+encodeURIComponent(handle):'');
+  setContactLink(phoneLink,'contact-phone-label',phoneDisplay,phone?'tel:'+phone:'');
+  setContactLink(emailLink,'contact-email-label',email,email?'mailto:'+email:'');
+  byId('contact-send').addEventListener('click',()=>{
+    if(!email)return toast('Email contact is unavailable.');
+    if(!byId('contact-message').value.trim())return toast('Write a short message first.');
+    const subject=encodeURIComponent('EasyRead feedback');
+    const body=encodeURIComponent(byId('contact-message').value.trim());
+    toast('Opening your email app…');
+    window.location.href='mailto:'+email+'?subject='+subject+'&body='+body;
+  });
+}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
+
+// Move up / move down buttons: scroll about one screen at a time.
+(() => {
+  const scroller = () => {
+    const fs = document.fullscreenElement;
+    if (fs) {
+      if (fs.scrollHeight > fs.clientHeight + 4) return fs;
+      const inner = fs.querySelector('#pdf-pages');
+      if (inner && inner.scrollHeight > inner.clientHeight + 4) return inner;
+    }
+    return null;
+  };
+  const move = direction => {
+    const el = scroller();
+    const height = el ? el.clientHeight : window.innerHeight;
+    const amount = Math.max(120, height * 0.85) * direction;
+    if (el) el.scrollBy({ top: amount, behavior: 'smooth' });
+    else window.scrollBy({ top: amount, behavior: 'smooth' });
+  };
+  const bind = () => {
+    byId('scroll-up')?.addEventListener('click', () => move(-1));
+    byId('scroll-down')?.addEventListener('click', () => move(1));
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind);
+  else bind();
+})();
+
+// Home "Continue reading" card for the most recently opened book.
+function updateContinueCard(books) {
+  const card = byId('continue-card');
+  if (!card) return;
+  const latest = [...(books || [])].filter(book => book && book.file).sort((x, y) => (y.opened || 0) - (x.opened || 0))[0];
+  if (!latest) { card.hidden = true; return; }
+  const percent = Math.max(0, Math.min(100, Math.round(latest.progress || 0)));
+  byId('continue-title').textContent = latest.title || latest.name || 'Your book';
+  byId('continue-bar').value = percent;
+  const button = byId('continue-btn');
+  button.textContent = percent >= 100 ? 'Read again' : percent > 0 ? `Resume · ${percent}%` : 'Start reading';
+  button.onclick = () => openFile(latest.file);
+  card.hidden = false;
+}
+
+// Pronunciation: use the dictionary's recorded audio when there is one, else the browser voice.
+let wordAudio = null;
+function speakWord(word) {
+  try { speechSynthesis.cancel(); const utterance = new SpeechSynthesisUtterance(word); utterance.lang = 'en'; speechSynthesis.speak(utterance); } catch {}
+}
+function playWordAudio(result) {
+  try { wordAudio?.pause(); } catch {}
+  const url = typeof result?.audio === 'string' && /^https:\/\//.test(result.audio) ? result.audio : '';
+  if (!url) { speakWord(result.word); return; }
+  wordAudio = new Audio(url);
+  wordAudio.play().catch(() => speakWord(result.word));
+}
+
+// Reading streak: consecutive days with at least a minute of reading.
+function localDayKey(date = new Date()) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+function recordReadingDay(seconds) {
+  if (!(seconds > 0)) return;
+  const days = local.get('er-reading-days', {});
+  const key = localDayKey();
+  days[key] = (days[key] || 0) + seconds;
+  local.set('er-reading-days', days);
+  updateStreakChip();
+}
+function readingStreak(days) {
+  const cursor = new Date();
+  if ((days[localDayKey(cursor)] || 0) < 60) cursor.setDate(cursor.getDate() - 1);
+  let count = 0;
+  while ((days[localDayKey(cursor)] || 0) >= 60) { count++; cursor.setDate(cursor.getDate() - 1); }
+  return count;
+}
+function updateStreakChip() {
+  const chip = byId('streak-chip');
+  if (!chip) return;
+  const days = local.get('er-reading-days', {});
+  const streak = readingStreak(days);
+  const todayMinutes = Math.floor((days[localDayKey()] || 0) / 60);
+  if (!streak && !todayMinutes) { chip.hidden = true; return; }
+  const goalMinutes = Number(readerTimerGoal) || 0;
+  const parts = [];
+  if (streak) parts.push(`${streak}-day streak`);
+  parts.push(goalMinutes ? `${todayMinutes} of ${goalMinutes} min today` : `${todayMinutes} min today`);
+  chip.textContent = parts.join(' \u00b7 ');
+  chip.hidden = false;
+}
+
+// Long runs of dots (table-of-contents leaders) cannot wrap, so show them as a single ellipsis.
+function tidyLeaders(text) {
+  return String(text).replace(/(?:\s*[.\u00b7\u2022\u2026]){4,}\s*/g, ' \u2026 ').trim();
+}
+
+// Close panels and menus by clicking outside them or by opening something else.
+let panelJustOpened = '';
+function markPanelOpened(id) {
+  panelJustOpened = id;
+  setTimeout(() => { panelJustOpened = ''; }, 0);
+}
+function closeOtherPanels(except = '') {
+  if (except !== 'tools-sheet') { const sheet = byId('tools-sheet'); if (sheet && !sheet.hidden) { sheet.hidden = true; byId('tools-btn')?.setAttribute('aria-expanded', 'false'); } }
+  document.querySelectorAll('.panel, .contents').forEach(panel => {
+    if (panel.id === except) return;
+    if (panel.classList.contains('contents')) panel.classList.remove('open');
+    else panel.hidden = true;
+  });
+  byId('contents-btn')?.setAttribute('aria-expanded', except === 'contents' ? 'true' : 'false');
+  byId('settings-btn')?.setAttribute('aria-expanded', except === 'settings' ? 'true' : 'false');
+  const backdrop = byId('library-backdrop');
+  if (backdrop && except !== 'library') backdrop.hidden = true;
+}
+document.addEventListener('click', event => {
+  // composedPath is fixed when the click starts, so it still works if a handler re-rendered the target.
+  const path = event.composedPath().filter(node => node instanceof Element);
+  const inside = selector => path.some(node => node.matches(selector));
+
+  // "More" menu: close when clicking elsewhere or after choosing an action.
+  document.querySelectorAll('details.toolbar-more[open]').forEach(details => {
+    const menu = details.querySelector('.toolbar-menu') || document.querySelector('.toolbar-menu[data-portaled="true"]');
+    const clickedMenu = path.includes(details) || (menu && path.some(node => node === menu || menu.contains(node)));
+    const keepOpen = inside('#smaller, #larger');
+    if (!clickedMenu || (inside('.toolbar-menu button') && !keepOpen)) {
+      details.open = false;
+      if (menu?.dataset.portaled === 'true') {
+        details.append(menu);
+        delete menu.dataset.portaled;
+        menu.removeAttribute('style');
+      }
+    }
+  });
+
+  // Sign-in prompt: tapping the dimmed background closes it.
+  const modal = byId('signin-modal');
+  if (modal && !modal.hidden && event.target === modal) { modal.hidden = true; local.set('er-signin-dismissed', true); local.set('er-welcome-intro-dismissed', true); }
+
+  // Side panels: close when clicking outside them.
+  const anyOpen = document.querySelector('.panel:not([hidden]), .contents.open');
+  if (!anyOpen) return;
+  if (inside('.panel, .contents, #popup, dialog, #signin-modal, #library-backdrop')) return;
+  closeOtherPanels(panelJustOpened);
+});
+
+// Library panel: All books / Favorites switch.
+(() => {
+  const bind = () => {
+    const setView = favoritesOnly => { local.set('er-library-favorites-only', favoritesOnly); renderLibraryPanel(); };
+    byId('library-view-all')?.addEventListener('click', () => setView(false));
+    byId('library-view-fav')?.addEventListener('click', () => setView(true));
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind);
+  else bind();
+})();
+
+// ---------- Page title follows the view ----------
+function updateDocumentTitle() {
+  const route = document.body.dataset.route;
+  const view = route || document.body.dataset.view;
+  const name = activeBook?.title || activeBook?.name;
+  if (view === 'library') document.title = 'My Library - EasyRead';
+  else if (view === 'notes') document.title = 'My Notes - EasyRead';
+  else document.title = view === 'reader' ? (name ? `${name} - EasyRead` : 'Reader - EasyRead') : 'EasyRead - a calmer way to read';
+}
+
+// ---------- Reading preferences: Focus, Line focus, High contrast, voice, reading language ----------
+const SPEECH_LANGS = { en: 'en-US', am: 'am-ET', es: 'es-ES', fr: 'fr-FR', de: 'de-DE' };
+function applyPreferredVoice(utterance) {
+  const saved = local.get('er-speech-voice', '');
+  const voice = saved && 'speechSynthesis' in window ? speechSynthesis.getVoices().find(item => item.voiceURI === saved) : null;
+  if (voice) { utterance.voice = voice; utterance.lang = voice.lang; }
+  else utterance.lang = SPEECH_LANGS[local.get('er-source-language', 'en')] || 'en-US';
+}
+function populateVoices() {
+  const select = byId('speech-voice');
+  if (!select || !('speechSynthesis' in window)) return;
+  const voices = speechSynthesis.getVoices().slice().sort((x, y) => x.lang.localeCompare(y.lang) || x.name.localeCompare(y.name));
+  const saved = local.get('er-speech-voice', '');
+  select.replaceChildren(new Option('Browser default', ''));
+  voices.forEach(voice => select.append(new Option(`${voice.name} (${voice.lang})`, voice.voiceURI)));
+  select.value = voices.some(voice => voice.voiceURI === saved) ? saved : '';
+}
+(() => {
+  const prefs = () => local.get('er-view-prefs', {});
+  const setPref = (key, value) => { const next = prefs(); next[key] = value; local.set('er-view-prefs', next); };
+  const paint = () => {
+    const current = prefs();
+    document.body.classList.toggle('line-focus', Boolean(current.lineFocus));
+    document.body.classList.toggle('high-contrast', Boolean(current.contrast));
+    const checkbox = byId('contrast'); if (checkbox) checkbox.checked = Boolean(current.contrast);
+    const lineButton = byId('line-focus-btn');
+    if (lineButton) { lineButton.setAttribute('aria-pressed', String(Boolean(current.lineFocus))); lineButton.textContent = current.lineFocus ? 'Line focus: on' : 'Line focus'; }
+  };
+  const setFocusMode = on => {
+    document.body.classList.toggle('focus-mode', on);
+    const button = byId('focus-btn');
+    if (button) { button.setAttribute('aria-pressed', String(on)); button.textContent = on ? 'Exit focus' : 'Focus'; }
+  };
+  const bind = () => {
+    paint();
+    byId('focus-btn')?.addEventListener('click', () => {
+      const on = !document.body.classList.contains('focus-mode');
+      setFocusMode(on);
+      toast(on ? 'Focus mode on. Press Esc or choose Exit focus to leave.' : 'Focus mode off.');
+    });
+    byId('line-focus-btn')?.addEventListener('click', () => {
+      setPref('lineFocus', !prefs().lineFocus); paint();
+      toast(prefs().lineFocus ? 'Line focus on: hover or tap a paragraph to bring it forward.' : 'Line focus off.');
+    });
+    byId('contrast')?.addEventListener('change', event => { setPref('contrast', event.target.checked); paint(); });
+    byId('focus-exit-floating')?.addEventListener('click',()=>{setFocusMode(false);document.querySelector('.toolbar-more')?.removeAttribute('open');});
+    document.addEventListener('keydown', event => { if (event.key === 'Escape' && document.body.classList.contains('focus-mode')) setFocusMode(false); });
+
+    const language = byId('source-language');
+    if (language) {
+      language.value = local.get('er-source-language', 'en');
+      language.addEventListener('change', () => { local.set('er-source-language', language.value); toast('Reading language saved.'); });
+    }
+    populateVoices();
+    if ('speechSynthesis' in window) speechSynthesis.addEventListener?.('voiceschanged', populateVoices);
+    byId('speech-voice')?.addEventListener('change', event => { local.set('er-speech-voice', event.target.value); toast('Voice saved.'); });
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind);
+  else bind();
+})();
+
+// ---------- Back up / restore original book files (Firebase Storage, signed-in users) ----------
+const BOOK_MIME_TYPES = {
+  pdf: 'application/pdf',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  epub: 'application/epub+zip', txt: 'text/plain', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg'
+};
+function setBackupStatus(message, kind = '') {
+  const node = byId('book-backup-status');
+  if (node) { node.textContent = message; node.className = 'note' + (kind === 'error' ? ' auth-error' : kind === 'success' ? ' auth-success' : ''); }
+  toast(message);
+}
+async function bookBackupContext() {
+  await initFirebase();
+  const account = user || auth?.currentUser;
+  if (!account) throw new Error('Sign in first to back up or restore your books.');
+  await loadLibrary('firebaseStorage');
+  return { account, folder: firebase.storage().ref(`users/${account.uid}/books`) };
+}
+function friendlyBackupError(error) {
+  const code = String(error?.code || '');
+  if (code.includes('unauthorized') || code.includes('permission')) return 'Storage permission was denied. Check that Firebase Storage is enabled and the storage rules are deployed.';
+  if (code.includes('quota')) return 'Your Firebase Storage quota is full.';
+  if (code.includes('canceled')) return 'The transfer was cancelled.';
+  if (!navigator.onLine) return 'You are offline. Connect to the internet and try again.';
+  return error?.message || 'Something went wrong. Please try again.';
+}
+async function backupBooks() {
+  const button = byId('backup-books');
+  try {
+    button.disabled = true;
+    setBackupStatus('Preparing backup…');
+    const { folder } = await bookBackupContext();
+    const books = (await getBooks()).filter(book => book.file);
+    if (!books.length) return setBackupStatus('You have no books in this browser to back up yet.');
+    let done = 0, skipped = 0;
+    for (const [index, book] of books.entries()) {
+      const ext = String(book.type || book.name?.split('.').pop() || '').toLowerCase();
+      if (!BOOK_MIME_TYPES[ext] || book.file.size > 50 * 1024 * 1024) { skipped++; continue; }
+      setBackupStatus(`Backing up ${index + 1} of ${books.length}: ${book.title || book.name}`);
+      await folder.child(encodeURIComponent(book.key)).put(book.file, {
+        contentType: BOOK_MIME_TYPES[ext],
+        customMetadata: { key: book.key, name: book.name || '', title: book.title || '', type: ext }
+      });
+      done++;
+    }
+    setBackupStatus(`Backed up ${done} book${done === 1 ? '' : 's'}.` + (skipped ? ` ${skipped} skipped (unsupported type or over 50 MB).` : ''), 'success');
+  } catch (error) {
+    setBackupStatus(friendlyBackupError(error), 'error');
+  } finally { button.disabled = false; }
+}
+async function restoreBooks() {
+  const button = byId('restore-books');
+  try {
+    button.disabled = true;
+    setBackupStatus('Looking for backed-up books…');
+    const { folder } = await bookBackupContext();
+    const { items } = await folder.listAll();
+    if (!items.length) return setBackupStatus('No backed-up books were found for this account.');
+    let restored = 0, existing = 0;
+    for (const [index, item] of items.entries()) {
+      const meta = await item.getMetadata();
+      const info = meta.customMetadata || {};
+      let key = info.key;
+      if (!key) { try { key = decodeURIComponent(item.name); } catch { key = item.name; } }
+      if (await getBook(key).catch(() => null)) { existing++; continue; }
+      setBackupStatus(`Restoring ${index + 1} of ${items.length}…`);
+      const response = await fetch(await item.getDownloadURL());
+      if (!response.ok) throw new Error('A book could not be downloaded.');
+      const blob = await response.blob();
+      const name = info.name || item.name;
+      const ext = info.type || name.split('.').pop().toLowerCase();
+      const file = new File([blob], name, { type: meta.contentType || BOOK_MIME_TYPES[ext] || '' });
+      await putBook({ key, name, title: info.title || name.replace(/\.[^.]+$/, ''), file, type: ext, added: Date.now(), opened: 0, favorite: false, progress: 0 });
+      restored++;
+    }
+    await renderLibrary().catch(() => {}); await renderLibraryPanel().catch(() => {});
+    setBackupStatus(`Restored ${restored} book${restored === 1 ? '' : 's'}.` + (existing ? ` ${existing} already on this device.` : ''), 'success');
+  } catch (error) {
+    setBackupStatus(friendlyBackupError(error), 'error');
+  } finally { button.disabled = false; }
+}
+(() => {
+  const bind = () => {
+    byId('backup-books')?.addEventListener('click', backupBooks);
+    byId('restore-books')?.addEventListener('click', restoreBooks);
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind);
+  else bind();
+})();
+
+// The full-screen backdrop behind the library must always match the panel, so it can never be left
+// behind (for example after pressing Esc) and swallow the next click.
+(() => {
+  const bind = () => {
+    const panel = byId('library'), backdrop = byId('library-backdrop');
+    if (!panel || !backdrop) return;
+    const sync = () => { backdrop.hidden = panel.hidden; };
+    new MutationObserver(sync).observe(panel, { attributes: true, attributeFilter: ['hidden'] });
+    sync();
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind);
+  else bind();
+})();
+
+// ---------- Phones: slide the main reader toolbar away while reading down, bring it back on scroll up ----------
+(() => {
+  const phone = matchMedia('(max-width: 700px)');
+  let last = scrollY, ticking = false;
+  const show = () => document.body.classList.remove('bar-away');
+  addEventListener('scroll', () => {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(() => {
+      ticking = false;
+      const y = scrollY, delta = y - last;
+      if (!phone.matches || y < 140 || document.querySelector('.toolbar-more[open]') || document.body.classList.contains('focus-mode')) { show(); last = y; return; }
+      if (Math.abs(delta) < 12) return;
+      document.body.classList.toggle('bar-away', delta > 0);
+      last = y;
+    });
+  }, { passive: true });
+  document.addEventListener('toggle', event => { if (event.target.matches?.('.toolbar-more') && event.target.open) show(); }, true);
+  document.addEventListener('focusin', event => { if (event.target.closest?.('.bar')) show(); });
+  phone.addEventListener?.('change', show);
+})();
+
+// ---------- PDF page view: the page counter follows the page actually under the reading line ----------
+(() => {
+  let ticking = false;
+  const update = () => {
+    ticking = false;
+    if (typeof activePdf === 'undefined' || !activePdf || pdfPages.hidden) return;
+    const line = innerHeight * 0.4;
+    let best = null, bestGap = Infinity;
+    for (const frame of pdfPages.children) {
+      const rect = frame.getBoundingClientRect();
+      if (rect.top <= line && rect.bottom > line) { best = frame; break; }
+      const gap = Math.min(Math.abs(rect.top - line), Math.abs(rect.bottom - line));
+      if (gap < bestGap) { bestGap = gap; best = frame; }
+    }
+    const page = Number(best?.dataset?.page);
+    if (!page || page === activePage) return;
+    activePage = page;
+    byId('pdf-page-label').textContent = `Page ${page} of ${pageCount}`;
+    syncPageCounter(page);
+  };
+  addEventListener('scroll', () => { if (!ticking) { ticking = true; requestAnimationFrame(update); } }, { passive: true });
+})();
+
+
+// ---------- Ask AI about a selected phrase or sentence while reading ----------
+(() => {
+  const bind = () => {
+    const toggles = [byId('ask-ai-toggle'), byId('ask-ai-float')].filter(Boolean);
+    const toggle = byId('ask-ai-toggle');
+    const panel = byId('ai-passage-panel');
+    const passage = byId('ai-passage-text');
+    const question = byId('ai-passage-question');
+    const answer = byId('ai-passage-answer');
+    const submit = byId('ai-passage-submit');
+    const count = byId('ai-passage-count');
+    if (!toggles.length || !panel || !passage || !question || !answer || !submit) return;
+
+    // Keep the panel in the active fullscreen subtree, otherwise browsers hide it
+    // when Full document is opened on the PDF pages element.
+    const originalParent = panel.parentElement;
+    const originalNextSibling = panel.nextSibling;
+    const movePanelForFullscreen = () => {
+      const host = typeof fullscreenReaderHost === 'function' ? fullscreenReaderHost() : null;
+      if (host) {
+        const layer = typeof getFullscreenDictionaryLayer === 'function' ? getFullscreenDictionaryLayer(host) : null;
+        if (layer && panel.parentElement !== layer) layer.appendChild(panel);
+      } else if (originalParent && panel.parentElement !== originalParent) {
+        originalParent.insertBefore(panel, originalNextSibling?.parentElement === originalParent ? originalNextSibling : null);
+      }
+    };
+    document.addEventListener('fullscreenchange', movePanelForFullscreen);
+
+    let rememberedSelection = '';
+    const getSelectedPassage = () => {
+      const selection = window.getSelection();
+      const text = String(selection?.toString() || '').replace(/\s+/g, ' ').trim();
+      if (!text) return rememberedSelection;
+      const anchor = selection?.anchorNode;
+      const reader = byId('reader-wrap');
+      if (reader && anchor && reader.contains(anchor)) {
+        rememberedSelection = text.slice(0, 900);
+        return rememberedSelection;
+      }
+      return text.slice(0, 900);
+    };
+    document.addEventListener('selectionchange', () => {
+      const selection = window.getSelection();
+      const text = String(selection?.toString() || '').replace(/\s+/g, ' ').trim();
+      const anchor = selection?.anchorNode;
+      const reader = byId('reader-wrap');
+      if (text && reader && anchor && reader.contains(anchor)) rememberedSelection = text.slice(0, 900);
+    });
+
+    const updateCount = () => { if (count) count.textContent = passage.value.length + ' / 900'; };
+    const openPanel = () => {
+      panel.hidden = false;
+      toggles.forEach(button => button.setAttribute('aria-expanded', 'true'));
+      document.body.classList.add('ask-ai-open');
+      const selected = getSelectedPassage();
+      if (selected) passage.value = selected;
+      updateCount();
+      requestAnimationFrame(() => passage.focus({ preventScroll: true }));
+    };
+    const closePanel = (restoreFocus = true) => {
+      if (panel.hidden) return;
+      panel.hidden = true;
+      toggles.forEach(button => button.setAttribute('aria-expanded', 'false'));
+      document.body.classList.remove('ask-ai-open');
+      if (restoreFocus) toggle?.focus({ preventScroll: true });
+    };
+
+    toggles.forEach(button => {
+      button.addEventListener('pointerdown', () => { rememberedSelection = getSelectedPassage() || rememberedSelection; });
+      button.addEventListener('click', () => {
+        if (panel.hidden) openPanel();
+        else closePanel();
+      });
+    });
+    // Clicking anywhere outside the Ask AI dialog dismisses it without stealing focus.
+    document.addEventListener('pointerdown', event => {
+      if (panel.hidden) return;
+      if (panel.contains(event.target) || toggles.some(button => button.contains(event.target)) ||
+          event.target.closest?.('#fullscreen-ask-ai')) return;
+      closePanel(false);
+    }, true);
+    byId('ai-passage-close')?.addEventListener('click', closePanel);
+    passage.addEventListener('input', updateCount);
+    passage.addEventListener('keydown', event => {
+      if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') panel.requestSubmit();
+    });
+
+    const cache = new Map();
+    panel.addEventListener('submit', async event => {
+      event.preventDefault();
+      const text = passage.value.replace(/\s+/g, ' ').trim().slice(0, 900);
+      const questionText = question.value.replace(/\s+/g, ' ').trim().slice(0, 300);
+      if (!text) {
+        passage.setCustomValidity('Select or enter a phrase or sentence first.');
+        passage.reportValidity();
+        passage.setCustomValidity('');
+        passage.focus();
+        return;
+      }
+      if (!navigator.onLine) {
+        answer.hidden = false;
+        answer.textContent = 'Connect to the internet to ask AI about this passage.';
+        return;
+      }
+      const cacheKey = text + '|' + questionText;
+      answer.hidden = false;
+      answer.textContent = 'Reading the passage…';
+      submit.disabled = true;
+      submit.textContent = 'Thinking…';
+      try {
+        let explanation = cache.get(cacheKey);
+        if (!explanation) {
+          const params = new URLSearchParams({ text, question: questionText });
+          const response = await fetch('/api/explain?' + params.toString(), {
+            headers: { accept: 'application/json' }
+          });
+          let data = {};
+          try { data = await response.json(); } catch {}
+          if (!response.ok) {
+            const error = new Error(data.error || 'AI explanation is unavailable right now.');
+            error.notConfigured = Boolean(data.notConfigured);
+            throw error;
+          }
+          explanation = String(data.explanation || '').trim();
+          if (!explanation) throw new Error('AI did not return an explanation. Please try again.');
+          cache.set(cacheKey, explanation);
+        }
+        answer.replaceChildren();
+        const responseText = document.createElement('p');
+        responseText.className = 'ai-passage-response';
+        responseText.textContent = explanation;
+        answer.append(responseText);
+        const source = document.createElement('small');
+        source.textContent = 'AI-generated by Gemini. It may miss the author’s intended meaning, so use the surrounding text as context.';
+        answer.append(source);
+        submit.textContent = 'Explain again';
+      } catch (error) {
+        answer.textContent = error.message || 'AI explanation is unavailable right now.';
+        submit.textContent = 'Try again';
+      } finally {
+        submit.disabled = false;
+      }
+    });
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind);
+  else bind();
+})();
+
+// ---------- Profile picture (custom photo overrides the Google one; stored locally and in the user's own Firestore doc) ----------
+function profilePhoto(){return user?(local.get('er-photo-'+user.uid,'')||user.photoURL||''):'';}
+(() => {
+  const input=byId('photo-input'),pick=byId('photo-change'),remove=byId('photo-remove');
+  if(!input||!pick)return;
+  const saveRemote=async data=>{try{if(!firestore)await initFirebase();await firestore.collection('users').doc(user.uid).set({photoData:data},{merge:true});}catch(e){}};
+  pick.addEventListener('click',()=>input.click());
+  input.addEventListener('change',async()=>{
+    const file=input.files?.[0];input.value='';if(!file||!user)return;
+    if(!/^image\//.test(file.type))return toast('Please choose an image file.');
+    try{
+      const bmp=await createImageBitmap(file),size=256,side=Math.min(bmp.width,bmp.height),canvas=document.createElement('canvas');
+      canvas.width=canvas.height=size;canvas.getContext('2d').drawImage(bmp,(bmp.width-side)/2,(bmp.height-side)/2,side,side,0,0,size,size);
+      const data=canvas.toDataURL('image/jpeg',.85);local.set('er-photo-'+user.uid,data);updateProfile();toast('Profile picture updated.');saveRemote(data);
+    }catch(e){toast('That image could not be used. Try another one.');}
+  });
+  remove?.addEventListener('click',()=>{if(!user)return;local.remove?local.remove('er-photo-'+user.uid):localStorage.removeItem('er-photo-'+user.uid);updateProfile();toast('Profile picture removed.');saveRemote('');});
+})();
+
+// ---------- Reader tools sheet (phones) ----------
+(() => {
+  const phone = matchMedia('(max-width: 700px)');
+  const sheet = byId('tools-sheet'), grid = byId('tools-sheet-grid'), toolsBtn = byId('tools-btn');
+  if (!sheet || !grid || !toolsBtn) return;
+  const el = id => byId(id);
+  const place = (parent, nodes, before = null) => nodes.filter(Boolean).forEach(node => parent.insertBefore(node, before));
+  const closeSheet = () => { sheet.hidden = true; toolsBtn.setAttribute('aria-expanded', 'false'); };
+  const openSheet = () => {
+    closeOverlayPanels();
+    byId('contents')?.classList.remove('open');
+    hidePopup?.();
+    sheet.hidden = false;
+    toolsBtn.setAttribute('aria-expanded', 'true');
+  };
+  const ids = ['saved-btn', 'notes-btn', 'dictionary-btn', 'ask-ai-toggle', 'full-document-btn', 'focus-btn', 'fullscreen-btn', 'settings-btn', 'again'];
+  const marks = new Map();
+  const mark = node => { if (node && !marks.has(node)) { const m = document.createComment('tool-slot'); node.before(m); marks.set(node, m); } };
+  const layout = () => {
+    const timer = document.querySelector('.reading-timer'), textSize = document.querySelector('.text-size');
+    const nodes = [timer, ...ids.map(el), textSize].filter(Boolean);
+    nodes.forEach(mark);
+    if (phone.matches) {
+      nodes.forEach(node => grid.append(node));
+    } else {
+      closeSheet();
+      nodes.forEach(node => { const m = marks.get(node); if (node.id === 'full-document-btn') document.querySelector('.toolbar-menu')?.prepend(node); else if (m?.parentNode) m.parentNode.insertBefore(node, m.nextSibling); });
+    }
+  };
+  toolsBtn.addEventListener('click', event => { event.stopPropagation(); if (sheet.hidden) openSheet(); else closeSheet(); });
+  byId('tools-close')?.addEventListener('click', closeSheet);
+  sheet.addEventListener('click', event => {
+    const button = event.target.closest('button');
+    if (!button || ['tools-close', 'smaller', 'larger', 'timer-toggle', 'timer-reset'].includes(button.id)) return;
+    setTimeout(closeSheet, 0);
+  });
+  document.addEventListener('click', event => {
+    if (sheet.hidden) return;
+    const path = event.composedPath();
+    if (!path.includes(sheet) && !path.includes(toolsBtn)) closeSheet();
+  });
+  document.addEventListener('keydown', event => { if (event.key === 'Escape' && !sheet.hidden) closeSheet(); });
+  phone.addEventListener?.('change', layout);
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', layout); else layout();
+})();
+

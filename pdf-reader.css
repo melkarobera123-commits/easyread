@@ -231,54 +231,51 @@
   --min-font-size: 1;
   --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
   --min-font-size-inv: calc(1 / var(--min-font-size));
-
-  /* Explicit selectors keep PDF.js geometry reliable in mobile WebViews. */
-  .pdf-page .textLayer :is(span, br) {
-    color: transparent;
-    position: absolute;
-    white-space: pre;
-    cursor: text;
-    transform-origin: 0% 0%;
-    user-select: text !important;
-    -webkit-user-select: text !important;
-    -webkit-touch-callout: default;
-    touch-action: auto;
-  }
-
-  .pdf-page .textLayer > :not(.markedContent),
-  .pdf-page .textLayer .markedContent span:not(.markedContent) {
-    z-index: 1;
-    --font-height: 0;
-    font-size: calc(var(--text-scale-factor) * var(--font-height));
-    --scale-x: 1;
-    --rotate: 0deg;
-    transform: rotate(var(--rotate)) scaleX(var(--scale-x))
-      scale(var(--min-font-size-inv));
-  }
-
-  .pdf-page .textLayer .markedContent {
-    display: contents;
-  }
-
-  ::selection {
-    background: rgba(67, 132, 111, .32);
-    color: transparent;
-  }
-
-  .endOfContent {
-    display: block;
-    position: absolute;
-    inset: 100% 0 0;
-    z-index: 0;
-    cursor: default;
-    user-select: none;
-    -webkit-user-select: none;
-  }
-
-  &.selecting .endOfContent {
-    top: 0;
-  }
+  --scale-round-x: 1px;
+  --scale-round-y: 1px;
 }
+
+/* PDF.js text-layer rules, written flat (they were nested inside the block above, so their selectors never matched and the layer collapsed to zero width, which made text impossible to select or copy). */
+.pdf-page .textLayer :is(span, br) {
+  color: transparent;
+  position: absolute;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0% 0%;
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  -webkit-touch-callout: default;
+  touch-action: auto;
+}
+
+.pdf-page .textLayer > :not(.markedContent),
+.pdf-page .textLayer .markedContent span:not(.markedContent) {
+  z-index: 1;
+  --font-height: 0;
+  font-size: calc(var(--text-scale-factor) * var(--font-height));
+  --scale-x: 1;
+  --rotate: 0deg;
+  transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
+}
+
+.pdf-page .textLayer .markedContent { display: contents; }
+
+.pdf-page .textLayer ::selection {
+  background: rgba(67, 132, 111, .32);
+  color: transparent;
+}
+
+.pdf-page .textLayer .endOfContent {
+  display: block;
+  position: absolute;
+  inset: 100% 0 0;
+  z-index: 0;
+  cursor: default;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.pdf-page .textLayer.selecting .endOfContent { top: 0; }
 
 /* The PDF canvas stays visual; the transparent layer handles text selection. */
 .pdf-page canvas {
@@ -475,4 +472,463 @@
   background: color-mix(in srgb, var(--accent, #4f6bed) 28%, transparent);
   border-radius: 3px;
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent, #4f6bed) 45%, transparent);
+}
+
+/* Decluttered reader toolbars */
+.reading-timer .timer-state { display: none; }
+.reading-timer { margin-left: 0; }
+.bar { margin-bottom: 12px; }
+.pdf-toolbar { margin-bottom: 10px; padding: 5px 8px; gap: 6px; }
+.pdf-controls { gap: 5px; flex-wrap: wrap; }
+.pdf-controls .btn, .pdf-toolbar .btn { padding-inline: 12px; }
+.pdf-controls .icon-btn { min-width: 38px; min-height: 38px; }
+/* Previews scroll with the page instead of stacking under the sticky bars. */
+#pdf-thumbs.pdf-thumbs { position: static; max-height: 118px; margin-bottom: 12px; }
+.reader-tools { gap: 6px; }
+@media (max-width: 640px) {
+  .pdf-toolbar { top: 116px; }
+  #pdf-thumbs.pdf-thumbs { max-height: 96px; }
+}
+
+/* Move up / move down buttons */
+.scroll-nav { position: fixed; right: 14px; bottom: max(18px, env(safe-area-inset-bottom)); z-index: 40; display: grid; gap: 8px; }
+.scroll-nav .icon-btn { width: 46px; height: 46px; min-width: 46px; min-height: 46px; font-size: 1rem; box-shadow: var(--shadow); background: var(--sheet); color: var(--ink); opacity: .92; }
+.scroll-nav .icon-btn:active { transform: scale(.94); }
+#reader-wrap[hidden] .scroll-nav { display: none; }
+
+/* Dictionary popup buttons: always readable (the popup is dark in light mode too). */
+#popup .btn,
+#popup .word-actions button {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  font-weight: 600;
+}
+#popup .btn:hover,
+#popup .btn:focus-visible,
+#popup .word-actions button:hover {
+  background: rgba(255, 255, 255, 0.24);
+  border-color: rgba(255, 255, 255, 0.6);
+}
+#popup .btn:disabled { opacity: 0.6; }
+#popup .close { color: #ffffff; }
+#popup .close:hover { background: rgba(255, 255, 255, 0.14); }
+#popup .dictionary-source { color: #172337; background: #c4d1ff; }
+#popup .dictionary-related { color: #c8d0dc; }
+#popup .ph { color: #c8d0dc; }
+
+/* ===== Design tokens and unified buttons ===== */
+:root {
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 24px; --space-6: 40px;
+  --radius-card: 16px; --radius-pill: 999px;
+}
+.btn, .icon-btn {
+  transition: background-color .15s ease, border-color .15s ease, transform .1s ease, box-shadow .15s ease;
+}
+.btn {
+  min-height: 42px;
+  padding: 8px 16px;
+  font-size: .92rem;
+  font-weight: 600;
+  line-height: 1.2;
+  border-radius: var(--radius-pill);
+}
+.icon-btn { min-width: 42px; min-height: 42px; font-weight: 600; }
+.btn:hover, .icon-btn:hover { border-color: var(--accent); background: var(--accent-soft); }
+.btn:active, .icon-btn:active { transform: scale(.97); }
+.btn:focus-visible, .icon-btn:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  outline-offset: 2px;
+}
+.btn:disabled, .icon-btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+/* Primary action buttons */
+.btn.account-action:not(.google-auth) {
+  color: var(--sheet);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.btn.account-action:not(.google-auth):hover { filter: brightness(1.1); background: var(--accent); }
+
+/* ===== Landing hero ===== */
+.hero h1 { max-width: 13ch; }
+.welcome-kicker { letter-spacing: .04em; }
+.hero-points {
+  display: flex; flex-wrap: wrap; gap: var(--space-2);
+  margin: var(--space-4) 0 0; padding: 0; list-style: none;
+}
+.hero-points li {
+  padding: 6px 13px;
+  color: var(--muted);
+  background: var(--sheet);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  font-size: .84rem;
+  font-weight: 600;
+}
+.drop { transition: border-color .2s ease, background-color .2s ease, transform .2s ease, box-shadow .2s ease; }
+.drop:hover, .drop:focus-visible {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  transform: translateY(-2px);
+}
+.demo-definition { animation: demoIn .6s .5s ease-out both; }
+.demo-word { animation: demoPulse 2.6s ease-in-out infinite; }
+@keyframes demoIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes demoPulse {
+  0%, 100% { background: color-mix(in srgb, var(--marker) 40%, transparent); }
+  50% { background: color-mix(in srgb, var(--marker) 75%, transparent); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .demo-definition, .demo-word { animation: none; }
+  .btn, .icon-btn, .drop { transition: none; }
+}
+
+/* ===== Continue reading card ===== */
+.continue-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-2) var(--space-4);
+  align-items: center;
+  margin-top: var(--space-5);
+  padding: var(--space-4) 18px;
+  background: var(--accent-soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--line));
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+}
+.continue-card[hidden] { display: none; }
+.continue-card + .drop { margin-top: var(--space-3); }
+.continue-text { min-width: 0; }
+.continue-label {
+  margin: 0;
+  color: var(--muted);
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.continue-title {
+  margin: 2px 0 0;
+  font: 500 1.2rem/1.25 var(--display);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.continue-bar { grid-column: 1 / -1; width: 100%; height: 6px; accent-color: var(--accent); }
+@media (max-width: 520px) {
+  .continue-card { grid-template-columns: 1fr; }
+  .continue-card .btn { width: 100%; }
+}
+
+/* ===== Sepia theme ===== */
+[data-theme="sepia"] {
+  --bg: #efe3cf;
+  --sheet: #f7edda;
+  --ink: #3b2f22;
+  --muted: #6b5946;
+  --line: #d6c4a4;
+  --accent: #8a5a2b;
+  --accent-soft: #eddcc0;
+  --marker: #d9a65f;
+  --shadow: 0 18px 42px rgba(70, 48, 20, .10);
+  color-scheme: light;
+}
+
+/* ===== Reading streak chip ===== */
+.streak-chip {
+  display: inline-flex;
+  align-items: center;
+  margin: var(--space-4) 0 0;
+  padding: 6px 14px;
+  color: var(--ink);
+  background: var(--accent-soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--line));
+  border-radius: var(--radius-pill);
+  font-size: .86rem;
+  font-weight: 700;
+}
+.streak-chip[hidden] { display: none; }
+.streak-chip + .continue-card { margin-top: var(--space-3); }
+
+/* ===== Toolbar: Page box and More sit together on the right ===== */
+.bar { align-items: center; }
+#page-now:empty, #progress:empty { display: none; }
+.page-jump-inline {
+  margin-left: auto;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 5px 0 14px;
+  color: var(--muted);
+  background: var(--sheet);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  font-weight: 600;
+}
+.page-jump-inline input {
+  width: 56px;
+  min-height: 32px;
+  padding: 2px 6px;
+  color: var(--ink);
+  background: var(--accent-soft);
+  border: 0;
+  border-radius: var(--radius-pill);
+  font-weight: 700;
+}
+.toolbar-more { margin-left: 0; }
+.toolbar-more summary { min-height: 42px; }
+@media (max-width: 700px) {
+  .page-jump-inline { order: 3; margin-left: 0; }
+  .toolbar-more { order: 4; }
+}
+
+/* ===== Text always stays inside its box; the box grows with the text ===== */
+main { min-width: 0; overflow-x: clip; }
+.reader-wrap, #reader, #reader .page { min-width: 0; max-width: 100%; box-sizing: border-box; }
+#reader .page { height: auto; overflow-x: hidden; }
+#reader .page > * { min-width: 0; max-width: 100%; }
+#reader p, #reader h2, #reader .page-mark { overflow-wrap: anywhere; word-break: break-word; }
+#reader.pdf-text-reader p { max-width: min(68ch, 100%); }
+
+/* ===== Compact toolbar so every item stays inside the bar ===== */
+.bar { gap: 6px; padding: 6px 8px; }
+.bar-primary { gap: 4px; }
+.bar .btn { padding-inline: 12px; }
+.reading-timer { gap: 2px; padding: 3px 4px 3px 10px; }
+.reading-timer output { min-width: 3.4em; }
+.reading-timer .icon-btn { min-width: 34px; min-height: 34px; padding: 4px 9px; font-size: .84rem; }
+.page-jump-inline { gap: 6px; padding: 0 4px 0 12px; }
+.page-jump-inline input { width: 48px; }
+/* If a narrow window still cannot fit everything, Page + More wrap together onto a second row. */
+@media (min-width: 701px) {
+  .bar { flex-wrap: wrap; row-gap: 6px; }
+}
+
+/* Page box + More travel together as one group */
+.bar-end { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; margin-left: auto; }
+.bar-end .page-jump-inline { margin-left: 0; }
+@media (max-width: 700px) { .bar-end { margin-left: 0; } }
+
+/* ===== Library panel: tidy cards and a Favorites filter ===== */
+.library-panel .library-search input {
+  width: 100%;
+  min-height: 42px;
+  padding: 8px 16px;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+}
+.library-panel .library-search input:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 45%, transparent); outline-offset: 2px; }
+
+.library-views {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  margin: 4px 0 14px;
+  padding: 4px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+}
+.library-view {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-pill);
+  font-weight: 700;
+  cursor: pointer;
+}
+.library-view:hover { color: var(--ink); }
+.library-view[aria-pressed="true"] { color: var(--sheet); background: var(--accent); }
+.library-count {
+  min-width: 22px;
+  padding: 1px 7px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, currentColor 20%, transparent);
+  font-size: .78rem;
+  text-align: center;
+}
+
+.library-filters { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 8px; }
+.library-filters label { display: grid; gap: 6px; min-width: 0; color: var(--muted); font-size: .84rem; }
+.library-filters select { width: 100%; min-height: 40px; }
+.library-hint { margin: 8px 0 0; }
+
+.library-row {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  grid-template-areas: "star details" "bar bar" "actions actions";
+  gap: 10px 12px;
+  align-items: center;
+  margin: 0 0 12px;
+  padding: 14px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+.library-row.is-favorite { border-color: color-mix(in srgb, var(--marker) 70%, var(--line)); }
+.library-star {
+  grid-area: star;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  color: var(--muted);
+  background: var(--sheet);
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  font-size: 1.3rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: transform .1s ease, background-color .15s ease, border-color .15s ease;
+}
+.library-star:hover { border-color: var(--marker); color: var(--marker); }
+.library-star:active { transform: scale(.92); }
+.library-row.is-favorite .library-star {
+  color: var(--marker);
+  background: color-mix(in srgb, var(--marker) 16%, transparent);
+  border-color: var(--marker);
+}
+.library-book-details { grid-area: details; min-width: 0; }
+.library-book-details strong {
+  display: block;
+  font: 500 1.05rem/1.25 var(--display);
+  overflow-wrap: anywhere;
+}
+.library-book-details small { display: block; margin-top: 3px; color: var(--muted); font-size: .8rem; }
+.library-row progress.library-progress { grid-area: bar; width: 100%; height: 6px; accent-color: var(--accent); }
+.library-book-actions { grid-area: actions; display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+.library-book-actions .btn { min-height: 42px; }
+.library-continue { color: var(--sheet); background: var(--accent); border-color: var(--accent); }
+.library-continue:hover { filter: brightness(1.1); background: var(--accent); }
+@media (max-width: 420px) { .library-filters { grid-template-columns: 1fr; } }
+
+/* ===== Focus mode: hide everything except the reader and its toolbar ===== */
+body.focus-mode .app-sidebar,
+body.focus-mode .top,
+body.focus-mode .site-footer,
+body.focus-mode .mobile-nav,
+body.focus-mode .doc-head,
+body.focus-mode #reader-tools { display: none; }
+body.focus-mode main, body.focus-mode .site-footer { margin-left: 0; }
+body.focus-mode .bar { top: 8px; }
+body.focus-mode .pdf-toolbar, body.focus-mode .text-view-controls { top: 70px; }
+body.focus-mode .global-reader-controls { top: 14px; }
+
+
+/* Dictionary definition cards must scroll internally on touch screens and desktop. */
+#popup{
+  box-sizing:border-box;
+  display:block;
+  max-height:min(68vh,560px);
+  overflow-x:hidden;
+  overflow-y:auto;
+  overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch;
+  touch-action:pan-y;
+  scrollbar-gutter:stable;
+}
+#popup .word-actions{flex-wrap:wrap}
+@media(max-width:640px){
+  #popup{
+    max-height:min(62dvh,520px);
+    padding-bottom:calc(18px + env(safe-area-inset-bottom));
+    overscroll-behavior-y:contain;
+    touch-action:pan-y;
+  }
+  #popup .word-actions{gap:6px}
+  #popup .word-actions .btn{min-height:40px}
+}
+
+
+/* Mobile reader layout v2: this file loads after style.css, so keep the final
+   mobile rules here to avoid earlier toolbar rules overriding the layout. */
+@media (max-width: 700px) {
+
+
+
+
+
+
+
+
+  /* The floating AI action has its own lane on the lower-left. The up/down
+     buttons remain vertically centered on the right, so they never overlap. */
+  #ask-ai-float.ask-ai-float {
+    position: fixed;
+    z-index: 39;
+    left: max(12px, env(safe-area-inset-left));
+    right: auto;
+    bottom: calc(76px + env(safe-area-inset-bottom));
+    min-height: 44px;
+    padding: 0 13px 0 9px;
+    gap: 7px;
+    font-size: .82rem;
+  }
+
+  #ask-ai-float .ask-ai-float-icon {
+    width: 25px;
+    height: 25px;
+  }
+
+  #reader-wrap .scroll-nav {
+    position: fixed !important;
+    top: 50% !important;
+    right: max(8px, env(safe-area-inset-right)) !important;
+    bottom: auto !important;
+    left: auto !important;
+    transform: translateY(-50%) !important;
+    z-index: 40 !important;
+    display: grid;
+    gap: 7px;
+    padding: 4px;
+  }
+
+  #reader-wrap .scroll-nav .icon-btn {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    min-height: 40px;
+    padding: 0;
+  }
+
+  #reader-wrap .reader-tools {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    min-width: 0;
+  }
+
+  #reader-wrap .reader-tools label,
+  #reader-wrap .reader-tools #search-count {
+    grid-column: 1 / -1;
+    min-width: 0;
+    width: 100%;
+  }
+
+  #reader-wrap .reader-tools .btn {
+    min-width: 0;
+    min-height: 40px;
+    padding: 7px 8px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+}
+
+@media (max-width: 380px) {
+  #ask-ai-float.ask-ai-float {
+    bottom: calc(74px + env(safe-area-inset-bottom));
+    min-height: 42px;
+  }
+  #reader-wrap .scroll-nav .icon-btn {
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
+    min-height: 38px;
+  }
 }
