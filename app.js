@@ -87,7 +87,20 @@ function setView(view) {
 }
 function goToUpload() { setView('about'); status('Choose a book to open the Reader.'); requestAnimationFrame(() => { drop.scrollIntoView({ behavior: 'smooth', block: 'center' }); drop.focus({ preventScroll: true }); drop.classList.add('guide-focus'); setTimeout(() => drop.classList.remove('guide-focus'), 900); }); }
 function closeDictionaryPanel(){const panel=byId('dictionary-panel');if(panel)panel.hidden=true;byId('dictionary-btn')?.setAttribute('aria-expanded','false');}
-function showPanel(id, open) { const panel = byId(id); if (!panel) return; closeDictionaryPanel();panel.hidden = open === undefined ? !panel.hidden : !open; if (id === 'library') { const backdrop=byId('library-backdrop'); if(backdrop) backdrop.hidden=panel.hidden; } if (id === 'library' && !panel.hidden) renderLibraryPanel(); if (id === 'vocab' && !panel.hidden) renderVocabulary(); if (id === 'stats' && !panel.hidden) renderStats(); if (id === 'privacy' && !panel.hidden) renderPrivacyState(); }
+function showPanel(id, open) {
+  const panel = byId(id);
+  if (!panel) return;
+  const willOpen = open === undefined ? panel.hidden : Boolean(open);
+  if (willOpen) closeOverlayPanels(id);
+  else closeOverlayPanels();
+  closeDictionaryPanel();
+  panel.hidden = !willOpen;
+  if (id === 'library') { const backdrop=byId('library-backdrop'); if(backdrop) backdrop.hidden=panel.hidden; }
+  if (id === 'vocab' && !panel.hidden) renderVocabulary();
+  if (id === 'stats' && !panel.hidden) renderStats();
+  if (id === 'privacy' && !panel.hidden) renderPrivacyState();
+  if (id === 'library' && !panel.hidden) renderLibraryPanel();
+}
 function hidePanels() { document.querySelectorAll('.panel, .contents').forEach(panel => { panel.hidden = true; panel.classList.remove('open'); }); }
 
 function initNavigation() {
@@ -100,11 +113,33 @@ function initNavigation() {
   });
   byId('library-backdrop')?.addEventListener('click',()=>showPanel('library',false));
 document.addEventListener('pointerdown', event => {
-  const library = byId('library');
-  if (!library || library.hidden) return;
-  if (event.target.closest('#library')) return;
-  library.hidden = true;
+  const target = event.target;
+  if (!(target instanceof Element)) return;
+  const panelIds = ['library','settings','vocab','stats','privacy','shortcuts','learning','account','contact'];
+  const openPanel = panelIds.map(byId).find(panel => panel && !panel.hidden);
+  const contents = byId('contents');
+  const insideOpenPanel = openPanel && target.closest('#' + openPanel.id);
+  const insideContents = contents && contents.classList.contains('open') && target.closest('#contents');
+  const isPanelTrigger = target.closest('#sidebar-library,#mobile-library,#library-btn,#library-home-btn,#settings-btn,#vocab-btn,#stats-btn,#flashcards-btn,#contact-link,#privacy-link,#shortcuts-link,#sidebar-account,#mobile-account,#account-btn,#saved-btn,#contents-btn');
+  if (openPanel && !insideOpenPanel && !isPanelTrigger) showPanel(openPanel.id, false);
+  if (contents && contents.classList.contains('open') && !insideContents && !target.closest('#contents-btn')) {
+    contents.classList.remove('open');
+    contents.hidden = true;
+    byId('contents-btn')?.setAttribute('aria-expanded','false');
+  }
+  const dictionaryPanel = byId('dictionary-panel');
+  if (dictionaryPanel && !dictionaryPanel.hidden && !target.closest('#dictionary-panel,#dictionary-btn')) closeDictionaryPanel();
+  const more = target.closest('.toolbar-more');
+  document.querySelectorAll('.toolbar-more[open]').forEach(menu => { if (menu !== more) menu.open = false; });
 }, true);
+document.addEventListener('keydown', event => {
+  if (event.key !== 'Escape') return;
+  closeOverlayPanels();
+  hidePanels();
+  closeDictionaryPanel();
+  hidePopup();
+  document.querySelectorAll('.toolbar-more[open]').forEach(menu => { menu.open = false; });
+});
   for (const id of ['sidebar-account','mobile-account','account-btn']) byId(id)?.addEventListener('click', openAccount);
   byId('saved-btn')?.addEventListener('click',()=>showPanel('vocab'));
   byId('sidebar-theme')?.addEventListener('click', () => byId('theme').click());
