@@ -246,3 +246,28 @@ main,.site-footer{margin-left:232px}.site-footer{display:flex;justify-content:ce
   display:block;
   z-index:2147483646;
 }
+
+
+/* Dictionary results can be longer than the visible screen. Keep the popup bounded and independently scrollable. */
+#popup{
+  box-sizing:border-box;
+  max-height:min(70vh,620px);
+  max-height:min(70svh,620px);
+  overflow-x:hidden;
+  overflow-y:auto;
+  overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch;
+  scrollbar-gutter:stable;
+  touch-action:pan-y;
+}
+#popup .close{position:sticky;top:0;float:right;z-index:2;margin-right:-30px;margin-top:-8px}
+#popup .word-actions{flex-wrap:wrap}
+#popup .word-actions .btn{flex:0 0 auto;min-height:40px}
+@media(max-width:640px){
+  #popup{
+    max-height:55svh;
+    padding-top:14px;
+    padding-right:42px;
+    padding-bottom:calc(18px + env(safe-area-inset-bottom));
+  }
+}
