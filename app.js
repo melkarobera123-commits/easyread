@@ -1106,7 +1106,7 @@ function speakCurrent(){const text=(pdfMode?reader:reader).innerText;if(!text)re
 function exportData(){const data={vocabulary:local.get('er-vocabulary',[]),notes:local.get('er-notes',[]),highlights:local.get('er-highlights',[]),bookmarks:local.get('er-bookmarks',[]),stats:local.get('er-stats',{})};const link=document.createElement('a');link.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));link.download='easyread-data.json';link.click();URL.revokeObjectURL(link.href);toast('Your data was exported.');}
 async function deleteLocalData(){if(!confirm('Delete all local reading data and books? This cannot be undone.'))return;localStorage.clear();await new Promise(resolve=>{const request=indexedDB.deleteDatabase('easyread-library-v2');request.onsuccess=request.onerror=request.onblocked=resolve;});toast('Local data deleted. Reload EasyRead.');}
 function renderPrivacyState(){byId('privacy-status').textContent='Books and reading position are stored in this browser. Sign-in sync is optional.';}
-async function renderLibrary(){const books=await getBooks(),list=byId('library-preview');if(!list)return;list.replaceChildren();if(!books.length){safeText(list,'p','Your books will appear here after you open one.','note');return;}const sort=byId('home-library-sort')?.value||'recent';books.sort((a,b)=>sort==='title'?(a.title||a.name).localeCompare(b.title||b.name):sort==='progress'?(b.progress||0)-(a.progress||0):(b.opened||0)-(a.opened||0)).slice(0,4).forEach(book=>{const card=document.createElement('article');card.className='book-card';safeText(card,'strong',book.title||book.name);const progress=document.createElement('progress');progress.max=100;progress.value=book.progress||0;card.append(progress);const open=safeText(card,'button','Continue reading','btn');open.onclick=()=>openFile(book.file);list.append(card);});}
+async function renderLibrary(){const books=await getBooks(),list=byId('library-preview');if(!list)return;updateContinueCard(books);list.replaceChildren();if(!books.length){safeText(list,'p','Your books will appear here after you open one.','note');return;}const sort=byId('home-library-sort')?.value||'recent';books.sort((a,b)=>sort==='title'?(a.title||a.name).localeCompare(b.title||b.name):sort==='progress'?(b.progress||0)-(a.progress||0):(b.opened||0)-(a.opened||0)).slice(0,4).forEach(book=>{const card=document.createElement('article');card.className='book-card';safeText(card,'strong',book.title||book.name);const progress=document.createElement('progress');progress.max=100;progress.value=book.progress||0;card.append(progress);const open=safeText(card,'button','Continue reading','btn');open.onclick=()=>openFile(book.file);list.append(card);});}
 function initContact(){const contact=window.EASYREAD_CONTACT||{},telegram=String(contact.telegram||'').trim(),handle=telegram.replace(/^@/,'');const phone=String(contact.phone||'').trim().replace(/[\s().-]/g,'');const email=String(contact.email||'').trim();const telegramLink=byId('contact-telegram'),phoneLink=byId('contact-phone'),emailLink=byId('contact-email');byId('contact-telegram-label').textContent=telegram||'Unavailable';byId('contact-phone-label').textContent=contact.phone||'Unavailable';byId('contact-email-label').textContent=email||'Unavailable';if(handle)telegramLink.href=`https://t.me/${encodeURIComponent(handle)}`;if(phone)phoneLink.href=`tel:${phone}`;if(email)emailLink.href=`mailto:${email}`;byId('contact-send').addEventListener('click',()=>{if(!email)return toast('Email contact is unavailable.');const subject=encodeURIComponent('EasyRead feedback'),body=encodeURIComponent(byId('contact-message').value.trim());window.location.href=`mailto:${email}?subject=${subject}&body=${body}`;});}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 
@@ -1135,3 +1135,18 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind);
   else bind();
 })();
+
+// Home "Continue reading" card for the most recently opened book.
+function updateContinueCard(books) {
+  const card = byId('continue-card');
+  if (!card) return;
+  const latest = [...(books || [])].filter(book => book && book.file).sort((x, y) => (y.opened || 0) - (x.opened || 0))[0];
+  if (!latest) { card.hidden = true; return; }
+  const percent = Math.max(0, Math.min(100, Math.round(latest.progress || 0)));
+  byId('continue-title').textContent = latest.title || latest.name || 'Your book';
+  byId('continue-bar').value = percent;
+  const button = byId('continue-btn');
+  button.textContent = percent >= 100 ? 'Read again' : percent > 0 ? `Resume · ${percent}%` : 'Start reading';
+  button.onclick = () => openFile(latest.file);
+  card.hidden = false;
+}

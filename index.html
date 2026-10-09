@@ -72,8 +72,21 @@
   <section class="hero">
     <div class="copy">
       <p class="welcome-kicker">A little help for big reading days</p>
-      <h1>Open a book. Feel at home in every word.</h1>
-      <p class="lead">EasyRead makes difficult pages feel lighter. Open your book, tap anything unfamiliar, and keep going without breaking your flow.</p>
+      <h1>Read anything. Understand every word.</h1>
+      <p class="lead">Open a book, tap any word you don&rsquo;t know, and keep reading. No tab-switching, no lost place.</p>
+      <ul class="hero-points" aria-label="Highlights">
+        <li>Tap any word</li>
+        <li>Save words to learn</li>
+        <li>Files stay on your device</li>
+      </ul>
+      <div id="continue-card" class="continue-card" hidden>
+        <div class="continue-text">
+          <p class="continue-label">Continue reading</p>
+          <p id="continue-title" class="continue-title"></p>
+        </div>
+        <button id="continue-btn" class="btn account-action" type="button">Resume</button>
+        <progress id="continue-bar" class="continue-bar" max="100" value="0" aria-label="Reading progress"></progress>
+      </div>
       <button class="drop" id="drop" type="button" aria-describedby="upload-help">
         <svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 19V6M9 11l5-5 5 5M6 22h16"/></svg>
         <span class="drop-title">Choose a file or drop it here</span>
