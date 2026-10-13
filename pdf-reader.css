@@ -652,3 +652,61 @@
 }
 .streak-chip[hidden] { display: none; }
 .streak-chip + .continue-card { margin-top: var(--space-3); }
+
+/* ===== Toolbar: Page box and More sit together on the right ===== */
+.bar { align-items: center; }
+#page-now:empty, #progress:empty { display: none; }
+.page-jump-inline {
+  margin-left: auto;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 5px 0 14px;
+  color: var(--muted);
+  background: var(--sheet);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  font-weight: 600;
+}
+.page-jump-inline input {
+  width: 56px;
+  min-height: 32px;
+  padding: 2px 6px;
+  color: var(--ink);
+  background: var(--accent-soft);
+  border: 0;
+  border-radius: var(--radius-pill);
+  font-weight: 700;
+}
+.toolbar-more { margin-left: 0; }
+.toolbar-more summary { min-height: 42px; }
+@media (max-width: 700px) {
+  .page-jump-inline { order: 3; margin-left: 0; }
+  .toolbar-more { order: 4; }
+}
+
+/* ===== Text always stays inside its box; the box grows with the text ===== */
+main { min-width: 0; overflow-x: clip; }
+.reader-wrap, #reader, #reader .page { min-width: 0; max-width: 100%; box-sizing: border-box; }
+#reader .page { height: auto; overflow-x: hidden; }
+#reader .page > * { min-width: 0; max-width: 100%; }
+#reader p, #reader h2, #reader .page-mark { overflow-wrap: anywhere; word-break: break-word; }
+#reader.pdf-text-reader p { max-width: min(68ch, 100%); }
+
+/* ===== Compact toolbar so every item stays inside the bar ===== */
+.bar { gap: 6px; padding: 6px 8px; }
+.bar-primary { gap: 4px; }
+.bar .btn { padding-inline: 12px; }
+.reading-timer { gap: 2px; padding: 3px 4px 3px 10px; }
+.reading-timer output { min-width: 3.4em; }
+.reading-timer .icon-btn { min-width: 34px; min-height: 34px; padding: 4px 9px; font-size: .84rem; }
+.page-jump-inline { gap: 6px; padding: 0 4px 0 12px; }
+.page-jump-inline input { width: 48px; }
+/* If a narrow window still cannot fit everything, Page + More wrap together onto a second row. */
+@media (min-width: 701px) {
+  .bar { flex-wrap: wrap; row-gap: 6px; }
+}
+
+/* Page box + More travel together as one group */
+.bar-end { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; margin-left: auto; }
+.bar-end .page-jump-inline { margin-left: 0; }
+@media (max-width: 700px) { .bar-end { margin-left: 0; } }

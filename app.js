@@ -87,20 +87,7 @@ function setView(view) {
 }
 function goToUpload() { setView('about'); status('Choose a book to open the Reader.'); requestAnimationFrame(() => { drop.scrollIntoView({ behavior: 'smooth', block: 'center' }); drop.focus({ preventScroll: true }); drop.classList.add('guide-focus'); setTimeout(() => drop.classList.remove('guide-focus'), 900); }); }
 function closeDictionaryPanel(){const panel=byId('dictionary-panel');if(panel)panel.hidden=true;byId('dictionary-btn')?.setAttribute('aria-expanded','false');}
-function showPanel(id, open) {
-  const panel = byId(id);
-  if (!panel) return;
-  const willOpen = open === undefined ? panel.hidden : Boolean(open);
-  if (willOpen) closeOverlayPanels(id);
-  else closeOverlayPanels();
-  closeDictionaryPanel();
-  panel.hidden = !willOpen;
-  if (id === 'library') { const backdrop=byId('library-backdrop'); if(backdrop) backdrop.hidden=panel.hidden; }
-  if (id === 'vocab' && !panel.hidden) renderVocabulary();
-  if (id === 'stats' && !panel.hidden) renderStats();
-  if (id === 'privacy' && !panel.hidden) renderPrivacyState();
-  if (id === 'library' && !panel.hidden) renderLibraryPanel();
-}
+function showPanel(id, open) { const panel = byId(id); if (!panel) return; closeDictionaryPanel();panel.hidden = open === undefined ? !panel.hidden : !open; if (!panel.hidden) { closeOtherPanels(id); markPanelOpened(id); } if (id === 'library') { const backdrop=byId('library-backdrop'); if(backdrop) backdrop.hidden=panel.hidden; } if (id === 'library' && !panel.hidden) renderLibraryPanel(); if (id === 'vocab' && !panel.hidden) renderVocabulary(); if (id === 'stats' && !panel.hidden) renderStats(); if (id === 'privacy' && !panel.hidden) renderPrivacyState(); }
 function hidePanels() { document.querySelectorAll('.panel, .contents').forEach(panel => { panel.hidden = true; panel.classList.remove('open'); }); }
 
 function initNavigation() {
@@ -113,38 +100,16 @@ function initNavigation() {
   });
   byId('library-backdrop')?.addEventListener('click',()=>showPanel('library',false));
 document.addEventListener('pointerdown', event => {
-  const target = event.target;
-  if (!(target instanceof Element)) return;
-  const panelIds = ['library','settings','vocab','stats','privacy','shortcuts','learning','account','contact'];
-  const openPanel = panelIds.map(byId).find(panel => panel && !panel.hidden);
-  const contents = byId('contents');
-  const insideOpenPanel = openPanel && target.closest('#' + openPanel.id);
-  const insideContents = contents && contents.classList.contains('open') && target.closest('#contents');
-  const isPanelTrigger = target.closest('#sidebar-library,#mobile-library,#library-btn,#library-home-btn,#settings-btn,#vocab-btn,#stats-btn,#flashcards-btn,#contact-link,#privacy-link,#shortcuts-link,#sidebar-account,#mobile-account,#account-btn,#saved-btn,#contents-btn');
-  if (openPanel && !insideOpenPanel && !isPanelTrigger) showPanel(openPanel.id, false);
-  if (contents && contents.classList.contains('open') && !insideContents && !target.closest('#contents-btn')) {
-    contents.classList.remove('open');
-    contents.hidden = true;
-    byId('contents-btn')?.setAttribute('aria-expanded','false');
-  }
-  const dictionaryPanel = byId('dictionary-panel');
-  if (dictionaryPanel && !dictionaryPanel.hidden && !target.closest('#dictionary-panel,#dictionary-btn')) closeDictionaryPanel();
-  const more = target.closest('.toolbar-more');
-  document.querySelectorAll('.toolbar-more[open]').forEach(menu => { if (menu !== more) menu.open = false; });
+  const library = byId('library');
+  if (!library || library.hidden) return;
+  if (event.target.closest('#library')) return;
+  library.hidden = true;
 }, true);
-document.addEventListener('keydown', event => {
-  if (event.key !== 'Escape') return;
-  closeOverlayPanels();
-  hidePanels();
-  closeDictionaryPanel();
-  hidePopup();
-  document.querySelectorAll('.toolbar-more[open]').forEach(menu => { menu.open = false; });
-});
   for (const id of ['sidebar-account','mobile-account','account-btn']) byId(id)?.addEventListener('click', openAccount);
   byId('saved-btn')?.addEventListener('click',()=>showPanel('vocab'));
   byId('sidebar-theme')?.addEventListener('click', () => byId('theme').click());
   for (const [id, panel] of [['settings-btn','settings'],['vocab-btn','vocab'],['stats-btn','stats'],['flashcards-btn','learning'],['contact-link','contact'],['privacy-link','privacy'],['shortcuts-link','shortcuts']]) byId(id)?.addEventListener('click', event => { if (id === 'contact-link') event.preventDefault(); showPanel(panel); });
-  byId('contents-btn')?.addEventListener('click',()=>{const panel=byId('contents'),open=!panel.classList.contains('open');panel.hidden=false;panel.classList.toggle('open',open);byId('contents-btn').setAttribute('aria-expanded',String(open));if(open){renderContents();renderSavedItems();}});
+  byId('contents-btn')?.addEventListener('click',()=>{const panel=byId('contents'),open=!panel.classList.contains('open');if(open){closeOtherPanels('contents');markPanelOpened('contents');}panel.hidden=false;panel.classList.toggle('open',open);byId('contents-btn').setAttribute('aria-expanded',String(open));if(open){renderContents();renderSavedItems();}});
   document.querySelectorAll('[id$="-close"]').forEach(button => button.addEventListener('click', () => { const panel = button.closest('aside'); if (panel) showPanel(panel.id, false); if (panel?.id === 'contents') panel.classList.remove('open'); }));
   document.addEventListener('click',event=>{if(!byId('dictionary-panel').hidden&&!event.target.closest('#dictionary-panel,#dictionary-btn'))closeDictionaryPanel();});
   byId('again')?.addEventListener('click', () => { pauseReadingTimer(); readerWrap.hidden = true; setView('about'); hidePopup(); });
@@ -180,7 +145,7 @@ async function openFile(file) {
 }
 function wordCount(text) { return (text.match(/\S+/g) || []).length; }
 function updateDocMeta() { byId('doc-meta').textContent = `${pageCount ? `${pageCount} pages · ` : ''}${(activeBook.words || 0).toLocaleString()} words`;byId('jump').max=String(Math.max(1,pageCount)); }
-function appendTextPages(text) { const blocks = String(text).split(/\n\s*\n/).map(part => part.trim()).filter(Boolean); const chunks = []; for (let i = 0; i < blocks.length; i += 20) chunks.push(blocks.slice(i, i + 20)); chunks.forEach((chunk, index) => { const section = document.createElement('section'); section.className = 'page'; section.dataset.page = String(index + 1); safeText(section, 'div', `Section ${index + 1}`, 'page-mark'); chunk.forEach(paragraph => safeText(section, 'p', paragraph)); reader.append(section); }); pageCount = chunks.length; }
+function appendTextPages(text) { const blocks = String(text).split(/\n\s*\n/).map(part => part.trim()).filter(Boolean); const chunks = []; for (let i = 0; i < blocks.length; i += 20) chunks.push(blocks.slice(i, i + 20)); chunks.forEach((chunk, index) => { const section = document.createElement('section'); section.className = 'page'; section.dataset.page = String(index + 1); safeText(section, 'div', `Section ${index + 1}`, 'page-mark'); chunk.forEach(paragraph => safeText(section, 'p', tidyLeaders(paragraph))); reader.append(section); }); pageCount = chunks.length; }
 async function parseDocx(file) { await loadLibrary('mammoth'); const result = await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() }); appendTextPages(result.value); }
 async function parsePptx(file) { await loadLibrary('zip'); const zip = await JSZip.loadAsync(await file.arrayBuffer()); const names = Object.keys(zip.files).filter(name => /^ppt\/slides\/slide\d+\.xml$/.test(name)).sort((a,b) => Number(a.match(/slide(\d+)/)[1])-Number(b.match(/slide(\d+)/)[1])); pageCount = names.length; for (let i=0;i<names.length;i++) { const xml = new DOMParser().parseFromString(await zip.file(names[i]).async('text'),'application/xml'); const text = [...xml.getElementsByTagName('a:t')].map(node => node.textContent).join(' ').trim(); const section = document.createElement('section'); section.className='page'; section.dataset.page=String(i+1); safeText(section,'div',`Slide ${i+1}`,'page-mark'); if(text) safeText(section,'p',text); reader.append(section); if(i%12===11) await new Promise(requestAnimationFrame); } }
 async function parseEpub(file) { await loadLibrary('zip'); const zip=await JSZip.loadAsync(await file.arrayBuffer()); const container=new DOMParser().parseFromString(await zip.file('META-INF/container.xml').async('text'),'application/xml'); const root=container.querySelector('rootfile')?.getAttribute('full-path'); if(!root) throw new Error('This EPUB has an invalid package file.'); const opf=new DOMParser().parseFromString(await zip.file(root).async('text'),'application/xml'); const title=opf.getElementsByTagNameNS('*','title')[0]?.textContent.trim(); if(title) activeBook.title=title; const base=root.includes('/')?root.slice(0,root.lastIndexOf('/')+1):''; const items=new Map([...opf.querySelectorAll('manifest item')].map(item=>[item.id,item.getAttribute('href')])); let index=0; for(const ref of opf.querySelectorAll('spine itemref')) { const path=items.get(ref.getAttribute('idref')); const entry=path&&zip.file(base+decodeURIComponent(path)); if(!entry) continue; const doc=new DOMParser().parseFromString(await entry.async('text'),'text/html'); const text=doc.body?.textContent||''; if(text.trim()){ const section=document.createElement('section'); section.className='page'; section.dataset.page=String(++index); appendTextNodes(section,text); reader.append(section); } if(index%8===0) await new Promise(requestAnimationFrame); } pageCount=index; }
@@ -233,7 +198,7 @@ pdfThumbs.addEventListener('click',event=>{
 async function buildPdfTextView(){
   if(!activePdf)return;
   if(pdfTextPromise)return pdfTextPromise;
-  pdfTextPromise=(async()=>{reader.replaceChildren();for(let number=1;number<=activePdf.numPages;number++){const page=await activePdf.getPage(number),content=await page.getTextContent(),section=document.createElement('section');section.className='page readable';section.dataset.page=String(number);safeText(section,'div',`Page ${number}`,'page-mark');const lines=[];let line='';for(const item of content.items){if(!item||typeof item.str!=='string')continue;const value=item.str.trim();if(value)line+=(line?' ':'')+value;if(item.hasEOL&&line){lines.push(line);line='';}}if(line)lines.push(line);const textLines=lines.length?lines:[content.items.map(item=>item?.str||'').join(' ').trim()];for(const value of textLines){if(value)safeText(section,'p',value);}reader.append(section);if(number%8===0)await new Promise(requestAnimationFrame);}return true;})();
+  pdfTextPromise=(async()=>{reader.replaceChildren();for(let number=1;number<=activePdf.numPages;number++){const page=await activePdf.getPage(number),content=await page.getTextContent(),section=document.createElement('section');section.className='page readable';section.dataset.page=String(number);safeText(section,'div',`Page ${number}`,'page-mark');const lines=[];let line='';for(const item of content.items){if(!item||typeof item.str!=='string')continue;const value=item.str.trim();if(value)line+=(line?' ':'')+value;if(item.hasEOL&&line){lines.push(line);line='';}}if(line)lines.push(line);const textLines=lines.length?lines:[content.items.map(item=>item?.str||'').join(' ').trim()];for(const value of textLines){if(value)safeText(section,'p',tidyLeaders(value));}reader.append(section);if(number%8===0)await new Promise(requestAnimationFrame);}return true;})();
   try{return await pdfTextPromise;}catch(error){pdfTextPromise=null;throw error;}
 }
 function pageScale(page) { const base=page.getViewport({scale:1}); const fit=Math.min((pdfPages.clientWidth-36)/base.width,1.5); return Math.max(.5,fit*zoom); }
@@ -1232,3 +1197,48 @@ function updateStreakChip() {
   chip.textContent = parts.join(' \u00b7 ');
   chip.hidden = false;
 }
+
+// Long runs of dots (table-of-contents leaders) cannot wrap, so show them as a single ellipsis.
+function tidyLeaders(text) {
+  return String(text).replace(/(?:\s*[.\u00b7\u2022\u2026]){4,}\s*/g, ' \u2026 ').trim();
+}
+
+// Close panels and menus by clicking outside them or by opening something else.
+let panelJustOpened = '';
+function markPanelOpened(id) {
+  panelJustOpened = id;
+  setTimeout(() => { panelJustOpened = ''; }, 0);
+}
+function closeOtherPanels(except = '') {
+  document.querySelectorAll('.panel, .contents').forEach(panel => {
+    if (panel.id === except) return;
+    if (panel.classList.contains('contents')) panel.classList.remove('open');
+    else panel.hidden = true;
+  });
+  byId('contents-btn')?.setAttribute('aria-expanded', except === 'contents' ? 'true' : 'false');
+  byId('settings-btn')?.setAttribute('aria-expanded', except === 'settings' ? 'true' : 'false');
+  const backdrop = byId('library-backdrop');
+  if (backdrop && except !== 'library') backdrop.hidden = true;
+}
+document.addEventListener('click', event => {
+  // composedPath is fixed when the click starts, so it still works if a handler re-rendered the target.
+  const path = event.composedPath().filter(node => node instanceof Element);
+  const inside = selector => path.some(node => node.matches(selector));
+
+  // "More" menu: close when clicking elsewhere or after choosing an action.
+  document.querySelectorAll('details.toolbar-more[open]').forEach(menu => {
+    const clickedMenu = path.includes(menu);
+    const keepOpen = inside('#smaller, #larger');
+    if (!clickedMenu || (inside('.toolbar-menu button') && !keepOpen)) menu.open = false;
+  });
+
+  // Sign-in prompt: tapping the dimmed background closes it.
+  const modal = byId('signin-modal');
+  if (modal && !modal.hidden && event.target === modal) { modal.hidden = true; local.set('er-signin-dismissed', true); }
+
+  // Side panels: close when clicking outside them.
+  const anyOpen = document.querySelector('.panel:not([hidden]), .contents.open');
+  if (!anyOpen) return;
+  if (inside('.panel, .contents, #popup, dialog, #signin-modal, #library-backdrop')) return;
+  closeOtherPanels(panelJustOpened);
+});

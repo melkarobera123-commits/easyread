@@ -141,10 +141,12 @@
     <div class="bar">
       <div class="bar-primary"><button id="contents-btn" class="btn" type="button" aria-expanded="false" aria-controls="contents">Contents</button><button id="saved-btn" class="btn" type="button">Saved</button><button id="search-btn" class="btn" type="button">Search</button><button id="dictionary-btn" class="btn" type="button" aria-expanded="false" aria-controls="dictionary-panel">Dictionary</button></div>
       <div class="reading-timer" role="group" aria-label="Reading timer"><output id="timer-display" aria-live="off" aria-label="Elapsed reading time">00:00</output><span id="timer-state" class="timer-state">Counting up</span><button id="timer-toggle" class="icon-btn" type="button" aria-label="Pause reading timer">Pause</button><button id="timer-reset" class="icon-btn" type="button" aria-label="Reset reading timer">Reset</button></div>
-      <label class="page-jump-inline" for="reader-page-jump">Page <input id="reader-page-jump" type="number" min="1" inputmode="numeric" value="1" aria-label="Jump to page"><span id="reader-page-total" class="page-total"></span></label>
+      <div class="bar-end">
+        <label class="page-jump-inline" for="reader-page-jump">Page <input id="reader-page-jump" type="number" min="1" inputmode="numeric" value="1" aria-label="Jump to page"><span id="reader-page-total" class="page-total"></span></label>
       <span id="page-now"></span>
       <span id="progress"></span>
       <details class="toolbar-more"><summary class="btn">More</summary><div class="toolbar-menu"><button id="focus-btn" class="btn" type="button">Focus</button><button id="fullscreen-btn" class="btn" type="button" aria-label="Enter fullscreen reading">Fullscreen</button><button id="settings-btn" class="btn" type="button" aria-expanded="false">Settings</button><span class="text-size"><button id="smaller" class="btn" type="button" aria-label="Smaller text">A−</button><button id="larger" class="btn" type="button" aria-label="Larger text">A+</button></span><button id="again" class="btn" type="button">New file</button></div></details>
+      </div>
     </div>
     <form id="dictionary-panel" class="dictionary-panel" hidden>
       <label for="dictionary-query">Look up a word</label>
@@ -199,7 +201,7 @@
   </section>
 </main>
 
-<footer class="site-footer"><span>Rob_Era (Abiti) Made with love</span><span class="footer-links"><a class="support-project-link" href="https://gurshaplus.com/apothecariwu" target="_blank" rel="noopener noreferrer" aria-label="Support the EasyRead project with a donation">☕ Buy me a coffee</a><a id="contact-link" href="#contact">Contact developer</a><button id="privacy-link" class="footer-button" type="button">Privacy</button><button id="shortcuts-link" class="footer-button" type="button">Shortcuts</button></span></footer>
+<footer class="site-footer"><span>Rob_Era (Abiti) Made with love</span><span class="footer-links"><a id="contact-link" href="#contact">Contact developer</a><button id="privacy-link" class="footer-button" type="button">Privacy</button><button id="shortcuts-link" class="footer-button" type="button">Shortcuts</button></span></footer>
 
 <aside id="contents" class="contents" aria-label="Contents">
   <div class="contents-head"><h2>Contents</h2><button id="contents-close" class="btn" type="button">Close</button></div>

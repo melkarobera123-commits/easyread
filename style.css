@@ -246,34 +246,3 @@ main,.site-footer{margin-left:232px}.site-footer{display:flex;justify-content:ce
   display:block;
   z-index:2147483646;
 }
-
-
-/* Dictionary results can be longer than the visible screen. Keep the popup bounded and independently scrollable. */
-#popup{
-  box-sizing:border-box;
-  max-height:min(70vh,620px);
-  max-height:min(70svh,620px);
-  overflow-x:hidden;
-  overflow-y:auto;
-  overscroll-behavior:contain;
-  -webkit-overflow-scrolling:touch;
-  scrollbar-gutter:stable;
-  touch-action:pan-y;
-}
-#popup .close{position:sticky;top:0;float:right;z-index:2;margin-right:-30px;margin-top:-8px}
-#popup .word-actions{flex-wrap:wrap}
-#popup .word-actions .btn{flex:0 0 auto;min-height:40px}
-@media(max-width:640px){
-  #popup{
-    max-height:55svh;
-    padding-top:14px;
-    padding-right:42px;
-    padding-bottom:calc(18px + env(safe-area-inset-bottom));
-  }
-}
-
-/* Support the project */
-.support-project-link{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:40px;padding:8px 13px;border:1px solid color-mix(in srgb,#b87935 45%,var(--line));border-radius:999px;background:color-mix(in srgb,#f2c078 16%,var(--sheet));color:var(--ink);font-weight:700;text-decoration:none;white-space:nowrap;transition:transform .16s,border-color .16s,background .16s}
-.support-project-link:hover{transform:translateY(-1px);border-color:#b87935;background:color-mix(in srgb,#f2c078 27%,var(--sheet))}
-.support-project-link:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
-@media(max-width:700px){.footer-links{flex-wrap:wrap}.support-project-link{min-height:44px}}
