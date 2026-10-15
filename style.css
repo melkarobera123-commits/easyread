@@ -269,3 +269,64 @@ input,select,textarea{max-width:100%}
   .hero,.steps,.library-home{max-width:100%;overflow-wrap:anywhere}
   .hero h1{overflow-wrap:anywhere}
 }
+
+
+/* Mobile tools: wrap into rows instead of requiring horizontal scrolling. */
+@media (max-width:900px){
+  .reader-tools{
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:7px;
+    overflow:visible;
+    margin:0 0 14px;
+    padding:0;
+    width:100%;
+  }
+  .reader-tools label{
+    grid-column:1/-1;
+    min-width:0;
+    width:100%;
+    flex:none;
+  }
+  .reader-tools label input{width:100%;min-width:0}
+  .reader-tools #search-count{grid-column:1/-1;min-width:0;overflow-wrap:anywhere}
+  .reader-tools .btn{
+    min-width:0;
+    width:100%;
+    max-width:100%;
+    min-height:44px;
+    padding:8px 6px;
+    white-space:normal;
+    overflow-wrap:anywhere;
+  }
+  .bar{overflow:visible;flex-wrap:wrap;white-space:normal}
+  .bar-primary{flex-wrap:wrap;min-width:0}
+  .bar-primary .btn,.bar .btn{white-space:normal;max-width:100%}
+  .page-jump-inline{flex:0 1 auto}
+  .toolbar-more{flex:0 0 auto}
+  .pdf-toolbar,.text-view-controls{
+    display:flex;
+    flex-wrap:wrap;
+    overflow:visible;
+    white-space:normal;
+    gap:6px;
+    width:100%;
+  }
+  .pdf-toolbar>*{min-width:0;max-width:100%}
+  .pdf-controls{display:flex;flex-wrap:wrap;overflow:visible;white-space:normal;min-width:0;max-width:100%}
+  .pdf-controls>*{flex:0 0 auto}
+  .text-view-controls>*{flex:0 0 auto}
+  .global-reader-controls{flex-wrap:wrap}
+}
+@media(max-width:520px){
+  .reader-tools{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .reader-tools .btn{font-size:.84rem;line-height:1.2}
+  .scroll-nav{
+    right:8px;
+    bottom:calc(150px + env(safe-area-inset-bottom));
+    z-index:52;
+    gap:6px;
+  }
+  .scroll-nav .icon-btn{width:42px;height:42px;min-width:42px;min-height:42px}
+  .global-reader-controls{bottom:calc(78px + env(safe-area-inset-bottom))}
+}
