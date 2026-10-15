@@ -365,3 +365,27 @@ input,select,textarea{max-width:100%}
     min-height:40px;
   }
 }
+
+
+/* Mobile reader toolbar: reduce visual weight and keep More attached to its trigger. */
+@media(max-width:900px){
+  .bar{display:grid;grid-template-columns:minmax(0,1fr);align-items:start;gap:8px;padding:10px;overflow:visible}
+  .bar-primary{display:flex;flex-wrap:wrap;gap:6px;min-width:0}
+  .bar-primary .btn{min-height:40px;padding:7px 12px;font-size:.92rem}
+  .reading-timer{display:flex!important;flex-wrap:wrap;align-items:center;gap:5px;width:max-content;max-width:100%;padding:4px 7px;border-radius:999px;background:var(--accent-soft)}
+  .reading-timer output{font-variant-numeric:tabular-nums;font-weight:700}
+  .reading-timer .timer-state{display:none}
+  .reading-timer .icon-btn{min-height:38px;min-width:38px;padding:5px 9px}
+  .bar-end{display:flex;flex-wrap:wrap;align-items:center;gap:7px;min-width:0;width:100%}
+  .toolbar-more{position:relative;margin-left:0}
+  .toolbar-menu{position:absolute;top:calc(100% + 8px);bottom:auto;right:0;z-index:100;width:min(270px,calc(100vw - 40px));max-height:min(65svh,480px);overflow-y:auto;overscroll-behavior:contain;padding:10px;display:grid;grid-template-columns:1fr;gap:7px;border-radius:14px;box-shadow:0 12px 36px rgba(0,0,0,.22)}
+  .toolbar-menu>.btn,.toolbar-menu .text-size .btn{min-height:42px}
+}
+@media(max-width:520px){
+  .bar{gap:7px;padding:8px}
+  .bar-primary .btn{flex:0 0 auto;font-size:.88rem;padding-inline:10px}
+  .reading-timer{justify-self:start}
+  .bar-end{gap:6px}
+  .page-jump-inline{min-height:40px}
+  .toolbar-menu{right:0;max-width:calc(100vw - 32px)}
+}
