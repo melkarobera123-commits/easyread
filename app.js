@@ -946,7 +946,7 @@ async function initFirebase(){
   firebaseInitPromise=(async()=>{await Promise.all(['firebaseApp','firebaseAuth','firebaseStore'].map(loadLibrary));if(!firebase.apps.length)firebase.initializeApp(window.EASYREAD_FIREBASE_CONFIG);auth=firebase.auth();firestore=firebase.firestore();auth.onAuthStateChanged(next=>{user=next;updateProfile();if(user)syncCloud();});try{await auth.getRedirectResult();}catch(error){if(error?.code!=='auth/no-auth-event')setAuthStatus(friendlyAuthError(error),'error');}return auth;})();
   try{return await firebaseInitPromise;}catch(error){firebaseInitPromise=null;throw error;}
 }
-async async function openAccount(){showPanel('account');try{await initFirebase();setAuthMode('signin');}catch(error){setAuthStatus('Sign-in is temporarily unavailable. '+error.message,'error');}}
+async function openAccount(){showPanel('account');try{await initFirebase();setAuthMode('signin');}catch(error){setAuthStatus('Sign-in is temporarily unavailable. '+error.message,'error');}}
 function updateProfile(){
   const label=user?.displayName?.split(' ')[0]||'Sign in';for(const id of ['account-label','sidebar-account-label'])if(byId(id))byId(id).textContent=label;
   if(byId('sidebar-account-meta'))byId('sidebar-account-meta').textContent=user?.email||'Sync your reading';
@@ -978,7 +978,7 @@ function updateInstallButton() {
   button.hidden = !installPromptEvent;
 }
 
-async function init() {
+async async function init() {
   // Keep the UI interactive even if an optional reader feature fails during boot.
   const boot = (name, fn) => {
     try { return fn(); }
