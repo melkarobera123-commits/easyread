@@ -100,11 +100,33 @@ function initNavigation() {
   });
   byId('library-backdrop')?.addEventListener('click',()=>showPanel('library',false));
 document.addEventListener('pointerdown', event => {
-  const library = byId('library');
-  if (!library || library.hidden) return;
-  if (event.target.closest('#library')) return;
-  library.hidden = true;
+  const target = event.target;
+  if (!(target instanceof Element)) return;
+  const panelIds = ['library','settings','vocab','stats','privacy','shortcuts','learning','account','contact'];
+  const openPanel = panelIds.map(byId).find(panel => panel && !panel.hidden);
+  const contents = byId('contents');
+  const insideOpenPanel = openPanel && target.closest('#' + openPanel.id);
+  const insideContents = contents && !contents.hidden && contents.classList.contains('open') && target.closest('#contents');
+  const trigger = target.closest('#sidebar-library,#mobile-library,#library-btn,#library-home-btn,#settings-btn,#vocab-btn,#stats-btn,#flashcards-btn,#contact-link,#privacy-link,#shortcuts-link,#sidebar-account,#mobile-account,#account-btn,#saved-btn,#contents-btn');
+  if (openPanel && !insideOpenPanel && !trigger) showPanel(openPanel.id, false);
+  if (contents && !insideContents && !target.closest('#contents-btn')) {
+    contents.classList.remove('open');
+    contents.hidden = true;
+    byId('contents-btn')?.setAttribute('aria-expanded','false');
+  }
+  const dictionaryPanel = byId('dictionary-panel');
+  if (dictionaryPanel && !dictionaryPanel.hidden && !target.closest('#dictionary-panel,#dictionary-btn')) closeDictionaryPanel();
+  const more = target.closest('.toolbar-more');
+  document.querySelectorAll('.toolbar-more[open]').forEach(menu => { if (menu !== more) menu.open = false; });
 }, true);
+document.addEventListener('keydown', event => {
+  if (event.key !== 'Escape') return;
+  closeOverlayPanels();
+  hidePanels();
+  closeDictionaryPanel();
+  hidePopup();
+  document.querySelectorAll('.toolbar-more[open]').forEach(menu => { menu.open = false; });
+});
   for (const id of ['sidebar-account','mobile-account','account-btn']) byId(id)?.addEventListener('click', openAccount);
   byId('saved-btn')?.addEventListener('click',()=>showPanel('vocab'));
   byId('sidebar-theme')?.addEventListener('click', () => byId('theme').click());
@@ -925,7 +947,7 @@ async function initFirebase(){
   firebaseInitPromise=(async()=>{await Promise.all(['firebaseApp','firebaseAuth','firebaseStore'].map(loadLibrary));if(!firebase.apps.length)firebase.initializeApp(window.EASYREAD_FIREBASE_CONFIG);auth=firebase.auth();firestore=firebase.firestore();auth.onAuthStateChanged(next=>{user=next;updateProfile();if(user)syncCloud();});try{await auth.getRedirectResult();}catch(error){if(error?.code!=='auth/no-auth-event')setAuthStatus(friendlyAuthError(error),'error');}return auth;})();
   try{return await firebaseInitPromise;}catch(error){firebaseInitPromise=null;throw error;}
 }
-async function openAccount(){showPanel('account');try{await initFirebase();setAuthMode('signin');}catch(error){setAuthStatus('Sign-in is temporarily unavailable. '+error.message,'error');}}
+async async function openAccount(){showPanel('account');try{await initFirebase();setAuthMode('signin');}catch(error){setAuthStatus('Sign-in is temporarily unavailable. '+error.message,'error');}}
 function updateProfile(){
   const label=user?.displayName?.split(' ')[0]||'Sign in';for(const id of ['account-label','sidebar-account-label'])if(byId(id))byId(id).textContent=label;
   if(byId('sidebar-account-meta'))byId('sidebar-account-meta').textContent=user?.email||'Sync your reading';
