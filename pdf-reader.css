@@ -710,3 +710,15 @@ main { min-width: 0; overflow-x: clip; }
 .bar-end { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; margin-left: auto; }
 .bar-end .page-jump-inline { margin-left: 0; }
 @media (max-width: 700px) { .bar-end { margin-left: 0; } }
+
+
+/* Real zoom for scanned PDFs: allow the page to grow wider than the phone viewport,
+   with horizontal panning on the PDF surface rather than clipping the enlarged page. */
+.pdf-pages{width:100%;max-width:100%;overflow-x:auto;overflow-y:visible;justify-items:center;overscroll-behavior-x:contain}
+.pdf-page{width:max-content;min-width:100%;max-width:none;overflow:visible}
+.pdf-page canvas{max-width:none}
+@media(max-width:900px){
+  .pdf-pages{justify-items:start;-webkit-overflow-scrolling:touch}
+  .pdf-page{width:max-content;min-width:100%;overflow:visible}
+  .pdf-page canvas{max-width:none}
+}
