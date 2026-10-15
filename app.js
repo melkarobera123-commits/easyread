@@ -50,7 +50,7 @@ const putDefinition = value => dbRequest('definitions', 'readwrite', store => st
 const fileInput = byId('file'), drop = byId('drop'), reader = byId('reader'), readerWrap = byId('reader-wrap');
 const pdfPages = byId('pdf-pages'), pdfThumbs = byId('pdf-thumbs'), popup = byId('popup');
 const STORE_KEYS = { vocabulary: 'er-vocabulary', notes: 'er-notes', highlights: 'er-highlights', bookmarks: 'er-bookmarks', stats: 'er-stats' };
-let activeBook = null, activePdf = null, pdfMode = true, documentPageMode = false, zoom = 1, pageCount = 0, lookupController = null, toastTimer, saveTimer, auth = null, firestore = null, storage = null, user = null, installPromptEvent = null;
+let activeBook = null, activePdf = null, pdfMode = true, documentPageMode = false, zoom = 1, readerZoom = 1, pageCount = 0, lookupController = null, toastTimer, saveTimer, auth = null, firestore = null, storage = null, user = null, installPromptEvent = null;
 let pageObserver = null, thumbObserver = null, activePage = 1, pdfTextPromise = null, pdfSearchMatches = [], pdfSearchIndex = -1, searchToken = 0, firebaseInitPromise = null, cloudSyncTimer = null;
 let popupReturnFocus = null;
 let positionFrame = 0, positionWriteTimer = null, searchDebounceTimer = null;
@@ -144,7 +144,7 @@ async function openFile(file) {
   hidePopup(); reader.replaceChildren(); pdfPages.replaceChildren(); pdfThumbs.replaceChildren();
   pageObserver?.disconnect(); thumbObserver?.disconnect();
   pageObserver=null; thumbObserver=null;
-  activePdf = null; pdfTextPromise = null; pdfRenderPromises.clear(); pdfMode = true; documentPageMode = false; byId('pdf-toolbar').hidden = true; byId('pdf-controls').hidden = true; pageCount = 0;
+  activePdf = null; pdfTextPromise = null; pdfRenderPromises.clear(); pdfMode = true; readerZoom = 1; reader.style.zoom = '1'; documentPageMode = false; byId('pdf-toolbar').hidden = true; byId('pdf-controls').hidden = true; pageCount = 0;
   byId('loading-skeleton').hidden = false; readerWrap.hidden = false; setView('reader'); if(byId('document-page-toggle')){byId('document-page-toggle').setAttribute('aria-pressed','false');byId('document-page-toggle').textContent='Page view';} status(`Preparing ${file.name}…`);
   const key = `${file.name}:${file.size}:${file.lastModified}`;
   activeBook = await getBook(key).catch(() => null) || { key, name: file.name, title: file.name.replace(/\.[^.]+$/, ''), file, type: ext, added: Date.now(), favorite: false, progress: 0 };
@@ -921,6 +921,7 @@ function tickReadingTimer(){const today=todayKey();if(readerTimerDay!==today){re
 function startReadingTimer(){if(readerTimerRunning)return;readerTimerRunning=true;readerTimerStart=Date.now();readerTimerInterval=setInterval(tickReadingTimer,1000);updateReadingTimer();}
 function pauseReadingTimer(){if(!readerTimerRunning)return;readerTimerSeconds=elapsedReadingSeconds();readerTimerRunning=false;readerTimerStart=0;clearInterval(readerTimerInterval);readerTimerInterval=null;recordReadingSeconds(readerTimerSeconds);persistReadingTimer();updateReadingTimer();}
 function resetReadingTimer(){pauseReadingTimer();readerTimerDay=todayKey();readerTimerSeconds=0;readerTimerRecordedSeconds=0;persistReadingTimer();updateReadingTimer();}
+function changeContentZoom(delta){if(activePdf&&pdfMode){scalePdf(delta>0?.15:-.15);return;}readerZoom=Math.min(2,Math.max(.65,Math.round((readerZoom+delta)*100)/100));reader.style.zoom=String(readerZoom);local.set('er-reader-zoom',readerZoom);}
 function changeReaderTextSize(delta){const settings=local.get('er-reader-settings',{}),size=Math.min(2,Math.max(.85,Number(settings.size||1.25)+delta));settings.size=Math.round(size*100)/100;local.set('er-reader-settings',settings);document.documentElement.style.setProperty('--reader-fs',settings.size+'rem');}
 function changeReaderSpacing(delta){const settings=local.get('er-reader-settings',{}),spacing=Math.min(2.3,Math.max(1.5,Math.round((Number(settings.spacing||1.9)+delta)*10)/10));settings.spacing=spacing;local.set('er-reader-settings',settings);document.documentElement.style.setProperty('--reader-leading',String(spacing));byId('spacing').value=String(spacing);}
 function loadReaderPreferences(){const settings=local.get('er-reader-settings',{}),root=document.documentElement,font=settings.font||'literata',spacing=settings.spacing||1.9,width=settings.width||780,size=Math.min(2,Math.max(.85,Number(settings.size)||1.25));byId('font-choice').value=font;byId('spacing').value=String(spacing);byId('width').value=String(width);root.style.setProperty('--reader-font',font==='serif'?'Georgia,serif':font==='dyslexic'?'Arial,sans-serif':"'Literata',Georgia,serif");root.style.setProperty('--reader-leading',String(spacing));root.style.setProperty('--reader-width',`${width}px`);root.style.setProperty('--reader-fs',`${size}rem`);readerTimerDay=todayKey();const saved=local.get('er-reading-timer',{day:readerTimerDay,seconds:0});readerTimerSeconds=saved.day===readerTimerDay?Math.max(0,Number(saved.seconds)||0):0;readerTimerGoal=Math.max(0,Number(local.get('er-reading-goal',byId('reading-goal').value))||0);byId('reading-goal').value=String(readerTimerGoal);readerTimerRecordedSeconds=readerTimerSeconds;updateReadingTimer();}
@@ -1041,7 +1042,7 @@ async function init() {
   byId('jump').addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();goToRequestedPage();}});
   byId('dictionary-btn').addEventListener('click',()=>{const panel=byId('dictionary-panel'),open=panel.hidden;panel.hidden=!open;byId('dictionary-btn').setAttribute('aria-expanded',String(open));if(open)byId('dictionary-query').focus();});
   byId('dictionary-panel').addEventListener('submit',submitDictionaryQuery);
-  byId('text-smaller')?.addEventListener('click',()=>changeReaderTextSize(-.1));byId('text-larger')?.addEventListener('click',()=>changeReaderTextSize(.1));
+  byId('text-smaller')?.addEventListener('click',()=>changeReaderTextSize(-.1));byId('text-larger')?.addEventListener('click',()=>changeReaderTextSize(.1));byId('reader-zoom-out')?.addEventListener('click',()=>changeContentZoom(-.1));byId('reader-zoom-in')?.addEventListener('click',()=>changeContentZoom(.1));
   byId('text-spacing-down')?.addEventListener('click',()=>changeReaderSpacing(-.1));byId('text-spacing-up')?.addEventListener('click',()=>changeReaderSpacing(.1));
   byId('document-page-toggle')?.addEventListener('click',()=>setDocumentPageMode(!documentPageMode));
   byId('global-view-toggle')?.addEventListener('click',()=>{ if(activePdf) setPdfMode(!pdfMode); else setDocumentPageMode(!documentPageMode); });
