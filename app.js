@@ -91,7 +91,7 @@ function showPanel(id, open) { const panel = byId(id); if (!panel) return; close
 function hidePanels() { document.querySelectorAll('.panel, .contents').forEach(panel => { panel.hidden = true; panel.classList.remove('open'); }); }
 
 function initNavigation() {
-  byId('reader-home-btn')?.addEventListener('click', () => { hidePopup(); hidePanels(); pauseReadingTimer(); setView('about'); });
+  byId('reader-close-btn')?.addEventListener('click', () => { hidePopup(); hidePanels(); pauseReadingTimer(); readerWrap.hidden = true; setView('about'); });
   document.querySelector('.brand')?.addEventListener('click', event => { event.preventDefault(); setView('about'); });
   for (const id of ['about-nav','sidebar-about','mobile-about']) byId(id)?.addEventListener('click', () => { byId('library')?.setAttribute('hidden',''); setView('about'); });
   for (const id of ['reader-nav','sidebar-reader','mobile-reader']) byId(id)?.addEventListener('click', () => { byId('library')?.setAttribute('hidden',''); readerWrap.hidden ? goToUpload() : setView('reader'); });
