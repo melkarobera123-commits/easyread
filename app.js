@@ -1131,7 +1131,7 @@ async function renderLibrary(){const books=await getBooks(),list=byId('library-p
 function initContact(){
   const contact=window.EASYREAD_CONTACT||{};
   const telegram=String(contact.telegram||'').trim(),handle=telegram.replace(/^@/,'');
-  const phoneLabel=String(contact.phone||'').trim(),phone=phoneLabel.replace(/[\\s().-]/g,'');
+  const phoneLabel=String(contact.phone||'').trim(),phone=phoneLabel.replace(/[\s().-]/g,'');
   const email=String(contact.email||'').trim();
   const telegramLink=byId('contact-telegram'),phoneLink=byId('contact-phone'),emailLink=byId('contact-email');
   byId('copyright-year')?.replaceChildren(document.createTextNode(String(new Date().getFullYear())));
