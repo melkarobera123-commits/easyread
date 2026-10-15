@@ -389,3 +389,11 @@ input,select,textarea{max-width:100%}
   .page-jump-inline{min-height:40px}
   .toolbar-menu{right:0;max-width:calc(100vw - 32px)}
 }
+
+/* Mobile floating page navigation stays beside the reading surface, not behind bottom controls. */
+@media(max-width:700px){.scroll-nav{position:fixed!important;right:8px!important;top:45%!important;bottom:auto!important;transform:translateY(-50%);z-index:58!important;gap:6px;padding:4px}.scroll-nav .icon-btn{width:42px;height:42px;min-width:42px;min-height:42px;box-shadow:var(--shadow)}.reader-focus-mode .scroll-nav{display:flex}}
+/* Reader focus mode hides distractions while keeping navigation and reader controls available. */
+.reader-focus-mode .top,.reader-focus-mode .site-footer,.reader-focus-mode .app-sidebar,.reader-focus-mode .mobile-nav{display:none!important}
+.reader-focus-mode main{margin-left:0!important}.reader-focus-mode .reader-wrap{width:min(980px,100%);margin-inline:auto;padding-top:12px}.reader-focus-mode .doc-head{margin-bottom:12px}.reader-focus-mode .bar{top:8px}
+.saved-note-row{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:12px 0;border-bottom:1px solid var(--line)}.saved-note-content{min-width:0;flex:1}.saved-note-content p{margin:5px 0;overflow-wrap:anywhere}.saved-note-text{white-space:pre-wrap}.saved-note-content small{color:var(--muted)}
+@media(max-width:420px){.pdf-controls #pdf-fullscreen{display:inline-flex!important}.pdf-controls{width:100%;margin-left:0}.pdf-controls #pdf-fullscreen{flex:1 1 100%;min-height:44px}}
