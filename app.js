@@ -978,7 +978,7 @@ function updateInstallButton() {
   button.hidden = !installPromptEvent;
 }
 
-async async function init() {
+async function init() {
   // Keep the UI interactive even if an optional reader feature fails during boot.
   const boot = (name, fn) => {
     try { return fn(); }
