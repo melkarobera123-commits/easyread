@@ -722,3 +722,5 @@ main { min-width: 0; overflow-x: clip; }
   .pdf-page{width:max-content;min-width:100%;overflow:visible}
   .pdf-page canvas{max-width:none}
 }
+
+@media(max-width:700px){.pdf-controls #pdf-fullscreen{display:inline-flex!important}.pdf-controls{width:100%;margin-left:0}.pdf-controls #pdf-fullscreen{flex:1 1 100%;min-height:44px}}
