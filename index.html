@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>EasyRead | Read, Learn, and Understand More</title>
+<title>EasyRead - a calmer way to read</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="dns-prefetch" href="//cdnjs.cloudflare.com">
@@ -13,16 +13,10 @@
 <link rel="stylesheet" href="pdf-reader.css">
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#2F3FE0">
-<meta name="description" content="Read PDFs, Word documents, EPUBs, and text with EasyRead. Look up words instantly, save notes and highlights, and keep your place while you learn.">
-<meta property="og:title" content="EasyRead | Read, Learn, and Understand More">
-<meta property="og:description" content="A calmer reading experience with instant dictionary lookups, notes, highlights, and a personal library.">
-<meta property="og:image" content="https://easyread-robera.vercel.app/og-image.svg">
-<meta property="og:image:alt" content="EasyRead, a calmer way to read and understand every word">
-<meta property="og:type" content="website">
-<meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="EasyRead | Read, Learn, and Understand More">
-<meta name="twitter:description" content="Read PDFs, Word documents, EPUBs, and text with instant word lookups, notes, and highlights.">
-<meta name="twitter:image" content="https://easyread-robera.vercel.app/og-image.svg">
+<meta name="description" content="EasyRead helps you understand books without losing your reading flow.">
+<meta property="og:title" content="EasyRead - a calmer way to read">
+<meta property="og:description" content="Open a book, tap a word, and keep going.">
+<meta property="og:image" content="og-image.svg">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <script src="script.js" defer></script>
 </head>
@@ -139,13 +133,13 @@
 
   <section id="library-home" class="library-home" aria-labelledby="library-title">
     <div class="section-heading"><div><p class="eyebrow">Your reading shelf</p><h2 id="library-title">Pick up where you left off</h2></div><button id="library-home-btn" class="btn" type="button">Open library</button></div>
-    <div class="library-subheading"><span>Recently opened</span><select id="home-library-sort" aria-label="Sort recent books"><option value="recent">Last opened</option><option value="title">Title</option><option value="progress">Progress</option></select></div>
+    <div class="library-subheading"><span>Recently opened</span><select id="home-library-sort" aria-label="Sort recent books"><option value="recent">Last opened</option><option value="title">Title</option><option value="favorites">Favorites first</option><option value="progress">Progress</option></select></div>
     <div id="library-preview" class="library-grid"><p class="note">Your imported books will appear here.</p></div>
   </section>
 
   <section id="reader-wrap" class="reader-wrap" hidden>
     <div class="bar">
-      <div class="bar-primary"><button id="reader-close-btn" class="btn reader-close-btn" type="button" aria-label="Close reader and return to home">✕ Close reader</button><button id="contents-btn" class="btn" type="button" aria-expanded="false" aria-controls="contents">Contents</button><button id="saved-btn" class="btn" type="button">Saved</button><button id="search-btn" class="btn" type="button">Search</button><button id="dictionary-btn" class="btn" type="button" aria-expanded="false" aria-controls="dictionary-panel">Dictionary</button></div>
+      <div class="bar-primary"><button id="contents-btn" class="btn" type="button" aria-expanded="false" aria-controls="contents">Contents</button><button id="saved-btn" class="btn" type="button">Saved</button><button id="search-btn" class="btn" type="button">Search</button><button id="dictionary-btn" class="btn" type="button" aria-expanded="false" aria-controls="dictionary-panel">Dictionary</button></div>
       <div class="reading-timer" role="group" aria-label="Reading timer"><output id="timer-display" aria-live="off" aria-label="Elapsed reading time">00:00</output><span id="timer-state" class="timer-state">Counting up</span><button id="timer-toggle" class="icon-btn" type="button" aria-label="Pause reading timer">Pause</button><button id="timer-reset" class="icon-btn" type="button" aria-label="Reset reading timer">Reset</button></div>
       <div class="bar-end">
         <label class="page-jump-inline" for="reader-page-jump">Page <input id="reader-page-jump" type="number" min="1" inputmode="numeric" value="1" aria-label="Jump to page"><span id="reader-page-total" class="page-total"></span></label>
@@ -190,10 +184,6 @@
       <span id="document-page-label">Page 1 of 1</span>
       <button id="document-page-next" class="icon-btn" type="button" aria-label="Next page">›</button>
       <span class="text-view-divider" aria-hidden="true"></span>
-      <span class="zoom-control-label">Zoom</span>
-      <button id="reader-zoom-out" class="icon-btn" type="button" aria-label="Zoom out">−</button>
-      <button id="reader-zoom-in" class="icon-btn" type="button" aria-label="Zoom in">+</button>
-      <span class="text-view-divider" aria-hidden="true"></span>
       <span>Text</span>
       <button id="text-smaller" class="icon-btn" type="button" aria-label="Decrease text size">A−</button>
       <button id="text-larger" class="icon-btn" type="button" aria-label="Increase text size">A+</button>
@@ -211,7 +201,7 @@
   </section>
 </main>
 
-<footer class="site-footer"><span>© <span id="copyright-year">2026</span> Rob_Era (Abiti). Made with care.</span><span class="footer-links"><a class="support-project-link" href="https://gurshaplus.com/apothecariwu" target="_blank" rel="noopener noreferrer">☕ Buy me a coffee</a><a id="contact-link" href="#contact">Contact developer</a><button id="privacy-link" class="footer-button" type="button">Privacy</button><button id="shortcuts-link" class="footer-button" type="button">Shortcuts</button></span></footer>
+<footer class="site-footer"><span>Rob_Era (Abiti) Made with love</span><span class="footer-links"><a id="contact-link" href="#contact">Contact developer</a><button id="privacy-link" class="footer-button" type="button">Privacy</button><button id="shortcuts-link" class="footer-button" type="button">Shortcuts</button></span></footer>
 
 <aside id="contents" class="contents" aria-label="Contents">
   <div class="contents-head"><h2>Contents</h2><button id="contents-close" class="btn" type="button">Close</button></div>
@@ -249,7 +239,6 @@
 <aside id="vocab" class="panel vocab-panel" hidden role="dialog" aria-modal="true" aria-labelledby="vocab-title">
   <div class="contents-head"><h2 id="vocab-title">My vocabulary</h2><button id="vocab-close" class="btn" type="button">Close</button></div>
   <div id="vocab-list"></div>
-  <section class="saved-section"><h3>My notes</h3><div id="my-notes-list"></div><h3>Highlights</h3><div id="my-highlights-list"></div></section>
 </aside>
 
 <aside id="stats" class="panel stats-panel" hidden role="dialog" aria-modal="true" aria-labelledby="stats-title">
@@ -262,10 +251,17 @@
   <div class="contents-head"><h2 id="library-panel-title">My library</h2><button id="library-close" class="btn" type="button">Close</button></div>
   <p class="note">Files are stored only in this browser.</p>
   <label class="library-search">Find a book <input id="library-search" type="search" placeholder="Search your library"></label>
-  <label class="library-filter">Show <select id="library-filter"><option value="all">All files</option><option value="favorite">Favorites</option><option value="pdf">PDF</option><option value="docx">Word</option><option value="epub">EPUB</option><option value="txt">Text</option><option value="image">Images</option></select></label>
-  <label class="library-sort">Sort by <select id="library-sort"><option value="recent">Last opened</option><option value="title">Title</option><option value="progress">Progress</option></select></label>
-  <h3 class="library-section-title">Favorites</h3><div id="library-favorites"></div>
-  <h3 class="library-section-title">Recently opened</h3><div id="library-list"></div>
+  <div class="library-views" role="group" aria-label="Show books">
+    <button id="library-view-all" class="library-view" type="button" aria-pressed="true">All books</button>
+    <button id="library-view-fav" class="library-view" type="button" aria-pressed="false">&#9733; Favorites <span id="library-fav-count" class="library-count">0</span></button>
+  </div>
+  <div class="library-filters">
+    <label class="library-filter">Type <select id="library-filter"><option value="all">All types</option><option value="pdf">PDF</option><option value="docx">Word</option><option value="epub">EPUB</option><option value="txt">Text</option><option value="image">Images</option></select></label>
+    <label class="library-sort">Sort by <select id="library-sort"><option value="recent">Last opened</option><option value="title">Title</option><option value="progress">Progress</option></select></label>
+  </div>
+  <p id="library-fav-hint" class="note library-hint" hidden>Tap &#9734; on a book to keep it at the top and find it under Favorites.</p>
+  <h3 id="library-fav-title" class="library-section-title">Favorites</h3><div id="library-favorites"></div>
+  <h3 id="library-recent-title" class="library-section-title">Recently opened</h3><div id="library-list"></div>
 </aside>
 
 <aside id="learning" class="panel learning-panel" hidden role="dialog" aria-modal="true" aria-labelledby="learning-title">

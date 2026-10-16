@@ -1,33 +1,38 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#2c5b4d">
-  <meta name="robots" content="noindex">
-  <title>Page not found | EasyRead</title>
-  <meta name="description" content="This EasyRead page could not be found. Return to EasyRead to continue reading.">
-  <link rel="icon" href="/icon.svg" type="image/svg+xml">
-  <style>
-    :root{color-scheme:light dark;--bg:#f4efe8;--sheet:#fbf7f2;--ink:#1d2a26;--muted:#5d6e69;--line:#d9d0c4;--accent:#2c5b4d;--marker:#d9a65f}
-    *{box-sizing:border-box}body{margin:0;min-height:100svh;display:grid;place-items:center;padding:24px;background:var(--bg);color:var(--ink);font:16px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif;text-align:center}
-    main{width:min(560px,100%);padding:clamp(24px,6vw,48px);border:1px solid var(--line);border-radius:24px;background:var(--sheet);box-shadow:0 18px 42px #1a19140f}
-    .mark{display:inline-grid;place-items:center;width:58px;height:58px;border-radius:17px;background:var(--accent);color:var(--marker);font-size:32px}
-    .code{margin:20px 0 0;color:var(--accent);font-size:.8rem;font-weight:800;letter-spacing:.16em}
-    h1{margin:6px 0 12px;font:500 clamp(2.3rem,9vw,4rem)/1.05 Georgia,serif;letter-spacing:-.04em}
-    p{margin:0 auto 24px;max-width:38ch;color:var(--muted)}
-    a{display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:11px 20px;border-radius:999px;background:var(--accent);color:#fff;text-decoration:none;font-weight:700}
-    a:focus-visible{outline:3px solid var(--marker);outline-offset:4px}
-    @media(prefers-color-scheme:dark){:root{--bg:#111918;--sheet:#1a2827;--ink:#edf4ed;--muted:#adc0bb;--line:#334a48;--accent:#9dd1c0;--marker:#e7c178}a{color:#11221d}}
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Page not found - EasyRead</title>
+<meta name="robots" content="noindex">
+<meta name="description" content="This page could not be found. Go back to EasyRead and keep reading.">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="icon" href="/icon-32.png" type="image/png" sizes="32x32">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<style>
+  :root { --bg:#f4efe8; --sheet:#fbf7f2; --ink:#1d2a26; --muted:#5d6e69; --line:#d9d0c4; --accent:#2c5b4d; --marker:#d9a65f; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#111918; --sheet:#1a2827; --ink:#edf4ed; --muted:#adc0bb; --line:#334a48; --accent:#9dd1c0; --marker:#e7c178; } }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  body { display: grid; place-items: center; min-height: 100vh; padding: 24px 16px; background: var(--bg); color: var(--ink); font: 1rem/1.6 system-ui, "Segoe UI", sans-serif; overflow-x: hidden; }
+  main { width: min(520px, 100%); padding: clamp(28px, 6vw, 48px); text-align: center; background: var(--sheet); border: 1px solid var(--line); border-radius: 18px; box-shadow: 0 18px 42px rgba(26, 25, 20, .10); }
+  .mark { display: inline-grid; place-items: center; width: 56px; height: 56px; margin-bottom: 8px; border-radius: 16px; background: var(--accent); }
+  .mark span { width: 26px; height: 5px; border-radius: 3px; background: var(--marker); }
+  .code { margin: 8px 0 0; color: var(--muted); font-size: .8rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+  h1 { margin: 6px 0 10px; font: 400 clamp(1.8rem, 6vw, 2.4rem)/1.15 Georgia, "Times New Roman", serif; overflow-wrap: anywhere; }
+  p { margin: 0 0 24px; color: var(--muted); }
+  a.button { display: inline-flex; align-items: center; justify-content: center; min-height: 46px; padding: 10px 24px; color: var(--sheet); background: var(--accent); border-radius: 999px; font-weight: 700; text-decoration: none; }
+  a.button:hover { filter: brightness(1.1); }
+  a.button:focus-visible { outline: 3px solid var(--marker); outline-offset: 3px; }
+</style>
 </head>
 <body>
-  <main>
-    <div class="mark" aria-hidden="true">↗</div>
-    <p class="code">ERROR 404</p>
-    <h1>This page wandered off.</h1>
-    <p>We couldn’t find that page. Your next chapter is still waiting in EasyRead.</p>
-    <a href="/">Return to EasyRead</a>
-  </main>
+<main>
+  <div class="mark" aria-hidden="true"><span></span></div>
+  <p class="code">Error 404</p>
+  <h1>We couldn&rsquo;t find that page</h1>
+  <p>The link may be mistyped or the page may have moved. Your books and progress are safe on your device.</p>
+  <a class="button" href="/">Back to EasyRead</a>
+</main>
 </body>
 </html>

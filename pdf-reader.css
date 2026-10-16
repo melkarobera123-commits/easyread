@@ -711,16 +711,114 @@ main { min-width: 0; overflow-x: clip; }
 .bar-end .page-jump-inline { margin-left: 0; }
 @media (max-width: 700px) { .bar-end { margin-left: 0; } }
 
+/* ===== Library panel: tidy cards and a Favorites filter ===== */
+.library-panel .library-search input {
+  width: 100%;
+  min-height: 42px;
+  padding: 8px 16px;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+}
+.library-panel .library-search input:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 45%, transparent); outline-offset: 2px; }
 
-/* Real zoom for scanned PDFs: allow the page to grow wider than the phone viewport,
-   with horizontal panning on the PDF surface rather than clipping the enlarged page. */
-.pdf-pages{width:100%;max-width:100%;overflow-x:auto;overflow-y:visible;justify-items:center;overscroll-behavior-x:contain}
-.pdf-page{width:max-content;min-width:100%;max-width:none;overflow:visible}
-.pdf-page canvas{max-width:none}
-@media(max-width:900px){
-  .pdf-pages{justify-items:start;-webkit-overflow-scrolling:touch}
-  .pdf-page{width:max-content;min-width:100%;overflow:visible}
-  .pdf-page canvas{max-width:none}
+.library-views {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  margin: 4px 0 14px;
+  padding: 4px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+}
+.library-view {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-pill);
+  font-weight: 700;
+  cursor: pointer;
+}
+.library-view:hover { color: var(--ink); }
+.library-view[aria-pressed="true"] { color: var(--sheet); background: var(--accent); }
+.library-count {
+  min-width: 22px;
+  padding: 1px 7px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, currentColor 20%, transparent);
+  font-size: .78rem;
+  text-align: center;
 }
 
-@media(max-width:700px){.pdf-controls #pdf-fullscreen{display:inline-flex!important}.pdf-controls{width:100%;margin-left:0}.pdf-controls #pdf-fullscreen{flex:1 1 100%;min-height:44px}}
+.library-filters { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 8px; }
+.library-filters label { display: grid; gap: 6px; min-width: 0; color: var(--muted); font-size: .84rem; }
+.library-filters select { width: 100%; min-height: 40px; }
+.library-hint { margin: 8px 0 0; }
+
+.library-row {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  grid-template-areas: "star details" "bar bar" "actions actions";
+  gap: 10px 12px;
+  align-items: center;
+  margin: 0 0 12px;
+  padding: 14px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+.library-row.is-favorite { border-color: color-mix(in srgb, var(--marker) 70%, var(--line)); }
+.library-star {
+  grid-area: star;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  color: var(--muted);
+  background: var(--sheet);
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  font-size: 1.3rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: transform .1s ease, background-color .15s ease, border-color .15s ease;
+}
+.library-star:hover { border-color: var(--marker); color: var(--marker); }
+.library-star:active { transform: scale(.92); }
+.library-row.is-favorite .library-star {
+  color: var(--marker);
+  background: color-mix(in srgb, var(--marker) 16%, transparent);
+  border-color: var(--marker);
+}
+.library-book-details { grid-area: details; min-width: 0; }
+.library-book-details strong {
+  display: block;
+  font: 500 1.05rem/1.25 var(--display);
+  overflow-wrap: anywhere;
+}
+.library-book-details small { display: block; margin-top: 3px; color: var(--muted); font-size: .8rem; }
+.library-row progress.library-progress { grid-area: bar; width: 100%; height: 6px; accent-color: var(--accent); }
+.library-book-actions { grid-area: actions; display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+.library-book-actions .btn { min-height: 42px; }
+.library-continue { color: var(--sheet); background: var(--accent); border-color: var(--accent); }
+.library-continue:hover { filter: brightness(1.1); background: var(--accent); }
+@media (max-width: 420px) { .library-filters { grid-template-columns: 1fr; } }
+
+/* ===== Focus mode: hide everything except the reader and its toolbar ===== */
+body.focus-mode .app-sidebar,
+body.focus-mode .top,
+body.focus-mode .site-footer,
+body.focus-mode .mobile-nav,
+body.focus-mode .doc-head,
+body.focus-mode #reader-tools { display: none; }
+body.focus-mode main, body.focus-mode .site-footer { margin-left: 0; }
+body.focus-mode .bar { top: 8px; }
+body.focus-mode .pdf-toolbar, body.focus-mode .text-view-controls { top: 70px; }
+body.focus-mode .global-reader-controls { top: 14px; }

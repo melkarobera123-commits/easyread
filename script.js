@@ -13,6 +13,9 @@
   document.addEventListener('DOMContentLoaded', () => {
     const $ = id => document.getElementById(id);
 
+    // Footer copyright year
+    const year = $('copyright-year'); if (year) year.textContent = String(new Date().getFullYear());
+
     // Light / sepia / dark theme
     const THEMES = ['light', 'sepia', 'dark'];
     const NAMES = { light: 'Light mode', sepia: 'Sepia mode', dark: 'Dark mode' };
