@@ -675,9 +675,8 @@ function wordAt(x, y) {
     return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
   });
 
-  if (page) return pdfWordHitAt(page, x, y);
-
-  // Non-PDF content keeps the normal browser text hit-testing path.
+  // Prefer the actual text under the pointer. This prevents a nearby PDF
+  // geometry box from winning when the user taps the next word or a space.
   const elements = document.elementsFromPoint(x, y);
   const span = elements.find(element =>
     element.matches?.('.pdf-page .textLayer span:not(.markedContent)')
@@ -693,6 +692,9 @@ function wordAt(x, y) {
     if (exact?.word) return exact;
   }
 
+  // Use PDF-coordinate hit testing only as a fallback for text whose browser
+  // text-layer geometry cannot be resolved at the touched point.
+  if (page) return pdfWordHitAt(page, x, y);
   return null;
 }
 
