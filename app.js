@@ -1270,7 +1270,33 @@ function exportData(){const data={vocabulary:local.get('er-vocabulary',[]),notes
 async function deleteLocalData(){if(!confirm('Delete all local reading data and books? This cannot be undone.'))return;localStorage.clear();await new Promise(resolve=>{const request=indexedDB.deleteDatabase('easyread-library-v2');request.onsuccess=request.onerror=request.onblocked=resolve;});toast('Local data deleted. Reload EasyRead.');}
 function renderPrivacyState(){byId('privacy-status').textContent='Books and reading position are stored in this browser. Sign-in sync is optional.';}
 async function renderLibrary(){const books=await getBooks(),list=byId('library-preview');if(!list)return;updateContinueCard(books);list.replaceChildren();if(!books.length){safeText(list,'p','Your books will appear here after you open one.','note');return;}const sort=byId('home-library-sort')?.value||'recent';books.sort((a,b)=>sort==='favorites'?((b.favorite?1:0)-(a.favorite?1:0))||((b.opened||0)-(a.opened||0)):sort==='title'?(a.title||a.name).localeCompare(b.title||b.name):sort==='progress'?(b.progress||0)-(a.progress||0):(b.opened||0)-(a.opened||0)).slice(0,4).forEach(book=>{const card=document.createElement('article');card.className='book-card';safeText(card,'strong',(book.favorite?'\u2605 ':'')+(book.title||book.name));const progress=document.createElement('progress');progress.max=100;progress.value=book.progress||0;card.append(progress);const open=safeText(card,'button','Continue reading','btn');open.onclick=()=>openFile(book.file);list.append(card);});}
-function initContact(){const contact=window.EASYREAD_CONTACT||{},telegram=String(contact.telegram||'').trim(),handle=telegram.replace(/^@/,'');const phone=String(contact.phone||'').trim().replace(/[\s().-]/g,'');const email=String(contact.email||'').trim();const telegramLink=byId('contact-telegram'),phoneLink=byId('contact-phone'),emailLink=byId('contact-email');byId('contact-telegram-label').textContent=telegram||'Unavailable';byId('contact-phone-label').textContent=contact.phone||'Unavailable';byId('contact-email-label').textContent=email||'Unavailable';if(handle)telegramLink.href=`https://t.me/${encodeURIComponent(handle)}`;if(phone)phoneLink.href=`tel:${phone}`;if(email)emailLink.href=`mailto:${email}`;byId('contact-send').addEventListener('click',()=>{if(!email)return toast('Email contact is unavailable.');if(!byId('contact-message').value.trim())return toast('Write a short message first.');const subject=encodeURIComponent('EasyRead feedback'),body=encodeURIComponent(byId('contact-message').value.trim());toast('Opening your email app\u2026');window.location.href=`mailto:${email}?subject=${subject}&body=${body}`;});}
+function initContact(){
+  const contact=window.EASYREAD_CONTACT||{};
+  const telegram=String(contact.telegram||'').trim();
+  const handle=telegram.replace(/^@/,'');
+  const phoneDisplay=String(contact.phone||'').trim();
+  const phone=phoneDisplay.replace(/[\\s().-]/g,'');
+  const email=String(contact.email||'').trim();
+  const telegramLink=byId('contact-telegram');
+  const phoneLink=byId('contact-phone');
+  const emailLink=byId('contact-email');
+  const setContactLink=(link,label,value,href)=>{
+    byId(label).textContent=value||'Unavailable';
+    if(value&&href){link.href=href;link.classList.remove('unavailable');link.removeAttribute('aria-disabled');}
+    else{link.removeAttribute('href');link.classList.add('unavailable');link.setAttribute('aria-disabled','true');}
+  };
+  setContactLink(telegramLink,'contact-telegram-label',telegram,handle?'https://t.me/'+encodeURIComponent(handle):'');
+  setContactLink(phoneLink,'contact-phone-label',phoneDisplay,phone?'tel:'+phone:'');
+  setContactLink(emailLink,'contact-email-label',email,email?'mailto:'+email:'');
+  byId('contact-send').addEventListener('click',()=>{
+    if(!email)return toast('Email contact is unavailable.');
+    if(!byId('contact-message').value.trim())return toast('Write a short message first.');
+    const subject=encodeURIComponent('EasyRead feedback');
+    const body=encodeURIComponent(byId('contact-message').value.trim());
+    toast('Opening your email app…');
+    window.location.href='mailto:'+email+'?subject='+subject+'&body='+body;
+  });
+}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 
 // Move up / move down buttons: scroll about one screen at a time.
