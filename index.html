@@ -203,7 +203,7 @@
   </section>
 </main>
 
-<footer class="site-footer"><span>Rob_Era (Abiti) Made with love</span><span class="footer-links"><a id="contact-link" href="#contact">Contact developer</a><button id="privacy-link" class="footer-button" type="button">Privacy</button><button id="shortcuts-link" class="footer-button" type="button">Shortcuts</button></span></footer>
+<footer class="site-footer"><span class="footer-credit">Rob_Era (Abiti) <span aria-hidden="true">♥</span> Made with love</span><span class="footer-links"><a id="contact-link" href="#contact">Contact</a><button id="privacy-link" class="footer-button" type="button">Privacy</button><button id="shortcuts-link" class="footer-button" type="button">Shortcuts</button><a class="coffee-link" href="https://gurshaplus.com/apothecariwu" target="_blank" rel="noopener noreferrer"><span aria-hidden="true">☕</span> Buy me a coffee <span aria-hidden="true">↗</span></a></span></footer>
 
 <aside id="contents" class="contents" aria-label="Contents">
   <div class="contents-head"><h2>Contents</h2><button id="contents-close" class="btn" type="button">Close</button></div>
@@ -319,20 +319,50 @@
 </aside>
 
 <aside id="contact" class="panel contact-panel" hidden role="dialog" aria-modal="true" aria-labelledby="contact-title">
-  <div class="contents-head"><h2 id="contact-title">Say hello</h2><button id="contact-close" class="btn" type="button">Close</button></div>
-  <p>Found a rough edge or have an idea? Leave a note for the developer.</p>
-  <div class="contact-cards"><a id="contact-telegram" class="contact-card" target="_blank" rel="noreferrer"><span class="contact-symbol">↗</span><span><strong>Telegram</strong><small id="contact-telegram-label">Add handle</small></span></a><a id="contact-phone" class="contact-card"><span class="contact-symbol">⌕</span><span><strong>Phone</strong><small id="contact-phone-label">Add number</small></span></a><a id="contact-email" class="contact-card"><span class="contact-symbol">@</span><span><strong>Email</strong><small id="contact-email-label">Add address</small></span></a></div>
-  <label>Your message <textarea id="contact-message" rows="6" placeholder="Tell me what would make EasyRead better..."></textarea></label>
-  <button id="contact-send" class="btn account-action" type="button">Prepare email</button>
+  <div class="contact-hero">
+    <div class="contact-hero-top"><span class="contact-mark" aria-hidden="true">✉</span><button id="contact-close" class="panel-close" type="button" aria-label="Close contact panel">×</button></div>
+    <p class="eyebrow">LET'S MAKE EASYREAD BETTER</p>
+    <h2 id="contact-title">Say hello.</h2>
+    <p class="contact-intro">Found a rough edge, have an idea, or just want to connect? Send a note. Your feedback helps shape what comes next.</p>
+  </div>
+  <section class="contact-methods" aria-label="Contact options">
+    <a id="contact-telegram" class="contact-card" target="_blank" rel="noopener noreferrer"><span class="contact-symbol" aria-hidden="true">↗</span><span><strong>Telegram</strong><small id="contact-telegram-label">Unavailable</small></span><span class="contact-card-arrow" aria-hidden="true">↗</span></a>
+    <a id="contact-email" class="contact-card"><span class="contact-symbol" aria-hidden="true">@</span><span><strong>Email</strong><small id="contact-email-label">Unavailable</small></span><span class="contact-card-arrow" aria-hidden="true">↗</span></a>
+    <a id="contact-phone" class="contact-card"><span class="contact-symbol" aria-hidden="true">⌕</span><span><strong>Phone</strong><small id="contact-phone-label">Unavailable</small></span><span class="contact-card-arrow" aria-hidden="true">↗</span></a>
+  </section>
+  <div class="contact-compose">
+    <label for="contact-message">Write a message<textarea id="contact-message" rows="5" placeholder="Tell me what would make EasyRead better..."></textarea></label>
+    <button id="contact-send" class="btn account-action" type="button">Prepare email <span aria-hidden="true">↗</span></button>
+    <p class="contact-hint">Your email app opens with your message ready to send. Nothing is sent automatically.</p>
+  </div>
+  <a class="coffee-feature" href="https://gurshaplus.com/apothecariwu" target="_blank" rel="noopener noreferrer"><span class="coffee-feature-icon" aria-hidden="true">☕</span><span><strong>Enjoying EasyRead?</strong><small>Support the work with a coffee.</small></span><span class="coffee-feature-action">Buy me a coffee ↗</span></a>
 </aside>
 
 <aside id="privacy" class="panel privacy-panel" hidden role="dialog" aria-modal="true" aria-labelledby="privacy-title">
-  <div class="contents-head"><h2 id="privacy-title">Privacy center</h2><button id="privacy-close" class="btn" type="button">Close</button></div>
-  <div class="privacy-block"><span class="privacy-check">✓</span><div><strong>Local-first by default</strong><p>Your books stay in this browser. Online services are used only when you ask for a lookup, translation, or sync.</p></div></div>
-  <div class="privacy-block"><span class="privacy-check">✓</span><div><strong>Cloud sync is optional</strong><p>Google sync stores your reading data in your private Firestore user record after sign-in.</p></div></div>
-  <button id="export-all" class="btn account-action" type="button">Export all my data</button>
-  <button id="delete-all" class="btn danger-action" type="button">Delete all local data</button>
-  <p id="privacy-status" class="note"></p>
+  <div class="privacy-hero">
+    <div class="privacy-hero-top"><span class="privacy-mark" aria-hidden="true">◇</span><button id="privacy-close" class="panel-close" type="button" aria-label="Close privacy center">×</button></div>
+    <p class="eyebrow">YOUR DATA, YOUR CHOICE</p>
+    <h2 id="privacy-title">Privacy center.</h2>
+    <p class="privacy-intro">A clear view of where your reading data lives and the controls you have over it.</p>
+  </div>
+  <section class="privacy-summary" aria-label="Privacy overview">
+    <div class="privacy-summary-icon" aria-hidden="true">⌂</div><div><strong>Stored on this device</strong><p>Books, notes, saved words, highlights, bookmarks and reading progress are kept locally when you use EasyRead in this browser.</p></div>
+  </section>
+  <section class="privacy-detail">
+    <div class="privacy-detail-heading"><span class="privacy-detail-icon" aria-hidden="true">↻</span><div><h3>Optional cloud sync</h3><p>When you sign in, EasyRead can sync supported reading data to your account's private Firestore record.</p></div></div>
+    <span class="privacy-tag">Only when signed in</span>
+  </section>
+  <section class="privacy-detail">
+    <div class="privacy-detail-heading"><span class="privacy-detail-icon" aria-hidden="true">⌕</span><div><h3>Online tools</h3><p>Dictionary, translation and other connected services may send the specific text or request needed to provide that feature.</p></div></div>
+  </section>
+  <section class="privacy-actions" aria-label="Manage your data">
+    <h3>Manage your data</h3>
+    <p>Keep a copy of your data, or clear the data stored locally on this device.</p>
+    <button id="export-all" class="btn privacy-export" type="button"><span aria-hidden="true">↓</span> Export all my data</button>
+    <button id="delete-all" class="btn privacy-delete" type="button"><span aria-hidden="true">⌫</span> Delete all local data</button>
+    <p class="privacy-caution">Deleting local data is destructive. Export a backup first if you may need it later.</p>
+    <p id="privacy-status" class="note privacy-status" role="status" aria-live="polite"></p>
+  </section>
 </aside>
 
 <aside id="shortcuts" class="panel shortcuts-panel" hidden role="dialog" aria-modal="true" aria-labelledby="shortcuts-title">
