@@ -263,3 +263,42 @@ body.focus-mode .bar{position:sticky;top:8px;z-index:80;}
 .notes-panel .saved-note-actions{display:flex;gap:6px;flex-wrap:wrap;}
 .notes-panel .saved-note-actions .btn{min-height:38px;}
 @media(max-width:700px){.bar-primary{flex-wrap:wrap;}.notes-panel .saved-note-row{gap:8px;}.notes-panel .saved-note-actions{flex-direction:column;}}
+
+
+/* Branded confirmation for deleting notes and highlights */
+.delete-confirm-dialog{
+  width:min(420px,calc(100vw - 32px));
+  max-width:420px;
+  margin:auto;
+  padding:0;
+  color:var(--ink);
+  background:var(--sheet);
+  border:1px solid var(--line);
+  border-radius:18px;
+  box-shadow:var(--shadow);
+}
+.delete-confirm-dialog::backdrop{background:rgba(12,20,19,.48);backdrop-filter:blur(4px)}
+.delete-confirm-content{padding:26px}
+.delete-confirm-mark{
+  display:grid;
+  place-items:center;
+  width:42px;
+  height:42px;
+  margin-bottom:16px;
+  border-radius:13px;
+  background:color-mix(in srgb,#a42d39 12%,var(--sheet));
+  color:#a42d39;
+  font-size:1.35rem;
+  font-weight:800;
+}
+.delete-confirm-content h2{margin:0;font:500 1.55rem/1.2 var(--display)}
+.delete-confirm-content p{margin:10px 0 0;color:var(--muted);font-size:.92rem;line-height:1.6}
+.delete-confirm-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:24px}
+.delete-confirm-actions .danger-action{border-color:color-mix(in srgb,#a42d39 38%,var(--line));background:color-mix(in srgb,#a42d39 9%,var(--sheet));color:#a42d39;font-weight:700}
+.delete-confirm-actions .danger-action:hover{background:color-mix(in srgb,#a42d39 16%,var(--sheet));border-color:#a42d39}
+@media(max-width:420px){
+  .delete-confirm-dialog{width:calc(100vw - 24px)}
+  .delete-confirm-content{padding:22px 18px}
+  .delete-confirm-actions{flex-direction:column-reverse}
+  .delete-confirm-actions .btn{width:100%;min-height:44px}
+}
