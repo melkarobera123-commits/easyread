@@ -1419,9 +1419,12 @@ document.addEventListener('click', event => {
 
 // ---------- Page title follows the view ----------
 function updateDocumentTitle() {
-  const view = document.body.dataset.view;
+  const route = document.body.dataset.route;
+  const view = route || document.body.dataset.view;
   const name = activeBook?.title || activeBook?.name;
-  document.title = view === 'reader' ? (name ? `${name} - EasyRead` : 'Reader - EasyRead') : 'EasyRead - a calmer way to read';
+  if (view === 'library') document.title = 'My Library - EasyRead';
+  else if (view === 'notes') document.title = 'My Notes - EasyRead';
+  else document.title = view === 'reader' ? (name ? `${name} - EasyRead` : 'Reader - EasyRead') : 'EasyRead - a calmer way to read';
 }
 
 // ---------- Reading preferences: Focus, Line focus, High contrast, voice, reading language ----------
