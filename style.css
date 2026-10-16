@@ -418,3 +418,9 @@ body[data-route="library"] #library-backdrop { display:none !important; }
  .coffee-feature{align-items:flex-start;flex-wrap:wrap}
  .coffee-feature-action{width:100%;padding-left:54px;text-align:left}
 }
+
+
+/* Photo reading: preserve the original image and support OCR word taps. */
+.image-readable-page{width:100%;margin:0 auto 22px;display:flex;justify-content:center;align-items:flex-start;overflow:hidden;border:1px solid var(--line);border-radius:12px;background:var(--sheet)}
+.image-readable-photo{display:block;width:auto;max-width:100%;height:auto;max-height:none;object-fit:contain;user-select:none;-webkit-user-select:none;-webkit-user-drag:none;touch-action:pan-y;cursor:text}
+@media(max-width:700px){.image-readable-page{margin-bottom:16px;border-radius:9px}.image-readable-photo{width:100%;height:auto}}
