@@ -33,9 +33,48 @@ test('reader controls are present and keyboard friendly', async ({ page }) => {
   await expect(page.locator('#text-larger')).toHaveAttribute('aria-label', /Increase text size/);
 });
 
-test('account screen exposes only configured Google sign-in', async ({ page }) => {
+test('account screen offers email sign-in and Google sign-in', async ({ page }) => {
   await page.goto('/');
   await page.locator('#account-btn').click();
   await expect(page.locator('#google-signin')).toBeVisible();
-  await expect(page.locator('#email-auth-form')).toHaveCount(0);
+  await expect(page.locator('#email-auth-form')).toBeVisible();
+  await expect(page.locator('#auth-tab-signin')).toBeVisible();
+  await expect(page.locator('#auth-tab-signup')).toBeVisible();
+});
+
+
+test('desktop navigation supports Library, Notes, and browser history', async ({ page }) => {
+  await page.goto('/home');
+  await page.locator('#sidebar-library').click();
+  await expect(page).toHaveURL(/\/library$/);
+  await expect(page.locator('#library')).toBeVisible();
+  await page.locator('#sidebar-notes').click();
+  await expect(page).toHaveURL(/\/notes$/);
+  await expect(page.locator('#notes-panel')).toBeVisible();
+  await page.goBack();
+  await expect(page).toHaveURL(/\/library$/);
+  await expect(page.locator('#library')).toBeVisible();
+});
+
+test('mobile bottom navigation opens the Library route', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/home');
+  await expect(page.locator('#mobile-nav')).toBeVisible();
+  await page.locator('#mobile-library').click();
+  await expect(page).toHaveURL(/\/library$/);
+  await expect(page.locator('#library')).toBeVisible();
+});
+
+test('question-mark shortcut opens Keyboard Shortcuts', async ({ page }) => {
+  await page.goto('/home');
+  await page.keyboard.press('?');
+  await expect(page.locator('#shortcuts')).toBeVisible();
+});
+
+test('welcome sign-in prompt can be dismissed without blocking reading', async ({ page }) => {
+  await page.goto('/home');
+  await expect(page.locator('#welcome-signin')).toBeVisible();
+  await page.locator('#welcome-dismiss').click();
+  await expect(page.locator('#welcome-signin')).toBeHidden();
+  await expect(page.locator('#drop')).toBeVisible();
 });
