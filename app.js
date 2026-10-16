@@ -842,7 +842,90 @@ async function renderLibraryPanel(){
 function removeSavedWord(word){const target=String(word||'').trim().toLowerCase();if(!target)return;const values=local.get('er-vocabulary',[]);const next=values.filter(item=>String(item.word||'').trim().toLowerCase()!==target);if(next.length===values.length)return;const tombstones=local.get('er-vocabulary-deleted',{});tombstones[target]=Math.max(Date.now(),Number(tombstones[target]||0)+1);local.set('er-vocabulary-deleted',tombstones);local.set('er-vocabulary',next);queueCloudSync();renderVocabulary();renderAccountPanel?.();toast(`“${word}” removed from your saved words.`);}
 function renderVocabulary(){const list=byId('vocab-list');list.replaceChildren();const values=local.get('er-vocabulary',[]);if(!values.length)return safeText(list,'p','Saved words will appear here.','note');values.forEach(item=>{const row=document.createElement('div');row.className='vocab-row';const info=document.createElement('div');info.className='vocab-info';safeText(info,'strong',item.word);safeText(info,'p',item.definition||'');const remove=document.createElement('button');remove.type='button';remove.className='vocab-remove';remove.textContent='Remove';remove.setAttribute('aria-label',`Remove ${item.word} from saved words`);remove.addEventListener('click',()=>removeSavedWord(item.word));row.append(info,remove);list.append(row);});}
 function renderSavedItems(){const bookmarks=local.get('er-bookmarks',[]),notes=local.get('er-notes',[]),highlights=local.get('er-highlights',[]);const b=byId('bookmark-list'),s=byId('saved-list');if(!b||!s)return;b.replaceChildren();s.replaceChildren();if(!bookmarks.length)safeText(b,'p','No bookmarks yet.','note');bookmarks.forEach(item=>{const button=safeText(b,'button',item.name||'Bookmark','saved-item');button.onclick=()=>{if(item.page&&activePdf)goPdfPage(item.page);else if(item.page)goToReaderPage(item.page);else scrollTo({top:item.scroll||0,behavior:'smooth'});};});[...notes,...highlights].forEach(item=>safeText(s,'p',item.text||item.word||'Saved note','saved-item'));renderMyNotes();}
-function renderMyNotes(){const list=byId('my-notes-list');if(!list)return;list.replaceChildren();const query=(byId('notes-search')?.value||'').trim().toLowerCase();const notes=local.get('er-notes',[]).map((item,index)=>({...item,kind:'note',index}));const highlights=local.get('er-highlights',[]).map((item,index)=>({...item,kind:'highlight',index}));const items=[...notes,...highlights].filter(item=>(String(item.word||'')+' '+String(item.text||'')+' '+String(item.book||'')).toLowerCase().includes(query)).sort((a,b)=>(b.created||0)-(a.created||0));if(!items.length){safeText(list,'p',query?'No notes match your search.':'Your saved notes and highlights will appear here.','note');return;}items.forEach(item=>{const row=document.createElement('article');row.className='saved-note-row';const content=document.createElement('div');content.className='saved-note-content';safeText(content,'strong',item.word?'Note for '+item.word:(item.kind==='highlight'?'Highlight':'Note'));safeText(content,'p',item.text||item.word||'Saved item','saved-note-text');safeText(content,'small',(item.kind==='highlight'?'Highlight':'Note')+(item.book?' · '+item.book:'')+(item.created?' · '+new Date(item.created).toLocaleDateString():''));const actions=document.createElement('div');actions.className='saved-note-actions';if(item.kind==='note'){const edit=safeText(actions,'button','Edit','btn');edit.type='button';edit.addEventListener('click',()=>{const updated=prompt('Edit your note',item.text||'');if(updated===null)return;const text=updated.trim();if(!text){toast('A note cannot be empty.');return;}const current=local.get('er-notes',[]);if(!current[item.index])return;const previous=current[item.index],tombstones=local.get('er-deleted-saved-items',{});if(!previous.id)tombstones[savedItemLegacyKey(previous,'note')]=Date.now();current[item.index]={...previous,id:previous.id||newSavedItemId(),text,updated:Date.now()};local.set('er-deleted-saved-items',tombstones);local.set('er-notes',current);queueCloudSync();renderMyNotes();renderSavedItems();toast('Note updated.');});}const remove=safeText(actions,'button','Delete','btn');remove.type='button';remove.addEventListener('click',()=>{if(!confirm('Delete this '+item.kind+'?'))return;const key=item.kind==='note'?'er-notes':'er-highlights';const current=local.get(key,[]);const deleted=current[item.index];if(deleted){const tombstones=local.get('er-deleted-saved-items',{});for(const tombstoneKey of savedItemTombstoneKeys(deleted,item.kind))tombstones[tombstoneKey]=Date.now();local.set('er-deleted-saved-items',tombstones);}current.splice(item.index,1);local.set(key,current);queueCloudSync();renderMyNotes();renderSavedItems();toast('Saved item deleted.');});row.append(content,actions);list.append(row);});}
+function renderMyNotes(){
+  const list=byId('my-notes-list');
+  if(!list)return;
+  list.replaceChildren();
+  const query=(byId('notes-search')?.value||'').trim().toLowerCase();
+  const notes=local.get('er-notes',[]).map((item,index)=>({...item,kind:'note',index}));
+  const highlights=local.get('er-highlights',[]).map((item,index)=>({...item,kind:'highlight',index}));
+  const items=[...notes,...highlights]
+    .filter(item=>(String(item.word||'')+' '+String(item.text||'')+' '+String(item.book||'')).toLowerCase().includes(query))
+    .sort((a,b)=>(b.created||0)-(a.created||0));
+  if(!items.length){
+    safeText(list,'p',query?'No notes match your search.':'Your saved notes and highlights will appear here.','note');
+    return;
+  }
+  items.forEach(item=>{
+    const row=document.createElement('article');
+    row.className='saved-note-row';
+    const content=document.createElement('div');
+    content.className='saved-note-content';
+    safeText(content,'strong',item.word?'Note for '+item.word:(item.kind==='highlight'?'Highlight':'Note'));
+    safeText(content,'p',item.text||item.word||'Saved item','saved-note-text');
+    safeText(content,'small',(item.kind==='highlight'?'Highlight':'Note')+(item.book?' · '+item.book:'')+(item.created?' · '+new Date(item.created).toLocaleDateString():''));
+    const actions=document.createElement('div');
+    actions.className='saved-note-actions';
+    if(item.kind==='note'){
+      const edit=safeText(actions,'button','Edit','btn');
+      edit.type='button';
+      edit.addEventListener('click',()=>{
+        const updated=prompt('Edit your note',item.text||'');
+        if(updated===null)return;
+        const text=updated.trim();
+        if(!text){toast('A note cannot be empty.');return;}
+        const current=local.get('er-notes',[]);
+        if(!current[item.index])return;
+        const previous=current[item.index],tombstones=local.get('er-deleted-saved-items',{});
+        if(!previous.id)tombstones[savedItemLegacyKey(previous,'note')]=Date.now();
+        current[item.index]={...previous,id:previous.id||newSavedItemId(),text,updated:Date.now()};
+        local.set('er-deleted-saved-items',tombstones);
+        local.set('er-notes',current);
+        queueCloudSync();renderMyNotes();renderSavedItems();toast('Note updated.');
+      });
+    }
+    const remove=safeText(actions,'button','Delete','btn');
+    remove.type='button';
+    remove.classList.add('saved-note-delete');
+    remove.setAttribute('aria-label','Delete '+(item.kind==='highlight'?'highlight':'note'));
+    remove.addEventListener('click',()=>openSavedItemDeleteDialog(item));
+    row.append(content,actions);
+    list.append(row);
+  });
+}
+function openSavedItemDeleteDialog(item){
+  const dialog=byId('delete-item-dialog');
+  if(!dialog)return;
+  dialog.dataset.kind=item.kind;
+  dialog.dataset.index=String(item.index);
+  const isNote=item.kind==='note';
+  byId('delete-item-title').textContent=isNote?'Delete this note?':'Delete this highlight?';
+  byId('delete-item-message').textContent=isNote
+    ?'This note will be removed from your saved notes. This action cannot be undone.'
+    :'This highlight will be removed from your saved items. This action cannot be undone.';
+  byId('delete-item-confirm').textContent=isNote?'Delete note':'Delete highlight';
+  dialog.showModal();
+}
+function confirmDeleteSavedItem(){
+  const dialog=byId('delete-item-dialog');
+  if(!dialog)return;
+  const kind=dialog.dataset.kind,index=Number(dialog.dataset.index);
+  if(!['note','highlight'].includes(kind)||!Number.isInteger(index)||index<0)return;
+  const key=kind==='note'?'er-notes':'er-highlights';
+  const current=local.get(key,[]);
+  const deleted=current[index];
+  if(!deleted)return;
+  const tombstones=local.get('er-deleted-saved-items',{});
+  for(const tombstoneKey of savedItemTombstoneKeys(deleted,kind))tombstones[tombstoneKey]=Date.now();
+  local.set('er-deleted-saved-items',tombstones);
+  current.splice(index,1);
+  local.set(key,current);
+  dialog.close();
+  queueCloudSync();
+  renderMyNotes();
+  renderSavedItems();
+  toast(kind==='note'?'Note deleted.':'Highlight deleted.');
+}
 function updateDocumentPageControls(){
   const toggle=byId('document-page-toggle'),label=byId('document-page-label'),prev=byId('document-page-prev'),next=byId('document-page-next');
   if(!toggle||activePdf)return;
@@ -1059,7 +1142,7 @@ async function init() {
   byId('global-view-next')?.addEventListener('click',()=>{ if(activePdf) goPdfPage(activePage+1); else goToReaderPage(activePage+1); });
   byId('document-page-prev')?.addEventListener('click',()=>goToReaderPage(activePage-1));
   byId('document-page-next')?.addEventListener('click',()=>goToReaderPage(activePage+1));
-  byId('note-form').addEventListener('submit',saveNote);byId('note-cancel').addEventListener('click',()=>byId('note-dialog').close());
+  byId('note-form').addEventListener('submit',saveNote);byId('note-cancel').addEventListener('click',()=>byId('note-dialog').close());byId('delete-item-cancel')?.addEventListener('click',()=>byId('delete-item-dialog').close());byId('delete-item-confirm')?.addEventListener('click',confirmDeleteSavedItem);
   for(const id of ['library-search'])byId(id)?.addEventListener('input',renderLibraryPanel);for(const id of ['library-filter','library-sort'])byId(id)?.addEventListener('change',renderLibraryPanel);byId('home-library-sort')?.addEventListener('change',renderLibrary);
   byId('timer-toggle').addEventListener('click',()=>readerTimerRunning?pauseReadingTimer():startReadingTimer());byId('timer-reset').addEventListener('click',resetReadingTimer);byId('reading-goal').addEventListener('change',event=>{readerTimerGoal=Math.max(0,Number(event.target.value)||0);local.set('er-reading-goal',readerTimerGoal);updateReadingTimer();});
   byId('pdf-mode-btn').addEventListener('click',()=>setPdfMode(!pdfMode));byId('pdf-prev').addEventListener('click',()=>goPdfPage(activePage-1));byId('pdf-next').addEventListener('click',()=>goPdfPage(activePage+1));byId('pdf-zoom-in').addEventListener('click',()=>scalePdf(.15));byId('pdf-zoom-out').addEventListener('click',()=>scalePdf(-.15));byId('pdf-fullscreen').addEventListener('click',()=>pdfPages.requestFullscreen?.());byId('pdf-preview-toggle').addEventListener('click',()=>{pdfPreviewsVisible=!pdfPreviewsVisible;local.set('er-pdf-previews',pdfPreviewsVisible);pdfThumbs.hidden=!pdfMode||!pdfPreviewsVisible;byId('pdf-preview-toggle').textContent=pdfPreviewsVisible?'Hide previews':'Show previews';byId('pdf-preview-toggle').setAttribute('aria-pressed',String(pdfPreviewsVisible));});
