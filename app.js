@@ -151,7 +151,7 @@ function initNavigation() {
   byId('library-backdrop')?.addEventListener('click',()=>showPanel('library',false));
 document.addEventListener('pointerdown', event => {
   const library = byId('library');
-  if (!library || library.hidden) return;
+  if (!library || library.hidden || document.body.dataset.route === 'library') return;
   if (event.target.closest('#library')) return;
   library.hidden = true;
 }, true);
