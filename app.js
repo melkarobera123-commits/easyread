@@ -86,19 +86,68 @@ function setView(view) {
   if (view === 'reader') readerWrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
   else scrollTo({ top: 0, behavior: 'smooth' });
 }
+
+const EASYREAD_ROUTES = new Set(['home', 'library', 'reader', 'notes']);
+function routeFromLocation() {
+  const path = location.pathname.replace(/\\/+$/, '') || '/';
+  const route = path === '/' || path === '/index.html' ? 'home' : path.slice(1);
+  return EASYREAD_ROUTES.has(route) ? route : 'home';
+}
+function navigateToRoute(route, replace = false) {
+  if (!EASYREAD_ROUTES.has(route)) route = 'home';
+  const path = route === 'home' ? '/home' : '/' + route;
+  if (location.pathname !== path) history[replace ? 'replaceState' : 'pushState']({ easyReadRoute: route }, '', path);
+  renderRoute(route, replace);
+}
+function renderRoute(route, replace = false) {
+  if (!EASYREAD_ROUTES.has(route)) route = 'home';
+  if (route === 'reader' && readerWrap.hidden) {
+    route = 'home';
+    if (replace) history.replaceState({ easyReadRoute: route }, '', '/home');
+    else history.replaceState({ easyReadRoute: route }, '', '/home');
+    status('Choose a book to open the Reader.');
+  }
+  document.body.dataset.route = route;
+  byId('library')?.classList.toggle('route-page', route === 'library');
+  byId('notes-panel')?.classList.toggle('route-page', route === 'notes');
+  byId('library')?.setAttribute('hidden', '');
+  byId('notes-panel')?.setAttribute('hidden', '');
+  if (route === 'library') {
+    setView('about');
+    document.body.dataset.route = route;
+    showPanel('library', true);
+  } else if (route === 'notes') {
+    setView('about');
+    document.body.dataset.route = route;
+    showPanel('notes-panel', true);
+    renderMyNotes();
+  } else {
+    hidePanels();
+    setView(route === 'reader' ? 'reader' : 'about');
+    document.body.dataset.route = route;
+  }
+  for (const id of ['about-nav','sidebar-about','mobile-about']) byId(id)?.classList.toggle('active', route === 'home');
+  for (const id of ['reader-nav','sidebar-reader','mobile-reader']) byId(id)?.classList.toggle('active', route === 'reader');
+  for (const id of ['sidebar-library','mobile-library']) byId(id)?.classList.toggle('active', route === 'library');
+  for (const id of ['sidebar-notes','mobile-notes']) byId(id)?.classList.toggle('active', route === 'notes');
+  if (route !== 'reader') scrollTo({ top: 0, behavior: 'auto' });
+}
 function goToUpload() { setView('about'); status('Choose a book to open the Reader.'); requestAnimationFrame(() => { drop.scrollIntoView({ behavior: 'smooth', block: 'center' }); drop.focus({ preventScroll: true }); drop.classList.add('guide-focus'); setTimeout(() => drop.classList.remove('guide-focus'), 900); }); }
 function closeDictionaryPanel(){const panel=byId('dictionary-panel');if(panel)panel.hidden=true;byId('dictionary-btn')?.setAttribute('aria-expanded','false');}
 function showPanel(id, open) { const panel = byId(id); if (!panel) return; closeDictionaryPanel();panel.hidden = open === undefined ? !panel.hidden : !open; if (!panel.hidden) { closeOtherPanels(id); markPanelOpened(id); } if (id === 'library') { const backdrop=byId('library-backdrop'); if(backdrop) backdrop.hidden=panel.hidden; } if (id === 'library' && !panel.hidden) renderLibraryPanel(); if (id === 'vocab' && !panel.hidden) renderVocabulary(); if (id === 'stats' && !panel.hidden) renderStats(); if (id === 'privacy' && !panel.hidden) renderPrivacyState(); }
 function hidePanels() { document.querySelectorAll('.panel, .contents').forEach(panel => { panel.hidden = true; panel.classList.remove('open'); }); }
 
 function initNavigation() {
-  document.querySelectorAll('.brand, .sidebar-brand').forEach(brand => brand.addEventListener('click', event => { event.preventDefault(); byId('library')?.setAttribute('hidden',''); setView('about'); scrollTo({ top: 0, behavior: 'smooth' }); }));
-  for (const id of ['about-nav','sidebar-about','mobile-about']) byId(id)?.addEventListener('click', () => { byId('library')?.setAttribute('hidden',''); setView('about'); });
-  for (const id of ['reader-nav','sidebar-reader','mobile-reader']) byId(id)?.addEventListener('click', () => { byId('library')?.setAttribute('hidden',''); readerWrap.hidden ? goToUpload() : setView('reader'); });
+  document.querySelectorAll('.brand, .sidebar-brand').forEach(brand => brand.addEventListener('click', event => { event.preventDefault(); navigateToRoute('home'); }));
+  for (const id of ['about-nav','sidebar-about','mobile-about']) byId(id)?.addEventListener('click', () => navigateToRoute('home'));
+  for (const id of ['reader-nav','sidebar-reader','mobile-reader']) byId(id)?.addEventListener('click', () => readerWrap.hidden ? goToUpload() : navigateToRoute('reader'));
   for (const id of ['sidebar-library','mobile-library','library-btn','library-home-btn']) byId(id)?.addEventListener('click', event => {
     event.stopPropagation();
-    showPanel('library', true);
+    navigateToRoute('library');
   });
+  for (const id of ['sidebar-notes','mobile-notes']) byId(id)?.addEventListener('click', () => navigateToRoute('notes'));
+  window.addEventListener('popstate', () => renderRoute(routeFromLocation(), true));
+  navigateToRoute(routeFromLocation(), true);
   byId('library-backdrop')?.addEventListener('click',()=>showPanel('library',false));
 document.addEventListener('pointerdown', event => {
   const library = byId('library');
