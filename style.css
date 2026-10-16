@@ -246,3 +246,20 @@ main,.site-footer{margin-left:232px}.site-footer{display:flex;justify-content:ce
   display:block;
   z-index:2147483646;
 }
+
+
+/* EasyRead fixes: mobile reader controls stay reachable above the phone safe area. */
+.scroll-nav{position:fixed;right:10px;top:48%;bottom:auto;transform:translateY(-50%);z-index:120;display:flex;flex-direction:column;gap:8px;padding:4px;}
+.scroll-nav .icon-btn{width:44px;height:44px;min-width:44px;min-height:44px;box-shadow:var(--shadow);touch-action:manipulation;}
+@media(max-width:700px){.scroll-nav{right:max(8px,env(safe-area-inset-right));top:45%;z-index:120;}.reader-wrap:fullscreen .scroll-nav{right:max(8px,env(safe-area-inset-right));top:45%;}}
+body.focus-mode .top,body.focus-mode .site-footer,body.focus-mode .app-sidebar,body.focus-mode .mobile-nav{display:none!important;}
+body.focus-mode main{margin-left:0!important;}
+body.focus-mode .reader-wrap{width:min(980px,100%);margin-inline:auto;padding-top:12px;}
+body.focus-mode .bar{position:sticky;top:8px;z-index:80;}
+.notes-panel .saved-note-row{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:14px 0;border-bottom:1px solid var(--line);}
+.notes-panel .saved-note-content{min-width:0;flex:1;}
+.notes-panel .saved-note-content p{margin:6px 0;overflow-wrap:anywhere;}
+.notes-panel .saved-note-text{white-space:pre-wrap;}
+.notes-panel .saved-note-actions{display:flex;gap:6px;flex-wrap:wrap;}
+.notes-panel .saved-note-actions .btn{min-height:38px;}
+@media(max-width:700px){.bar-primary{flex-wrap:wrap;}.notes-panel .saved-note-row{gap:8px;}.notes-panel .saved-note-actions{flex-direction:column;}}
