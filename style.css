@@ -302,3 +302,38 @@ body.focus-mode .bar{position:sticky;top:8px;z-index:80;}
   .delete-confirm-actions{flex-direction:column-reverse}
   .delete-confirm-actions .btn{width:100%;min-height:44px}
 }
+
+
+/* Route foundation: page-like destinations reuse the existing DOM and data model. */
+body[data-route="home"] #reader-wrap,
+body[data-route="reader"] main > .hero,
+body[data-route="reader"] main > .steps,
+body[data-route="reader"] main > #library-home,
+body[data-route="library"] main,
+body[data-route="notes"] main,
+body[data-route="library"] .site-footer,
+body[data-route="notes"] .site-footer { display:none !important; }
+.panel.route-page {
+  position:relative;
+  inset:auto;
+  width:min(1100px, calc(100% - 48px));
+  max-height:none;
+  margin:28px auto;
+  padding:24px clamp(18px, 4vw, 42px);
+  overflow:visible;
+  border:0;
+  border-radius:18px;
+  box-shadow:none;
+  background:var(--bg);
+}
+body[data-route="library"] #library-backdrop { display:none !important; }
+@media(max-width:900px) {
+  .mobile-nav { grid-template-columns:repeat(5,minmax(0,1fr)); }
+  .panel.route-page {
+    width:100%;
+    margin:0 auto;
+    padding:14px 16px calc(100px + env(safe-area-inset-bottom));
+    border-radius:0;
+    background:var(--bg);
+  }
+}
