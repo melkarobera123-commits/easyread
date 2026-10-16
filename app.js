@@ -53,6 +53,7 @@ const STORE_KEYS = { vocabulary: 'er-vocabulary', notes: 'er-notes', highlights:
 let activeBook = null, activePdf = null, pdfMode = true, documentPageMode = false, zoom = 1, pageCount = 0, lookupController = null, toastTimer, saveTimer, auth = null, firestore = null, storage = null, user = null, installPromptEvent = null;
 let pageObserver = null, thumbObserver = null, activePage = 1, pdfTextPromise = null, pdfSearchMatches = [], pdfSearchIndex = -1, searchToken = 0, firebaseInitPromise = null, cloudSyncTimer = null;
 let popupReturnFocus = null;
+let activeImageWords = [], activeImageElement = null, activeImageUrl = null;
 let positionFrame = 0, positionWriteTimer = null, searchDebounceTimer = null;
 let activeDictionaryRange = null;
 let activeNoteWord = '';
@@ -169,6 +170,10 @@ document.addEventListener('pointerdown', event => {
 
 async function openFile(file) {
   if (!file) return;
+  if (activeImageUrl) URL.revokeObjectURL(activeImageUrl);
+  activeImageUrl = null;
+  activeImageElement = null;
+  activeImageWords = [];
   const ext = file.name.split('.').pop().toLowerCase(), allowed = ['pdf','docx','pptx','epub','txt','png','jpg','jpeg'];
   if (!allowed.includes(ext)) return status('Choose a PDF, DOCX, PPTX, EPUB, TXT, or image file.', true);
   if (file.size > 150 * 1024 * 1024) return status('This file is larger than 150 MB. Try a smaller copy.', true);
@@ -202,7 +207,47 @@ async function parseDocx(file) { await loadLibrary('mammoth'); const result = aw
 async function parsePptx(file) { await loadLibrary('zip'); const zip = await JSZip.loadAsync(await file.arrayBuffer()); const names = Object.keys(zip.files).filter(name => /^ppt\/slides\/slide\d+\.xml$/.test(name)).sort((a,b) => Number(a.match(/slide(\d+)/)[1])-Number(b.match(/slide(\d+)/)[1])); pageCount = names.length; for (let i=0;i<names.length;i++) { const xml = new DOMParser().parseFromString(await zip.file(names[i]).async('text'),'application/xml'); const text = [...xml.getElementsByTagName('a:t')].map(node => node.textContent).join(' ').trim(); const section = document.createElement('section'); section.className='page'; section.dataset.page=String(i+1); safeText(section,'div',`Slide ${i+1}`,'page-mark'); if(text) safeText(section,'p',text); reader.append(section); if(i%12===11) await new Promise(requestAnimationFrame); } }
 async function parseEpub(file) { await loadLibrary('zip'); const zip=await JSZip.loadAsync(await file.arrayBuffer()); const container=new DOMParser().parseFromString(await zip.file('META-INF/container.xml').async('text'),'application/xml'); const root=container.querySelector('rootfile')?.getAttribute('full-path'); if(!root) throw new Error('This EPUB has an invalid package file.'); const opf=new DOMParser().parseFromString(await zip.file(root).async('text'),'application/xml'); const title=opf.getElementsByTagNameNS('*','title')[0]?.textContent.trim(); if(title) activeBook.title=title; const base=root.includes('/')?root.slice(0,root.lastIndexOf('/')+1):''; const items=new Map([...opf.querySelectorAll('manifest item')].map(item=>[item.id,item.getAttribute('href')])); let index=0; for(const ref of opf.querySelectorAll('spine itemref')) { const path=items.get(ref.getAttribute('idref')); const entry=path&&zip.file(base+decodeURIComponent(path)); if(!entry) continue; const doc=new DOMParser().parseFromString(await entry.async('text'),'text/html'); const text=doc.body?.textContent||''; if(text.trim()){ const section=document.createElement('section'); section.className='page'; section.dataset.page=String(++index); appendTextNodes(section,text); reader.append(section); } if(index%8===0) await new Promise(requestAnimationFrame); } pageCount=index; }
 function appendTextNodes(section,text) { const paragraphs=String(text).split(/\n\s*\n/).map(value=>value.replace(/\s+/g,' ').trim()).filter(Boolean); paragraphs.forEach(value=>safeText(section,'p',value)); }
-async function parseImage(file) { await loadLibrary('ocr'); status('Reading image text…'); const worker=await Tesseract.createWorker('eng'); try { const result=await worker.recognize(file,{logger:message=>{ if(message.status==='recognizing text') status(`Reading image text… ${Math.round(message.progress*100)}%`); }}); appendTextPages(result.data.text); } finally { await worker.terminate(); } }
+async function parseImage(file) {
+  await loadLibrary('ocr');
+  status('Reading image text…');
+  const worker = await Tesseract.createWorker('eng');
+  try {
+    const result = await worker.recognize(file, {
+      logger: message => {
+        if (message.status === 'recognizing text') status(`Reading image text… ${Math.round(message.progress * 100)}%`);
+      }
+    });
+    activeImageWords = (result.data.words || []).map(item => {
+      const text = String(item.text || '').replace(/^[-'’]+|[-'’]+$/g, '').toLowerCase();
+      const box = item.bbox || {};
+      return {
+        word: text,
+        x0: Number(box.x0), y0: Number(box.y0),
+        x1: Number(box.x1), y1: Number(box.y1)
+      };
+    }).filter(item => item.word && /[\p{L}\p{M}]/u.test(item.word)
+      && Number.isFinite(item.x0) && Number.isFinite(item.y0)
+      && item.x1 > item.x0 && item.y1 > item.y0);
+
+    activeImageUrl = URL.createObjectURL(file);
+    const figure = document.createElement('figure');
+    figure.className = 'image-readable-page readable';
+    const image = document.createElement('img');
+    image.className = 'image-readable-photo';
+    image.src = activeImageUrl;
+    image.alt = `Photo of text from ${file.name}. Tap a word in the photo to look it up.`;
+    image.draggable = false;
+    activeImageElement = image;
+    figure.append(image);
+    reader.append(figure);
+
+    // Keep recognized text available for reading and selection below the photo.
+    appendTextPages(result.data.text);
+    if (!activeImageWords.length) status('Photo opened, but no tappable words were detected. Try a clearer, sharper photo.');
+  } finally {
+    await worker.terminate();
+  }
+}
 
 async function parsePdf(file) {
   await loadPdfLibrary();
@@ -670,6 +715,26 @@ function wordRangeAtNode(node, x, y) {
   return null;
 }
 function wordAt(x, y) {
+  // Map the touch point on a photo to Tesseract's original OCR word boxes.
+  // Strict bounds avoid selecting a neighboring word when tapping whitespace.
+  if (activeImageElement?.isConnected && activeImageWords.length) {
+    const rect = activeImageElement.getBoundingClientRect();
+    if (rect.width > 0 && rect.height > 0
+      && x >= rect.left && x <= rect.right
+      && y >= rect.top && y <= rect.bottom) {
+      const imageX = (x - rect.left) * activeImageElement.naturalWidth / rect.width;
+      const imageY = (y - rect.top) * activeImageElement.naturalHeight / rect.height;
+      let best = null;
+      let bestArea = Infinity;
+      for (const item of activeImageWords) {
+        if (imageX < item.x0 || imageX > item.x1 || imageY < item.y0 || imageY > item.y1) continue;
+        const area = (item.x1 - item.x0) * (item.y1 - item.y0);
+        if (area < bestArea) { best = item; bestArea = area; }
+      }
+      return best ? { word: best.word, range: null } : null;
+    }
+  }
+
   const page = [...pdfPages.querySelectorAll('.pdf-page')].find(candidate => {
     const rect = candidate.getBoundingClientRect();
     return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
