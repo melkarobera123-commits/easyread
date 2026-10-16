@@ -223,6 +223,18 @@
   </form>
 </dialog>
 
+<dialog id="delete-item-dialog" class="delete-confirm-dialog" aria-labelledby="delete-item-title" aria-describedby="delete-item-message">
+  <div class="delete-confirm-content">
+    <div class="delete-confirm-mark" aria-hidden="true">!</div>
+    <h2 id="delete-item-title">Delete this note?</h2>
+    <p id="delete-item-message">This note will be removed from your saved notes. This action cannot be undone.</p>
+    <div class="delete-confirm-actions">
+      <button id="delete-item-cancel" class="btn" type="button">Cancel</button>
+      <button id="delete-item-confirm" class="btn danger-action" type="button">Delete note</button>
+    </div>
+  </div>
+</dialog>
+
 <aside id="settings" class="panel" hidden role="dialog" aria-modal="true" aria-labelledby="settings-title">
   <div class="contents-head"><h2 id="settings-title">Reader settings</h2><button id="settings-close" class="btn" type="button">Close</button></div>
   <label>Font <select id="font-choice"><option value="literata">Literata</option><option value="serif">Classic serif</option><option value="dyslexic">OpenDyslexic</option></select></label>
