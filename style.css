@@ -747,3 +747,16 @@ body.focus-mode .bar { top: 8px; }
 .saved-note-content { min-width: 0; }
 .saved-note-text { white-space: pre-wrap; overflow-wrap: anywhere; }
 .saved-note-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+
+@media (max-width: 700px) {
+  .scroll-nav { top: auto !important; bottom: calc(98px + env(safe-area-inset-bottom)) !important; transform: none !important; }
+  .bar { overflow: visible; flex-wrap: nowrap; }
+  .bar-primary { min-width: 0; max-width: calc(100vw - 175px); overflow-x: auto; scrollbar-width: none; }
+  .bar-primary::-webkit-scrollbar { display: none; }
+  .bar-end { position: sticky; right: 0; margin-left: auto; z-index: 2; background: var(--sheet); border-radius: 10px; box-shadow: -8px 0 10px -10px var(--ink); }
+  .page-jump-inline input { width: 44px; }
+  .toolbar-more summary { padding-inline: 10px; }
+  .reader-wrap { margin-block-start: 0; }
+}
+.saved-bookmark-row { display: flex; align-items: center; gap: 6px; border-bottom: 1px solid var(--line); }
+.saved-bookmark-row .saved-item { min-width: 0; flex: 1; }
