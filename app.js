@@ -286,7 +286,7 @@ async function parsePdf(file) {
   pdfThumbs.append(thumbFragment);
   for(const frame of frames) pageObserver.observe(frame);
   for(const thumb of thumbs) thumbObserver.observe(thumb);
-  pageCount=pdf.numPages;
+  pageCount=pdf.numPages;syncPageCounter(1);
 }
 pdfThumbs.addEventListener('click',event=>{
   const thumb=event.target.closest('.pdf-thumb');
@@ -604,7 +604,8 @@ async function drawPdfPage(pdf,number,frame) {
 }
 function releasePdfPage(frame) { if(pdfRenderPromises.has(frame)){frame.dataset.releaseAfterRender='yes';return;} if(frame.dataset.rendered!=='yes') return; const canvas=frame.querySelector('canvas'), layer=frame.querySelector('.textLayer'); unregisterPdfSelectionLayer(layer); canvas.width=0; canvas.height=0; layer.replaceChildren(); frame.dataset.rendered=''; delete frame.dataset.releaseAfterRender; }
 async function renderThumbnail(number) { const button=pdfThumbs.querySelector(`[data-page="${number}"]`); if(!button||button.dataset.rendered) return; try { const page=await activePdf.getPage(number), viewport=page.getViewport({scale:.11}), canvas=document.createElement('canvas'); canvas.width=viewport.width*2; canvas.height=viewport.height*2; canvas.style.width='56px'; await page.render({canvasContext:canvas.getContext('2d'),viewport:page.getViewport({scale:.22})}).promise; button.prepend(canvas); button.dataset.rendered='yes'; } catch {} }
-function goPdfPage(number) { const page=Math.min(pageCount,Math.max(1,Number(number)||1)),target=pdfPages.querySelector(`[data-page="${page}"]`);if(!target)return;activePage=page;byId('pdf-page-label').textContent=`Page ${page} of ${pageCount}`;target.scrollIntoView({behavior:'smooth',block:'start'}); }
+function syncPageCounter(page=activePage){const input=byId('reader-page-jump');if(input)input.value=String(page);const total=byId('reader-page-total');if(total)total.textContent=pageCount?`of ${pageCount}`:'';}
+function goPdfPage(number) { const page=Math.min(pageCount,Math.max(1,Number(number)||1)),target=pdfPages.querySelector(`[data-page="${page}"]`);if(!target)return;activePage=page;byId('pdf-page-label').textContent=`Page ${page} of ${pageCount}`;syncPageCounter(page);target.scrollIntoView({behavior:'smooth',block:'start'}); }
 async function setPdfMode(visual) {
   closeDictionaryPanel();
   pdfMode=visual;
@@ -890,7 +891,7 @@ async function define(word,signal){
   if(fallback){const result={...fallback,source:'Built-in'};await putDefinition({word:stem,result}).catch(()=>{});return result;}
   throw new Error(`No definition found for “${stem.replace(/_/g,' ')}”. Try checking the spelling or search another word.`);
 }
-function renderDefinition(result,asked){popup.replaceChildren();safeText(popup,'button','×','close').addEventListener('click',hidePopup);safeText(popup,'h2',result.word);const source=result.source||'';if(result.phonetic)safeText(popup,'p',result.phonetic,'ph');if(source)safeText(popup,'span',result.cached?'Cached · '+source:source,'dictionary-source');const actions=document.createElement('div');actions.className='word-actions';const button=(label,handler)=>{const control=document.createElement('button');control.className='btn';control.type='button';control.textContent=label;control.addEventListener('click',handler);actions.append(control);return control;};const savedValues=local.get('er-vocabulary',[]);const isSaved=savedValues.some(item=>String(item.word||'').trim().toLowerCase()===String(result.word||'').trim().toLowerCase());const saveButton=button(isSaved?'Remove':'Save',event=>{const values=local.get('er-vocabulary',[]);const target=String(result.word||'').trim().toLowerCase();const existing=values.findIndex(item=>String(item.word||'').trim().toLowerCase()===target);if(existing>=0){removeSavedWord(result.word);event.currentTarget.textContent='Save';}else{const tombstones=local.get('er-vocabulary-deleted',{}),created=Math.max(Date.now(),Number(tombstones[target]||0)+1);values.unshift({word:result.word,definition:plainDefinition(result.meanings[0]?.definition),created});local.set('er-vocabulary',values);queueCloudSync();renderVocabulary();event.currentTarget.textContent='Remove';toast('Word saved to your vocabulary.');}});button('Listen',()=>playWordAudio(result));button('Translate',async event=>{const control=event.currentTarget;control.textContent='Translating…';try{const language=byId('translation-language').value,response=await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(result.word)}&langpair=en|${language}`,{signal:lookupController?.signal});if(!response.ok)throw new Error();const data=await response.json();safeText(popup,'p',data.responseData?.translatedText||'Translation unavailable','note');control.textContent='Translated';}catch{control.textContent='Try translate again';}});button('Note',()=>{const text=prompt(`Add a note for “${result.word}”`);if(text?.trim()){const notes=local.get('er-notes',[]);notes.unshift({id:newSavedItemId(),word:result.word,text:text.trim(),book:activeBook?.key,created:Date.now()});local.set('er-notes',notes);queueCloudSync();renderMyNotes();renderSavedItems();toast('Note saved.');}});popup.append(actions);result.meanings.forEach(item=>{safeText(popup,'p',item.partOfSpeech,'pos');safeText(popup,'p',item.definition,'def');if(item.example)safeText(popup,'p',`“${item.example}”`,'ex');});if(result.word!==asked)safeText(popup,'p',`Showing the base form “${result.word}”.`,'note');}
+function renderDefinition(result,asked){popup.replaceChildren();safeText(popup,'button','×','close').addEventListener('click',hidePopup);safeText(popup,'h2',result.word);const source=result.source||'';if(result.phonetic)safeText(popup,'p',result.phonetic,'ph');if(source)safeText(popup,'span',result.cached?'Cached · '+source:source,'dictionary-source');const actions=document.createElement('div');actions.className='word-actions';const button=(label,handler)=>{const control=document.createElement('button');control.className='btn';control.type='button';control.textContent=label;control.addEventListener('click',handler);actions.append(control);return control;};const savedValues=local.get('er-vocabulary',[]);const isSaved=savedValues.some(item=>String(item.word||'').trim().toLowerCase()===String(result.word||'').trim().toLowerCase());const saveButton=button(isSaved?'Remove':'Save',event=>{const values=local.get('er-vocabulary',[]);const target=String(result.word||'').trim().toLowerCase();const existing=values.findIndex(item=>String(item.word||'').trim().toLowerCase()===target);if(existing>=0){removeSavedWord(result.word);event.currentTarget.textContent='Save';}else{const tombstones=local.get('er-vocabulary-deleted',{}),created=Math.max(Date.now(),Number(tombstones[target]||0)+1);values.unshift({word:result.word,definition:plainDefinition(result.meanings[0]?.definition),created});local.set('er-vocabulary',values);queueCloudSync();renderVocabulary();event.currentTarget.textContent='Remove';event.currentTarget.setAttribute('aria-pressed','true');toast('Word saved to your vocabulary.');}});button('Listen',()=>playWordAudio(result));button('Translate',async event=>{const control=event.currentTarget;control.textContent='Translating…';try{const language=byId('translation-language').value,response=await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(result.word)}&langpair=en|${language}`,{signal:lookupController?.signal});if(!response.ok)throw new Error();const data=await response.json();safeText(popup,'p',data.responseData?.translatedText||'Translation unavailable','note');control.textContent='Translated';}catch{control.textContent='Try translate again';}});button('Note',()=>{const text=prompt(`Add a note for “${result.word}”`);if(text?.trim()){const notes=local.get('er-notes',[]);notes.unshift({id:newSavedItemId(),word:result.word,text:text.trim(),book:activeBook?.key,created:Date.now()});local.set('er-notes',notes);queueCloudSync();renderMyNotes();renderSavedItems();toast('Note saved.');}});popup.append(actions);result.meanings.forEach(item=>{safeText(popup,'p',item.partOfSpeech,'pos');safeText(popup,'p',item.definition,'def');if(item.example)safeText(popup,'p',`“${item.example}”`,'ex');});if(result.word!==asked)safeText(popup,'p',`Showing the base form “${result.word}”.`,'note');}
 
 function renderDefinition(result,asked){
   popup.replaceChildren();
@@ -1004,7 +1005,7 @@ async function renderLibraryPanel(){
   favoriteBooks.forEach(book=>favorites.append(createRow(book)));
   otherBooks.forEach(book=>list.append(createRow(book)));
 }
-function removeSavedWord(word){const target=String(word||'').trim().toLowerCase();if(!target)return;const values=local.get('er-vocabulary',[]);const next=values.filter(item=>String(item.word||'').trim().toLowerCase()!==target);if(next.length===values.length)return;const tombstones=local.get('er-vocabulary-deleted',{});tombstones[target]=Math.max(Date.now(),Number(tombstones[target]||0)+1);local.set('er-vocabulary-deleted',tombstones);local.set('er-vocabulary',next);queueCloudSync();renderVocabulary();renderSavedItems();if(popupWordIs?.(target)){}const saveButton=popup.querySelector('[data-action="save-word"],#save-word-btn,.save-word-btn');if(saveButton){saveButton.textContent='Save word';saveButton.setAttribute('aria-pressed','false');}toast(`“${word}” removed from your saved words.`);}
+function removeSavedWord(word){const target=String(word||'').trim().toLowerCase();if(!target)return;const values=local.get('er-vocabulary',[]);const next=values.filter(item=>String(item.word||'').trim().toLowerCase()!==target);if(next.length===values.length)return;const tombstones=local.get('er-vocabulary-deleted',{});tombstones[target]=Math.max(Date.now(),Number(tombstones[target]||0)+1);local.set('er-vocabulary-deleted',tombstones);local.set('er-vocabulary',next);queueCloudSync();renderVocabulary();renderSavedItems();const saveButton=popup.querySelector('.word-actions button');if(saveButton){saveButton.textContent='Save word';saveButton.setAttribute('aria-pressed','false');}toast(`“${word}” removed from your saved words.`);}
 function renderVocabulary(){const list=byId('vocab-list');list.replaceChildren();const values=local.get('er-vocabulary',[]);if(!values.length)return safeText(list,'p','Saved words will appear here.','note');values.forEach(item=>{const row=document.createElement('div');row.className='vocab-row';const info=document.createElement('div');info.className='vocab-info';safeText(info,'strong',item.word);safeText(info,'p',item.definition||'');const remove=document.createElement('button');remove.type='button';remove.className='vocab-remove';remove.textContent='Remove';remove.setAttribute('aria-label',`Remove ${item.word} from saved words`);remove.addEventListener('click',()=>removeSavedWord(item.word));row.append(info,remove);list.append(row);});}
 function renderSavedItems(){const bookmarks=local.get('er-bookmarks',[]),notes=local.get('er-notes',[]),highlights=local.get('er-highlights',[]);const b=byId('bookmark-list'),s=byId('saved-list');if(!b||!s)return;b.replaceChildren();s.replaceChildren();if(!bookmarks.length)safeText(b,'p','No bookmarks yet.','note');bookmarks.forEach(item=>{const button=safeText(b,'button',item.name||'Bookmark','saved-item');button.onclick=()=>{if(item.page&&activePdf)goPdfPage(item.page);else if(item.page)goToReaderPage(item.page);else scrollTo({top:item.scroll||0,behavior:'smooth'});};});[...notes,...highlights].forEach(item=>safeText(s,'p',item.text||item.word||'Saved note','saved-item'));renderMyNotes();}
 function renderMyNotes(){
@@ -1128,7 +1129,7 @@ function goToReaderPage(value){
     updateDocumentPageControls();
   }
   target.scrollIntoView({behavior:'smooth',block:'start'});
-  if(!activePdf)byId('reader-page-jump').value=String(page);
+  if(byId('reader-page-jump'))byId('reader-page-jump').value=String(page);
   return true;
 }
 function goToRequestedPage(event){event?.preventDefault();const input=byId('jump'),requested=Number.parseInt(input.value,10);if(!Number.isInteger(requested)||requested<1||requested>pageCount){input.setCustomValidity(`Enter a page from 1 to ${pageCount}.`);input.reportValidity();return;}input.setCustomValidity('');input.value=String(requested);goToReaderPage(requested);}
@@ -1266,22 +1267,19 @@ async function init() {
     if (!details) return;
     const menu = details.querySelector('.toolbar-menu');
     const opening = !details.open;
-    // On narrow screens, move the actual menu to the document body so the
-    // horizontally-scrollable toolbar cannot clip it.
     if (matchMedia('(max-width: 700px)').matches && menu) {
       if (opening) {
         menu.dataset.portaled = 'true';
         document.body.append(menu);
-        menu.style.position = 'fixed';
-        menu.style.right = '10px';
-        menu.style.left = 'auto';
-        menu.style.top = 'auto';
-        menu.style.bottom = 'max(88px, calc(env(safe-area-inset-bottom) + 78px))';
-        menu.style.zIndex = '200';
+        menu.style.position = 'fixed'; menu.style.left = 'auto'; menu.style.right = '10px'; menu.style.bottom = 'auto'; menu.style.top = '12px';
+        menu.style.maxHeight = 'calc(100dvh - 150px)'; menu.style.overflowY = 'auto'; menu.style.zIndex = '200';
+        const rect = summary.getBoundingClientRect();
+        const height = Math.min(menu.scrollHeight, Math.max(180, window.innerHeight - 150));
+        menu.style.maxHeight = `${height}px`;
+        const desiredTop = rect.top - Math.min(height, 360) - 8;
+        menu.style.top = `${Math.max(12, Math.min(desiredTop, window.innerHeight - height - 100))}px`;
       } else if (menu.dataset.portaled === 'true') {
-        details.append(menu);
-        delete menu.dataset.portaled;
-        menu.removeAttribute('style');
+        details.append(menu); delete menu.dataset.portaled; menu.removeAttribute('style');
       }
     }
     details.open = opening;
@@ -1695,6 +1693,7 @@ function populateVoices() {
       toast(prefs().lineFocus ? 'Line focus on: hover or tap a paragraph to bring it forward.' : 'Line focus off.');
     });
     byId('contrast')?.addEventListener('change', event => { setPref('contrast', event.target.checked); paint(); });
+    byId('focus-exit-floating')?.addEventListener('click',()=>{setFocusMode(false);document.querySelector('.toolbar-more')?.removeAttribute('open');});
     document.addEventListener('keydown', event => { if (event.key === 'Escape' && document.body.classList.contains('focus-mode')) setFocusMode(false); });
 
     const language = byId('source-language');
