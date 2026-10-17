@@ -1030,6 +1030,7 @@ function renderMyNotes(){
     row.className='saved-note-row';
     const content=document.createElement('div');
     content.className='saved-note-content';
+    if(item.book){content.tabIndex=0;content.setAttribute('role','button');content.setAttribute('aria-label','Open source book for this '+item.kind);const openSource=async()=>{const book=await getBook(item.book).catch(()=>null);if(book?.file)openFile(book.file);else toast('The original book is not available in this browser library.');};content.addEventListener('click',openSource);content.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();openSource();}});}
     safeText(content,'strong',item.word?'Note for '+item.word:(item.kind==='highlight'?'Highlight':'Note'));
     safeText(content,'p',item.text||item.word||'Saved item','saved-note-text');
     safeText(content,'small',(item.kind==='highlight'?'Highlight':'Note')+(item.bookName||item.book?' · '+(item.bookName||item.book):'')+(item.created?' · '+new Date(item.created).toLocaleDateString():''));
