@@ -1018,12 +1018,14 @@ function renderMyNotes(){
   const highlights=local.get('er-highlights',[]).map((item,index)=>({...item,kind:'highlight',index}));
   const items=[...notes,...highlights]
     .filter(item=>(String(item.word||'')+' '+String(item.text||'')+' '+String(item.book||'')).toLowerCase().includes(query))
-    .sort((a,b)=>(b.created||0)-(a.created||0));
+    .sort((a,b)=>a.kind.localeCompare(b.kind)||(b.created||0)-(a.created||0));
   if(!items.length){
     safeText(list,'p',query?'No notes match your search.':'Your saved notes and highlights will appear here.','note');
     return;
   }
+  let renderedKind='';
   items.forEach(item=>{
+    if(renderedKind!==item.kind){renderedKind=item.kind;safeText(list,'h3',item.kind==='note'?'Notes':'Highlights','saved-note-group-title');}
     const row=document.createElement('article');
     row.className='saved-note-row';
     const content=document.createElement('div');
