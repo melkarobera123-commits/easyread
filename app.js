@@ -1293,8 +1293,10 @@ async function init() {
   document.addEventListener('keydown',event=>{if(event.key==='Escape'){hidePopup();hidePanels();byId('contents').classList.remove('open');byId('signin-modal').hidden=true;}if((event.ctrlKey||event.altKey)&&event.key==='Enter'&&!event.target.matches('input,textarea,select')){const selection=getSelection();if(selection&&!selection.isCollapsed&&selection.rangeCount){const text=selection.toString().trim();if(/^[\p{L}\p{M}]+(?:[-'’][\p{L}\p{M}]+)*$/u.test(text)){event.preventDefault();showWord({word:text.toLowerCase(),range:selection.getRangeAt(0).cloneRange()},{focus:true});return;}}}if(event.target.matches('input,textarea,select'))return;if(event.key==='?'){event.preventDefault();showPanel('shortcuts',true);return;}if(event.key==='/ '||event.key==='/'){event.preventDefault();if(!readerWrap.hidden){byId('reader-tools').hidden=false;byId('search-input').focus();}}if(event.key.toLowerCase()==='f'&&!readerWrap.hidden)document.body.classList.toggle('focus-mode');if(event.key.toLowerCase()==='t')byId('theme').click();});
   await renderLibrary().catch(()=>{});updateStreakChip();addEventListener('online',()=>{if(user)syncCloud();});
   // Introduce EasyRead once for new visitors, without requiring an account.
-  const welcomeModal=byId('signin-modal');
-  if(welcomeModal&&!local.get('er-welcome-intro-dismissed',false)&&!local.get('er-signin-dismissed',false))welcomeModal.hidden=false;
+  const welcomeModal=byId('welcome-intro-modal');
+  if(welcomeModal&&!local.get('er-welcome-intro-dismissed',false))welcomeModal.hidden=false;
+  for(const id of ['welcome-intro-close','welcome-intro-continue'])byId(id)?.addEventListener('click',()=>{const intro=byId('welcome-intro-modal');if(intro)intro.hidden=true;local.set('er-welcome-intro-dismissed',true);});
+  byId('welcome-intro-modal')?.addEventListener('click',event=>{if(event.target===event.currentTarget){event.currentTarget.hidden=true;local.set('er-welcome-intro-dismissed',true);}});
   if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
   window.__easyReadReady = true;
 }
