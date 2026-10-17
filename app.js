@@ -715,6 +715,24 @@ function wordRangeAtNode(node, x, y) {
   return null;
 }
 function wordAt(x, y) {
+  // In the full-document PDF text view, hit-test the actual rendered text.
+  // This uses browser layout coordinates after responsive resizing, so a
+  // narrow/mobile layout cannot shift the selected word away from the tap.
+  if (!reader.hidden && reader.classList.contains('pdf-text-reader')) {
+    const textTarget = document.elementsFromPoint(x, y).find(element =>
+      element.closest?.('#reader .page.readable p, #reader .page.readable')
+    );
+    if (textTarget) {
+      const caret = pdfTextNodeAtPoint(x, y);
+      if (caret?.node && reader.contains(caret.node)) {
+        const exact = wordRangeAtNode(caret.node, x, y);
+        if (exact?.word) return exact;
+      }
+      // Do not fall through to PDF-page coordinate guesses in text view.
+      return null;
+    }
+  }
+
   // Map the touch point on a photo to Tesseract's original OCR word boxes.
   // Strict bounds avoid selecting a neighboring word when tapping whitespace.
   if (activeImageElement?.isConnected && activeImageWords.length) {
