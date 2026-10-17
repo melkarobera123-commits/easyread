@@ -719,7 +719,7 @@ textarea:focus,select:focus{
   .bar-primary { flex: 0 0 auto; }
   .page-jump-inline { display: inline-flex; }
   .toolbar-more { margin-left: 0; }
-  .focus-exit-floating { display: inline-flex; }
+  body.focus-mode .focus-exit-floating { display: inline-flex; }
 }
 .focus-exit-floating {
   display: none;
