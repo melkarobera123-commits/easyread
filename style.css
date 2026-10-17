@@ -249,9 +249,9 @@ main,.site-footer{margin-left:232px}.site-footer{display:flex;justify-content:ce
 
 
 /* EasyRead fixes: mobile reader controls stay reachable above the phone safe area. */
-.scroll-nav{position:fixed;right:10px;top:45%;bottom:auto;transform:translateY(-50%);z-index:120;display:flex;flex-direction:column;justify-content:flex-start;align-items:center;gap:8px;padding:4px;}
+.scroll-nav{position:fixed;right:10px;top:50%;bottom:auto;transform:translateY(-50%);z-index:120;display:flex;flex-direction:column;justify-content:flex-start;align-items:center;gap:8px;padding:4px;}
 .scroll-nav .icon-btn{width:44px;height:44px;min-width:44px;min-height:44px;box-shadow:var(--shadow);touch-action:manipulation;}
-@media(max-width:700px){.scroll-nav{right:max(8px,env(safe-area-inset-right));top:46%;bottom:auto;gap:6px;z-index:120;}.reader-wrap:fullscreen .scroll-nav{right:max(8px,env(safe-area-inset-right));top:46%;bottom:auto;}}
+@media(max-width:700px){.scroll-nav{right:max(8px,env(safe-area-inset-right));top:50%;bottom:auto;transform:translateY(-50%);gap:6px;z-index:120;}.reader-wrap:fullscreen .scroll-nav{right:max(8px,env(safe-area-inset-right));top:50%;bottom:auto;transform:translateY(-50%);}}
 body.focus-mode .top,body.focus-mode .site-footer,body.focus-mode .app-sidebar,body.focus-mode .mobile-nav{display:none!important;}
 body.focus-mode main{margin-left:0!important;}
 body.focus-mode .reader-wrap{width:min(980px,100%);margin-inline:auto;padding-top:12px;}
@@ -503,3 +503,7 @@ body[data-route="home"] .scroll-nav,
 body[data-route="library"] .scroll-nav,
 body[data-route="notes"] .scroll-nav{display:none!important}
 #reader-wrap:not([hidden]) .scroll-nav{display:flex}
+
+/* Keep the scroll pair vertically centered on every screen size. */
+.scroll-nav{top:50%!important;bottom:auto!important;transform:translateY(-50%)!important;justify-content:center}
+@media(max-width:700px){.toolbar-menu[data-portaled="true"]{display:grid;min-width:190px;width:min(280px,calc(100vw - 20px));max-height:60vh;overflow:auto;padding:10px;border:1px solid var(--line);border-radius:12px;background:var(--sheet);box-shadow:var(--shadow)}}
