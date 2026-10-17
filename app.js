@@ -808,7 +808,39 @@ function popupShell(word,message){popup.replaceChildren();const close=safeText(p
 async function showWord(hit,options={}){const word=String(hit.word||'').trim().toLowerCase();if(!word)return;lookupController?.abort();lookupController=new AbortController();popupReturnFocus=options.returnFocus||document.activeElement;const range=hit.range||null;activeDictionaryRange=range?range.cloneRange():null;if(range&&CSS.highlights)CSS.highlights.set('picked',new Highlight(range));popup.hidden=false;popupShell(word,'Looking up…');placePopup(range);if(options.focus)popup.querySelector('.close')?.focus();try{const result=await define(word,lookupController.signal),clean={...result,meanings:result.meanings.map(item=>({...item,definition:plainDefinition(item.definition),example:plainDefinition(item.example)}))};renderDefinition(clean,word);popup.setAttribute('aria-labelledby','popup-word');popup.querySelector('h2').id='popup-word';popup.querySelector('.close')?.setAttribute('aria-label','Close definition');placePopup(range);if(options.focus)popup.querySelector('.close')?.focus();}catch(error){if(error.name==='AbortError')return;popupShell(word,error.message||'Could not load this definition.');placePopup(range);if(options.focus)popup.querySelector('.close')?.focus();}}
 function submitDictionaryQuery(event){event.preventDefault();const input=byId('dictionary-query'),word=input.value.trim().toLowerCase();if(!/^[a-z][a-z'-]{0,59}$/.test(word)){input.setCustomValidity('Enter one English word using letters, apostrophes, or hyphens.');input.reportValidity();return;}input.setCustomValidity('');showWord({word,range:null},{focus:true,returnFocus:input});}
 function hidePopup(){clearPdfWordMarker();lookupController?.abort();popup.hidden=true;activeDictionaryRange=null;if(CSS.highlights)CSS.highlights.delete('picked');const target=popupReturnFocus;popupReturnFocus=null;if(target&&target!==document.body&&target.isConnected)target.focus({preventScroll:true});}
-function placePopup(range){const fullscreenLayer=popup.dataset.fullscreenLayer==='true';const positionMode=fullscreenLayer?'absolute':'fixed';const mobile=matchMedia('(max-width: 640px)').matches;if(mobile){popup.style.position=positionMode;popup.style.left='10px';popup.style.right='10px';popup.style.top='auto';popup.style.bottom='max(10px, env(safe-area-inset-bottom))';popup.style.transform='none';popup.classList.toggle('dictionary-search-popup',!range);return;}if(!range){popup.classList.add('dictionary-search-popup');popup.style.position=positionMode;popup.style.left='50%';popup.style.right='';popup.style.top='18vh';popup.style.bottom='';popup.style.transform='translateX(-50%)';return;}popup.classList.remove('dictionary-search-popup');popup.style.position=positionMode;popup.style.left='0';popup.style.right='auto';popup.style.bottom='auto';popup.style.transform='none';const rect=range.getBoundingClientRect();const width=popup.offsetWidth||350;const height=popup.offsetHeight||180;const gap=8;const x=Math.max(12,Math.min(rect.left,Math.max(12,innerWidth-width-12)));const below=rect.bottom+gap;const above=rect.top-height-gap;let y=below;if(below+height>innerHeight-12&&above>=12)y=above;else if(below+height>innerHeight-12)y=Math.max(12,innerHeight-height-12);popup.style.left=`${x}px`;popup.style.top=`${y}px`;}
+function placePopup(range){
+  const fullscreenLayer=popup.dataset.fullscreenLayer==='true';
+  const mobile=matchMedia('(max-width: 640px)').matches;
+  const host=fullscreenLayer?popup.parentElement:null;
+  const hostRect=host?.getBoundingClientRect();
+  const viewportWidth=fullscreenLayer&&hostRect?hostRect.width:innerWidth;
+  const viewportHeight=fullscreenLayer&&hostRect?hostRect.height:innerHeight;
+  const originX=fullscreenLayer&&hostRect?hostRect.left:0;
+  const originY=fullscreenLayer&&hostRect?hostRect.top:0;
+  popup.style.position=fullscreenLayer?'absolute':'fixed';
+  popup.style.right='auto';popup.style.bottom='auto';popup.style.transform='none';
+  popup.style.left='10px';popup.style.top='10px';
+  popup.classList.toggle('dictionary-search-popup',!range);
+  if(!range){
+    popup.style.left=mobile?'10px':'50%';
+    popup.style.top=mobile?'12px':'18vh';
+    popup.style.transform=mobile?'none':'translateX(-50%)';
+    popup.style.right=mobile?'10px':'auto';
+    return;
+  }
+  popup.classList.remove('dictionary-search-popup');
+  const rect=range.getBoundingClientRect();
+  const width=Math.min(popup.offsetWidth||350,viewportWidth-20);
+  const height=Math.min(popup.offsetHeight||180,viewportHeight-20);
+  const gap=10,edge=mobile?10:12;
+  const x=Math.max(edge,Math.min(rect.left-originX,viewportWidth-width-edge));
+  const below=rect.bottom-originY+gap,above=rect.top-originY-height-gap;
+  let y=below;
+  if(below+height>viewportHeight-edge&&above>=edge)y=above;
+  else if(below+height>viewportHeight-edge)y=Math.max(edge,viewportHeight-height-edge);
+  popup.style.left=`${x}px`;
+  popup.style.top=`${Math.max(edge,Math.min(y,viewportHeight-height-edge))}px`;
+}
 function plainDefinition(value){let text=String(value||'');for(let attempt=0;attempt<2;attempt++){const parsed=new DOMParser().parseFromString(text,'text/html');parsed.querySelectorAll('script,style,template').forEach(node=>node.remove());const next=parsed.body.textContent||'';if(next===text)break;text=next;}return text.replace(/\s+/g,' ').trim();}
 const FALLBACK_DEFINITIONS = {
   ominous: { word: 'ominous', phonetic: '/ˈɒmɪnəs/', meanings: [{ partOfSpeech: 'adjective', definition: 'giving the impression that something bad or unpleasant is going to happen.', example: 'The sky looked ominous before the storm.' }] },
