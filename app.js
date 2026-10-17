@@ -684,36 +684,35 @@ function pdfTextNodeAtPoint(x, y) {
   return null;
 }
 
-function wordRangeAtNode(node, x, y) {
+function wordRangeAtNode(node, x, y, caretIndex = null) {
   if (!node || node.nodeType !== Node.TEXT_NODE || !node.data.trim()) return null;
-
   const text = node.data;
-  const wordPattern = /[-'’\p{L}\p{M}]+/gu;
+  const wordPattern = /[-'’\\p{L}\\p{M}]+/gu;
+  const words = [];
   let match;
-
   while ((match = wordPattern.exec(text))) {
     const range = document.createRange();
     range.setStart(node, match.index);
     range.setEnd(node, match.index + match[0].length);
-
-    // Only accept a word when the actual rendered word rectangle contains
-    // the pointer. Do not guess from nearby words or whitespace.
     const rects = [...range.getClientRects()].filter(rect => rect.width > 0 && rect.height > 0);
+    words.push({ word: match[0], range, start: match.index, end: match.index + match[0].length, rects });
     for (const rect of rects) {
-      if (
-        x >= rect.left &&
-        x <= rect.right &&
-        y >= rect.top &&
-        y <= rect.bottom
-      ) {
-        return {
-          word: match[0].replace(/^[-'’]+|[-'’]+$/g, '').toLowerCase(),
-          range
-        };
+      if (x >= rect.left - 2 && x <= rect.right + 2 && y >= rect.top - 3 && y <= rect.bottom + 3) {
+        return { word: match[0].replace(/^[-'’]+|[-'’]+$/g, '').toLowerCase(), range };
       }
     }
   }
-
+  // Mobile browser caret APIs sometimes report the closest insertion point
+  // just outside a glyph's rectangle. If so, use its character offset, but
+  // only when the tap is still on that same rendered text line.
+  if (Number.isInteger(caretIndex)) {
+    const candidates = words.filter(item => caretIndex >= item.start - 1 && caretIndex <= item.end + 1);
+    for (const item of candidates) {
+      if (!item.rects.length) continue;
+      const nearLine = item.rects.some(rect => y >= rect.top - 7 && y <= rect.bottom + 7);
+      if (nearLine) return { word: item.word.replace(/^[-'’]+|[-'’]+$/g, '').toLowerCase(), range: item.range };
+    }
+  }
   return null;
 }
 function wordAt(x, y) {
@@ -727,7 +726,7 @@ function wordAt(x, y) {
     if (textTarget) {
       const caret = pdfTextNodeAtPoint(x, y);
       if (caret?.node && reader.contains(caret.node)) {
-        const exact = wordRangeAtNode(caret.node, x, y);
+        const exact = wordRangeAtNode(caret.node, x, y, caret.index);
         if (exact?.word) return exact;
       }
       // Do not fall through to PDF-page coordinate guesses in text view.
