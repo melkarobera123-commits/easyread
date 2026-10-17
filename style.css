@@ -507,3 +507,190 @@ body[data-route="notes"] .scroll-nav{display:none!important}
 /* Keep the scroll pair vertically centered on every screen size. */
 .scroll-nav{top:50%!important;bottom:auto!important;transform:translateY(-50%)!important;justify-content:center}
 @media(max-width:700px){.toolbar-menu[data-portaled="true"]{display:grid;min-width:190px;width:min(280px,calc(100vw - 20px));max-height:60vh;overflow:auto;padding:10px;border:1px solid var(--line);border-radius:12px;background:var(--sheet);box-shadow:var(--shadow)}}
+
+
+/* ---------- UI consistency pass: library, reader, notes and overlays ---------- */
+:root{
+  --ui-radius-sm:10px;
+  --ui-radius-md:15px;
+  --ui-radius-lg:22px;
+  --ui-focus-ring:0 0 0 3px color-mix(in srgb,var(--accent) 24%,transparent);
+}
+:where(button,input,textarea,select,summary,a):focus-visible{
+  outline:2px solid var(--accent);
+  outline-offset:3px;
+}
+:where(button,input,textarea,select){font:inherit}
+:where(button,.btn,.icon-btn){-webkit-tap-highlight-color:transparent}
+.btn,.icon-btn{
+  transition:background-color .16s,border-color .16s,color .16s,box-shadow .16s,transform .16s;
+}
+.btn:active:not(:disabled),.icon-btn:active:not(:disabled){transform:translateY(1px)}
+button:disabled,.btn:disabled{opacity:.48;cursor:not-allowed}
+input,textarea,select{
+  max-width:100%;
+}
+input:not([type=checkbox]):not([type=radio]):focus,
+textarea:focus,select:focus{
+  border-color:var(--accent);
+  outline:none;
+  box-shadow:var(--ui-focus-ring);
+}
+.section-heading{gap:18px}
+.section-heading>div{min-width:0}
+.section-heading h2{line-height:1.12}
+.library-grid{align-items:stretch}
+.book-card{
+  position:relative;
+  gap:12px;
+  padding:17px;
+  border-radius:var(--ui-radius-md);
+  transition:border-color .18s,background-color .18s,transform .18s,box-shadow .18s;
+}
+.book-card:hover{
+  border-color:color-mix(in srgb,var(--accent) 42%,var(--line));
+  box-shadow:0 10px 26px color-mix(in srgb,var(--ink) 7%,transparent);
+  transform:translateY(-2px);
+}
+.book-card strong{line-height:1.35}
+.book-card .btn{min-height:42px}
+.library-panel,.notes-panel,.vocab-panel,.stats-panel,.learning-panel,.account-panel,.shortcuts-panel{
+  padding:22px clamp(16px,2.4vw,28px) calc(30px + env(safe-area-inset-bottom));
+}
+.panel .contents-head{
+  position:sticky;
+  z-index:2;
+  top:-22px;
+  margin:0 -2px;
+  padding:18px 2px 15px;
+  background:var(--sheet);
+  border-bottom:1px solid var(--line);
+}
+.panel .contents-head h2{
+  min-width:0;
+  font-size:clamp(1.3rem,3vw,1.65rem);
+  line-height:1.15;
+}
+.library-search input,.notes-panel input[type=search],.panel input[type=search]{
+  width:100%;
+  min-height:44px;
+  padding:10px 13px;
+  border:1px solid var(--line);
+  border-radius:12px;
+  background:var(--bg);
+  color:var(--ink);
+}
+.library-row,.vocab-row,.notes-panel .saved-note-row{
+  gap:12px;
+  padding:15px 0;
+}
+.library-row>*{min-width:0}
+.library-row progress{flex:0 0 84px;max-width:100%}
+.notes-panel .saved-note-row{
+  margin:0;
+  border-bottom:1px solid var(--line);
+}
+.notes-panel .saved-note-content p{
+  line-height:1.6;
+}
+.notes-panel .saved-note-actions .btn{
+  min-height:40px;
+  border-radius:10px;
+}
+#my-notes-list:empty::before{
+  content:"Your saved notes and highlights will appear here.";
+  display:block;
+  padding:28px 16px;
+  border:1px dashed var(--line);
+  border-radius:var(--ui-radius-md);
+  color:var(--muted);
+  text-align:center;
+  line-height:1.6;
+}
+.reader-wrap{min-width:0}
+.bar{
+  gap:8px;
+  border-radius:var(--ui-radius-md);
+}
+.bar-primary .btn,.bar .btn,.toolbar-more summary{
+  min-height:40px;
+  border-radius:10px;
+}
+.doc-head{min-width:0}
+#doc-meta{line-height:1.5}
+.reader-tools .btn{min-height:40px;border-radius:10px}
+#reader{
+  min-width:0;
+  overflow-wrap:anywhere;
+}
+#reader .page.readable{
+  scroll-margin-top:125px;
+}
+#reader .page.readable p{
+  max-width:100%;
+}
+.pdf-page{
+  overflow:hidden;
+  border-radius:var(--ui-radius-md);
+}
+#popup{
+  max-width:calc(100vw - 20px);
+  max-height:min(76dvh,680px);
+  overflow:auto;
+  overscroll-behavior:contain;
+  scrollbar-width:thin;
+  -webkit-overflow-scrolling:touch;
+}
+#popup .word-actions .btn{min-height:40px}
+#popup .close{position:sticky;float:right;top:0;margin:-7px -8px 0 8px}
+.toast{
+  max-width:min(440px,calc(100vw - 28px));
+  overflow-wrap:anywhere;
+}
+@media(max-width:900px){
+  .section-heading{align-items:flex-start}
+  .library-grid{gap:12px}
+  .reader-wrap{min-width:0}
+  .bar{scrollbar-width:none}
+  .bar::-webkit-scrollbar{display:none}
+  .panel{
+    inset:max(54px,env(safe-area-inset-top)) 0 calc(72px + env(safe-area-inset-bottom)) 0;
+    width:100%;
+    max-width:none;
+    border-inline:0;
+    border-top:1px solid var(--line);
+    border-radius:18px 18px 0 0;
+    box-shadow:0 -12px 36px color-mix(in srgb,var(--ink) 12%,transparent);
+  }
+  .panel .contents-head{top:-22px}
+  .notes-panel .saved-note-actions{flex-direction:row;flex-wrap:wrap}
+  .notes-panel .saved-note-actions .btn{flex:1 1 auto}
+}
+@media(max-width:560px){
+  .hero h1{font-size:clamp(2.55rem,12vw,3.5rem)}
+  .section-heading{flex-direction:column;align-items:stretch}
+  .section-heading>.btn{width:100%}
+  .library-grid{grid-template-columns:1fr}
+  .book-card{min-height:0;padding:15px}
+  .library-subheading{align-items:center;gap:10px}
+  .library-subheading select{min-width:0;max-width:58%}
+  .reader-wrap{padding-inline:8px}
+  .bar{border-radius:12px;padding:6px}
+  .bar-primary .btn,.bar .btn,.toolbar-more summary{min-height:42px}
+  .bar-end{gap:6px}
+  .page-jump-inline input{width:52px}
+  .doc-title{font-size:clamp(1.8rem,9vw,2.5rem)}
+  .pdf-page{padding:8px;border-radius:10px}
+  .notes-panel .saved-note-row{display:grid;grid-template-columns:minmax(0,1fr);gap:10px}
+  .notes-panel .saved-note-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+  .notes-panel .saved-note-actions .btn{width:100%;padding-inline:8px}
+  #popup{width:auto;max-width:calc(100vw - 20px);max-height:68dvh;padding:18px 14px calc(16px + env(safe-area-inset-bottom))}
+  #popup h2{font-size:1.45rem}
+  #popup .word-actions .btn{flex:1 1 calc(50% - 7px)}
+  .panel .contents-head{gap:8px}
+  .panel .contents-head .btn{min-height:40px}
+}
+@media(prefers-reduced-motion:reduce){
+  .btn,.icon-btn,.book-card{transition:none}
+  .book-card:hover{transform:none}
+}
