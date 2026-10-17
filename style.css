@@ -470,3 +470,28 @@ body[data-route="library"] #library-backdrop { display:none !important; }
 @keyframes dictionary-enter{from{opacity:0;transform:translateY(5px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
 @media(prefers-reduced-motion:reduce){#popup{animation:none}#popup .close,#popup .word-actions .btn{transition:none}}
 @media(max-width:640px){.quote-preview{margin:0;transform:none}.quote-sheet{padding:24px}.quote-preview .demo-definition{width:calc(100% - 8px);margin:-8px 4px 0 4px;transform:none}.quote-text{font-size:1.3rem!important;line-height:1.7!important}#popup{width:auto;max-height:min(72dvh,620px);overflow:auto;padding:20px 16px calc(18px + env(safe-area-inset-bottom));border-radius:18px}#popup .word-actions .btn{flex:1 1 calc(50% - 7px);min-height:42px}}
+
+
+/* Reliable avatar fallback, including signed-out and blocked-photo states. */
+.profile-avatar{position:relative;display:grid;place-items:center;flex:0 0 34px;overflow:hidden;background:var(--accent-soft);border:1px solid color-mix(in srgb,var(--accent) 22%,var(--line));color:var(--accent)}
+.profile-avatar::before{content:"";position:absolute;top:6px;width:10px;height:10px;border-radius:50%;background:currentColor;opacity:.9}
+.profile-avatar::after{content:"";position:absolute;bottom:4px;width:21px;height:12px;border-radius:12px 12px 7px 7px;background:currentColor;opacity:.9}
+.profile-avatar:has(img:not([hidden]))::before,.profile-avatar:has(img:not([hidden]))::after{display:none}
+.profile-avatar img{position:relative;z-index:1;display:block;width:100%;height:100%;border-radius:50%;object-fit:cover}
+.profile-avatar img[hidden]{display:none}
+.account-trigger{gap:8px}
+.account-trigger img[hidden]{display:none}
+@media(max-width:900px){.toolbar-menu{z-index:100;isolation:isolate;box-shadow:0 18px 48px rgba(12,20,32,.24)}.toolbar-more{z-index:100}.toolbar-more[open]{z-index:100}}
+/* First-visit welcome: product explanation first, account remains optional. */
+.welcome-card{width:min(480px,100%);padding:clamp(24px,5vw,36px);max-height:min(92svh,760px);overflow:auto}
+.welcome-brand-mark{display:grid;place-items:center;width:48px;height:48px;margin:0 0 22px;border-radius:15px;background:var(--accent);color:var(--marker);font:700 1.15rem var(--display);box-shadow:0 8px 20px color-mix(in srgb,var(--accent) 22%,transparent)}
+.welcome-card .eyebrow{margin:0 0 10px;font-size:.7rem;letter-spacing:.16em}
+.welcome-card h2{max-width:12ch;margin:0 0 14px;font-size:clamp(1.9rem,6vw,2.45rem);line-height:1.06}
+.welcome-description{margin:0;color:var(--muted);font-size:.96rem;line-height:1.7}
+.welcome-feature-list{display:grid;gap:10px;margin:20px 0;padding:15px;border:1px solid var(--line);border-radius:13px;background:var(--bg)}
+.welcome-feature-list span{display:flex;align-items:center;gap:10px;font-size:.86rem}
+.welcome-feature-list b{display:grid;place-items:center;width:27px;height:27px;flex:0 0 27px;border-radius:8px;background:var(--accent-soft);color:var(--accent);font-size:1rem}
+.welcome-privacy-note{margin:0 0 10px;color:var(--muted);font-size:.78rem;line-height:1.55}
+.welcome-card .account-action{min-height:48px;margin:8px 0 2px}
+.welcome-continue{display:block;width:100%;min-height:44px;margin-top:6px;text-align:center}
+@media(max-width:520px){.welcome-card{padding:24px 20px;border-radius:22px}.welcome-brand-mark{margin-bottom:17px}.welcome-feature-list{gap:8px;margin:16px 0;padding:12px}.welcome-description{font-size:.92rem}.welcome-card .account-action{min-height:48px}}
