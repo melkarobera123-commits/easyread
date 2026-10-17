@@ -1207,6 +1207,13 @@ async function init() {
     });
   }
   boot('navigation', initNavigation);
+  // Use an explicit toggle for the reader's More disclosure so touch browsers
+  // reliably open it instead of losing the tap to horizontal toolbar scrolling.
+  document.querySelectorAll('.toolbar-more > summary').forEach(summary => summary.addEventListener('click', event => {
+    event.preventDefault();
+    const menu = summary.parentElement;
+    if (menu) menu.open = !menu.open;
+  }));
   boot('contact', initContact);
   updateWelcomeSignin();
   boot('reader preferences', loadReaderPreferences);
