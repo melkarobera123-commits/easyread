@@ -1203,7 +1203,7 @@ async function init() {
     byId(id)?.addEventListener('click', () => {
       const modal = byId('signin-modal');
       if (modal) modal.hidden = true;
-      local.set('er-signin-dismissed', true);
+      local.set('er-signin-dismissed', true); local.set('er-welcome-intro-dismissed', true);
     });
   }
   boot('navigation', initNavigation);
@@ -1277,7 +1277,7 @@ async function init() {
   byId('highlight-btn').addEventListener('click',()=>{const text=getSelection()?.toString().trim();if(!text)return;const values=local.get('er-highlights',[]);values.unshift({id:newSavedItemId(),text,book:activeBook?.key,created:Date.now()});local.set('er-highlights',values);queueCloudSync();renderMyNotes();renderSavedItems();toast('Highlight saved.');});
   byId('bookmark-btn').addEventListener('click',()=>{const values=local.get('er-bookmarks',[]);values.unshift({name:activeBook?.title,book:activeBook?.key,scroll:scrollY,page:activePage,created:Date.now()});local.set('er-bookmarks',values);queueCloudSync();toast('Bookmark saved.');});
   byId('export-btn').addEventListener('click',exportData);byId('export-all').addEventListener('click',exportData);byId('delete-all').addEventListener('click',deleteLocalData);
-  byId('google-signin').addEventListener('click',signInWithGoogle);byId('signin-modal-google').addEventListener('click',signInWithGoogle);byId('welcome-signin-btn')?.addEventListener('click',signInWithGoogle);byId('welcome-dismiss')?.addEventListener('click',()=>{local.set('er-signin-dismissed',true);const welcome=byId('welcome-signin');if(welcome)welcome.hidden=true;});byId('email-auth-form')?.addEventListener('submit',submitEmailAuth);byId('auth-tab-signin')?.addEventListener('click',()=>setAuthMode('signin'));byId('auth-tab-signup')?.addEventListener('click',()=>setAuthMode('signup'));byId('forgot-password')?.addEventListener('click',resetPassword);byId('auth-password-toggle')?.addEventListener('click',()=>{const input=byId('auth-password'),button=byId('auth-password-toggle');if(!input||!button)return;const visible=input.type==='text';input.type=visible?'password':'text';button.textContent=visible?'Show':'Hide';button.setAttribute('aria-label',visible?'Show password':'Hide password');});byId('sync-now').addEventListener('click',syncCloud);byId('signout').addEventListener('click',()=>auth?.signOut());
+  byId('google-signin').addEventListener('click',signInWithGoogle);byId('signin-modal-google').addEventListener('click',signInWithGoogle);byId('welcome-signin-btn')?.addEventListener('click',signInWithGoogle);byId('welcome-dismiss')?.addEventListener('click',()=>{local.set('er-signin-dismissed',true);local.set('er-welcome-intro-dismissed',true);const welcome=byId('welcome-signin');if(welcome)welcome.hidden=true;});byId('email-auth-form')?.addEventListener('submit',submitEmailAuth);byId('auth-tab-signin')?.addEventListener('click',()=>setAuthMode('signin'));byId('auth-tab-signup')?.addEventListener('click',()=>setAuthMode('signup'));byId('forgot-password')?.addEventListener('click',resetPassword);byId('auth-password-toggle')?.addEventListener('click',()=>{const input=byId('auth-password'),button=byId('auth-password-toggle');if(!input||!button)return;const visible=input.type==='text';input.type=visible?'password':'text';button.textContent=visible?'Show':'Hide';button.setAttribute('aria-label',visible?'Show password':'Hide password');});byId('sync-now').addEventListener('click',syncCloud);byId('signout').addEventListener('click',()=>auth?.signOut());
   byId('speak-page-btn').addEventListener('click',speakCurrent);byId('stop-speech-btn').addEventListener('click',()=>speechSynthesis.cancel());
   byId('autoscroll-btn').addEventListener('click',()=>{const button=byId('autoscroll-btn');if(button.dataset.running){clearInterval(Number(button.dataset.running));delete button.dataset.running;button.textContent='Auto-scroll';}else button.dataset.running=String(setInterval(()=>scrollBy(0,1),45));});
   byId('font-choice').addEventListener('change',event=>{const settings=local.get('er-reader-settings',{});settings.font=event.target.value;local.set('er-reader-settings',settings);document.documentElement.style.setProperty('--reader-font',event.target.value==='serif'?'Georgia,serif':event.target.value==='dyslexic'?'Arial,sans-serif':"'Literata',Georgia,serif");});byId('spacing').addEventListener('input',event=>{const settings=local.get('er-reader-settings',{});settings.spacing=Number(event.target.value);local.set('er-reader-settings',settings);document.documentElement.style.setProperty('--reader-leading',event.target.value);});byId('width').addEventListener('input',event=>{const settings=local.get('er-reader-settings',{});settings.width=Number(event.target.value);local.set('er-reader-settings',settings);document.documentElement.style.setProperty('--reader-width',event.target.value+'px');});
@@ -1285,9 +1285,9 @@ async function init() {
   addEventListener('scroll',()=>{if(!readerWrap.hidden)savePosition();},{passive:true});addEventListener('beforeunload',()=>{savePosition(true);pauseReadingTimer();});document.addEventListener('visibilitychange',()=>{if(document.hidden&&readerTimerRunning){timerResumeOnVisible=true;pauseReadingTimer();}else if(!document.hidden&&timerResumeOnVisible&&!readerWrap.hidden){timerResumeOnVisible=false;startReadingTimer();}});addEventListener('resize',()=>{if(activePdf)scalePdf(0);});
   document.addEventListener('keydown',event=>{if(event.key==='Escape'){hidePopup();hidePanels();byId('contents').classList.remove('open');byId('signin-modal').hidden=true;}if((event.ctrlKey||event.altKey)&&event.key==='Enter'&&!event.target.matches('input,textarea,select')){const selection=getSelection();if(selection&&!selection.isCollapsed&&selection.rangeCount){const text=selection.toString().trim();if(/^[\p{L}\p{M}]+(?:[-'’][\p{L}\p{M}]+)*$/u.test(text)){event.preventDefault();showWord({word:text.toLowerCase(),range:selection.getRangeAt(0).cloneRange()},{focus:true});return;}}}if(event.target.matches('input,textarea,select'))return;if(event.key==='?'){event.preventDefault();showPanel('shortcuts',true);return;}if(event.key==='/ '||event.key==='/'){event.preventDefault();if(!readerWrap.hidden){byId('reader-tools').hidden=false;byId('search-input').focus();}}if(event.key.toLowerCase()==='f'&&!readerWrap.hidden)document.body.classList.toggle('focus-mode');if(event.key.toLowerCase()==='t')byId('theme').click();});
   await renderLibrary().catch(()=>{});updateStreakChip();addEventListener('online',()=>{if(user)syncCloud();});
-  // Do not automatically place a modal over the application on a fresh/private
-  // session. Sign-in is available from the account buttons and must never block
-  // normal reading controls.
+  // Introduce EasyRead once for new visitors, without requiring an account.
+  const welcomeModal=byId('signin-modal');
+  if(welcomeModal&&!local.get('er-welcome-intro-dismissed',false))welcomeModal.hidden=false;
   if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
   window.__easyReadReady = true;
 }
@@ -1531,7 +1531,7 @@ document.addEventListener('click', event => {
 
   // Sign-in prompt: tapping the dimmed background closes it.
   const modal = byId('signin-modal');
-  if (modal && !modal.hidden && event.target === modal) { modal.hidden = true; local.set('er-signin-dismissed', true); }
+  if (modal && !modal.hidden && event.target === modal) { modal.hidden = true; local.set('er-signin-dismissed', true); local.set('er-welcome-intro-dismissed', true); }
 
   // Side panels: close when clicking outside them.
   const anyOpen = document.querySelector('.panel:not([hidden]), .contents.open');
