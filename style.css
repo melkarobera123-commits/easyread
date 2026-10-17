@@ -760,3 +760,16 @@ body.focus-mode .bar { top: 8px; }
 }
 .saved-bookmark-row { display: flex; align-items: center; gap: 6px; border-bottom: 1px solid var(--line); }
 .saved-bookmark-row .saved-item { min-width: 0; flex: 1; }
+
+.saved-note-group-title { margin: 18px 0 6px; padding-bottom: 6px; border-bottom: 1px solid var(--line); font: 600 1rem var(--ui); }
+@media (max-width: 700px) {
+  .bar { flex-wrap: wrap; overflow: visible; }
+  .bar-primary { width: 100%; max-width: 100%; overflow-x: auto; }
+  .bar-end { width: 100%; display: flex; justify-content: flex-end; gap: 6px; }
+  .reading-timer { display: flex; align-items: center; gap: 4px; margin-right: auto; }
+  .reading-timer #timer-state, .reading-timer #timer-reset { display: none; }
+  .reading-timer output { font-size: .78rem; font-variant-numeric: tabular-nums; }
+  .reading-timer .icon-btn { min-width: 36px; min-height: 36px; padding: 4px 7px; font-size: .78rem; }
+  .page-jump-inline { font-size: .8rem; }
+  .toolbar-more summary { min-height: 38px; }
+}
