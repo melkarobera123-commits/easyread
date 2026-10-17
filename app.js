@@ -1168,7 +1168,7 @@ function updateProfile(){
   updateWelcomeSignin();
 }
 async function signInWithGoogle(){
-  try{setAuthStatus('Opening Google sign-in…');await initFirebase();const provider=new firebase.auth.GoogleAuthProvider();provider.setCustomParameters({prompt:'select_account'});await auth.signInWithPopup(provider);showPanel('account',false);toast('Signed in with Google.');}
+  try{setAuthStatus('Opening Google sign-in…');await initFirebase();const provider=new firebase.auth.GoogleAuthProvider();provider.setCustomParameters({prompt:'select_account'});await auth.signInWithPopup(provider);const intro=byId('signin-modal');if(intro)intro.hidden=true;local.set('er-welcome-intro-dismissed',true);showPanel('account',false);toast('Signed in with Google.');}
   catch(error){setAuthStatus(friendlyAuthError(error),'error');if(error?.code==='auth/popup-blocked')try{await auth.signInWithRedirect(new firebase.auth.GoogleAuthProvider());}catch(redirectError){setAuthStatus(friendlyAuthError(redirectError),'error');}}
 }
 async function submitEmailAuth(event){
