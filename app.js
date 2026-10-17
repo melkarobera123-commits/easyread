@@ -626,6 +626,25 @@ async function setPdfMode(visual) {
 }
 function scalePdf(amount) { zoom=Math.min(2.4,Math.max(.65,zoom+amount)); pdfPages.querySelectorAll('.pdf-page[data-rendered="yes"]').forEach(releasePdfPage); pdfPages.querySelectorAll('.pdf-page').forEach(frame=>{ if(pageObserver) pageObserver.unobserve(frame); pageObserver?.observe(frame); }); }
 
+// Re-render the original PDF pages when entering or leaving fullscreen. The page canvas
+// must be laid out at the new available width, rather than stretching a previously rendered
+// canvas or switching to the extracted-text reading view.
+document.addEventListener('fullscreenchange', () => {
+  if (!activePdf || !pdfPages) return;
+  if (document.fullscreenElement && document.fullscreenElement !== pdfPages) return;
+  requestAnimationFrame(() => {
+    const frames = [...pdfPages.querySelectorAll('.pdf-page')];
+    for (const frame of frames) {
+      releasePdfPage(frame);
+      frame.style.minHeight = '';
+      pageObserver?.unobserve(frame);
+      pageObserver?.observe(frame);
+    }
+    const current = pdfPages.querySelector(`[data-page="${activePage}"]`);
+    if (current) renderPdfPage(activePage).catch(console.error);
+  });
+});
+
 const pdfSelectionLayers = new Map();
 
 function unregisterPdfSelectionLayer(layer) {
