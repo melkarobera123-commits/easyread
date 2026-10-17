@@ -1211,8 +1211,30 @@ async function init() {
   // reliably open it instead of losing the tap to horizontal toolbar scrolling.
   document.querySelectorAll('.toolbar-more > summary').forEach(summary => summary.addEventListener('click', event => {
     event.preventDefault();
-    const menu = summary.parentElement;
-    if (menu) menu.open = !menu.open;
+    event.stopPropagation();
+    const details = summary.parentElement;
+    if (!details) return;
+    const menu = details.querySelector('.toolbar-menu');
+    const opening = !details.open;
+    // On narrow screens, move the actual menu to the document body so the
+    // horizontally-scrollable toolbar cannot clip it.
+    if (matchMedia('(max-width: 700px)').matches && menu) {
+      if (opening) {
+        menu.dataset.portaled = 'true';
+        document.body.append(menu);
+        menu.style.position = 'fixed';
+        menu.style.right = '10px';
+        menu.style.left = 'auto';
+        menu.style.top = 'auto';
+        menu.style.bottom = 'max(88px, calc(env(safe-area-inset-bottom) + 78px))';
+        menu.style.zIndex = '200';
+      } else if (menu.dataset.portaled === 'true') {
+        details.append(menu);
+        delete menu.dataset.portaled;
+        menu.removeAttribute('style');
+      }
+    }
+    details.open = opening;
   }));
   boot('contact', initContact);
   updateWelcomeSignin();
@@ -1532,10 +1554,18 @@ document.addEventListener('click', event => {
   const inside = selector => path.some(node => node.matches(selector));
 
   // "More" menu: close when clicking elsewhere or after choosing an action.
-  document.querySelectorAll('details.toolbar-more[open]').forEach(menu => {
-    const clickedMenu = path.includes(menu);
+  document.querySelectorAll('details.toolbar-more[open]').forEach(details => {
+    const menu = details.querySelector('.toolbar-menu') || document.querySelector('.toolbar-menu[data-portaled="true"]');
+    const clickedMenu = path.includes(details) || (menu && path.some(node => node === menu || menu.contains(node)));
     const keepOpen = inside('#smaller, #larger');
-    if (!clickedMenu || (inside('.toolbar-menu button') && !keepOpen)) menu.open = false;
+    if (!clickedMenu || (inside('.toolbar-menu button') && !keepOpen)) {
+      details.open = false;
+      if (menu?.dataset.portaled === 'true') {
+        details.append(menu);
+        delete menu.dataset.portaled;
+        menu.removeAttribute('style');
+      }
+    }
   });
 
   // Sign-in prompt: tapping the dimmed background closes it.
