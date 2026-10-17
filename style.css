@@ -64,7 +64,7 @@ main,.site-footer{margin-left:232px}.site-footer{display:flex;justify-content:ce
   .page-jump-inline input{width:58px;min-height:42px}
   .toolbar-more{flex:0 0 auto}
   .toolbar-more summary{white-space:nowrap}
-  .toolbar-menu{position:fixed;right:10px;bottom:88px;top:auto;z-index:70;width:min(280px,calc(100vw - 20px));max-height:60vh;overflow:auto}
+  .toolbar-menu{position:fixed;right:10px;bottom:auto;top:auto;z-index:200;width:min(280px,calc(100vw - 20px));max-height:calc(100dvh - 150px);overflow:auto}
   .doc-head{margin:4px 3px 16px}
   .doc-title{font-size:clamp(1.65rem,8vw,2.4rem)}
   .reader-tools{
@@ -694,3 +694,56 @@ textarea:focus,select:focus{
   .btn,.icon-btn,.book-card{transition:none}
   .book-card:hover{transform:none}
 }
+
+
+/* Mobile accessibility fixes */
+@media (max-width: 900px) {
+  .reader-wrap { margin-top: 0; }
+  .bar { margin-top: 0; }
+  .toolbar-menu[data-portaled="true"] {
+    position: fixed !important;
+    top: auto;
+    right: 10px;
+    bottom: auto;
+    left: auto;
+    width: min(280px, calc(100vw - 20px));
+    max-height: min(60dvh, calc(100dvh - 150px));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    z-index: 200;
+  }
+  .scroll-nav { bottom: calc(94px + env(safe-area-inset-bottom)) !important; }
+  .pdf-controls #pdf-fullscreen { display: inline-flex !important; }
+  .bar { gap: 6px; }
+  .bar-end { flex: 0 0 auto; min-width: 0; }
+  .bar-primary { flex: 0 0 auto; }
+  .page-jump-inline { display: inline-flex; }
+  .toolbar-more { margin-left: 0; }
+  .focus-exit-floating { display: inline-flex; }
+}
+.focus-exit-floating {
+  display: none;
+  position: fixed;
+  z-index: 220;
+  top: calc(12px + env(safe-area-inset-top));
+  right: 12px;
+  min-height: 42px;
+  padding: 8px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--sheet);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+}
+body.focus-mode .focus-exit-floating { display: inline-flex; }
+body.focus-mode .bar { top: 8px; }
+@media (max-width: 900px) {
+  .reading-timer { display: none; }
+  .reader-wrap { padding-top: 0; }
+  .top { margin-bottom: 0; }
+  .bar { top: 58px; }
+}
+.saved-note-row { align-items: flex-start; }
+.saved-note-content { min-width: 0; }
+.saved-note-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.saved-note-actions { display: flex; flex-wrap: wrap; gap: 6px; }
