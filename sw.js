@@ -1,4 +1,4 @@
-const CACHE = 'easyread-shell-v46';
+const CACHE = 'easyread-shell-v47';
 const SHELL = ['./', './index.html', './style.css', './pdf-reader.css', './script.js', './app.js', './firebase-config.js', './manifest.webmanifest', './icon.svg', './pdfjs/pdf.mjs', './pdfjs/pdf.worker.mjs'];
 
 self.addEventListener('install', event => {
