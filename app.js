@@ -198,7 +198,7 @@ async function openFile(file) {
     else await parseImage(file);
     if (!reader.textContent.trim() && ext !== 'pdf') throw new Error('No readable text was found in this file.');
     activeBook.words = wordCount(reader.textContent); await putBook(activeBook); byId('file-name').textContent = activeBook.title; updateDocMeta(); renderLibrary();
-    byId('loading-skeleton').hidden = true; status(''); if (activeBook.position) restorePosition(); byId('reader-page-jump').max=String(Math.max(1,pageCount)); byId('reader-page-jump').value=String(activeBook.position?.page||1); byId('text-view-controls').hidden=Boolean(activePdf&&pdfMode); updateDocumentPageControls(); readerTimerBookKey=activeBook.key;readerTimerRecordedSeconds=elapsedReadingSeconds();startReadingTimer(); toast('Book opened. Your reading position will be saved here.');
+    byId('loading-skeleton').hidden = true; status(''); if (activeBook.position) restorePosition(); byId('reader-page-jump').max=String(Math.max(1,pageCount)); byId('reader-page-jump').value=String(activeBook.position?.page||1); syncPageCounter(Number(activeBook.position?.page)||1); byId('text-view-controls').hidden=Boolean(activePdf&&pdfMode); updateDocumentPageControls(); readerTimerBookKey=activeBook.key;readerTimerRecordedSeconds=elapsedReadingSeconds();startReadingTimer(); toast('Book opened. Your reading position will be saved here.');
   } catch (error) { console.error(error); byId('loading-skeleton').hidden = true; status(error.message || 'Could not open this file. It may be damaged or password-protected.', true); }
 }
 function wordCount(text) { return (text.match(/\S+/g) || []).length; }
