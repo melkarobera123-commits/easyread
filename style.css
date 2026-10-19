@@ -817,3 +817,12 @@ body.focus-mode .bar { top: 8px; }
   max-width: 100%;
   height: auto !important;
 }
+
+
+/* Keep the Library panel clear of the fixed sidebar on desktop. */
+.library-panel { left: 232px; right: 0; width: auto; max-width: none; min-width: 0; box-sizing: border-box; }
+.library-panel > * { min-width: 0; max-width: 100%; }
+.library-panel .contents-head { gap: 12px; flex-wrap: wrap; }
+.library-panel .contents-head h2 { min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 900px) { .library-panel { left: 0; right: 0; width: auto; } }
+@media (max-width: 700px) { .library-panel { left: 10px; right: 10px; width: auto; max-width: none; } }
