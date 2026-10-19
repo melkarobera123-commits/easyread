@@ -804,16 +804,41 @@ function wordAt(x, y) {
 let pdfTapStart = null;
 let suppressPdfClick = false;
 
-function handleReadableTap(event) {
+function handleReadableTap(event, options = {}) {
   if (event.target.closest('button,a,input,select,textarea,#popup,.pdf-thumb')) return;
   const readable = event.target.closest('.readable');
   if (!readable) return;
   const selection = getSelection();
-  if (selection && !selection.isCollapsed) return;
+  // In text view, mobile browsers can create a temporary word selection on a
+  // single tap. Prefer the tapped word unless the user is actively selecting text.
+  if (selection && !selection.isCollapsed && !options.singleTapTextView) return;
   const hit = wordAt(event.clientX, event.clientY);
-  if (hit) showWord(hit);
-  else hidePopup();
+  if (hit) {
+    if (options.singleTapTextView && selection && !selection.isCollapsed) selection.removeAllRanges();
+    showWord(hit);
+  } else hidePopup();
 }
+
+// Handle a single touch/pen tap directly in extracted-text view before the browser's
+// synthetic click or automatic word selection can make the first tap appear ignored.
+let textViewTapStart = null;
+reader.addEventListener('pointerdown', event => {
+  if (reader.hidden || !reader.classList.contains('pdf-text-reader')) return;
+  if (event.pointerType !== 'touch' && event.pointerType !== 'pen') return;
+  if (event.target.closest('button,a,input,select,textarea,#popup')) return;
+  textViewTapStart = { x: event.clientX, y: event.clientY, pointerId: event.pointerId };
+}, { passive: true });
+reader.addEventListener('pointerup', event => {
+  if (!textViewTapStart || event.pointerId !== textViewTapStart.pointerId) return;
+  const distance = Math.hypot(event.clientX - textViewTapStart.x, event.clientY - textViewTapStart.y);
+  textViewTapStart = null;
+  if (distance > 12 || reader.hidden || !reader.classList.contains('pdf-text-reader')) return;
+  if (!event.target.closest('#reader .page.readable')) return;
+  suppressPdfClick = true;
+  handleReadableTap(event, { singleTapTextView: true });
+  setTimeout(() => { suppressPdfClick = false; }, 350);
+}, { passive: true });
+reader.addEventListener('pointercancel', () => { textViewTapStart = null; }, { passive: true });
 
 pdfPages.addEventListener('pointerdown', event => {
   if (event.pointerType !== 'touch' && event.pointerType !== 'pen') return;
