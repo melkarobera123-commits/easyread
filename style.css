@@ -826,3 +826,34 @@ body.focus-mode .bar { top: 8px; }
 .library-panel .contents-head h2 { min-width: 0; overflow-wrap: anywhere; }
 @media (max-width: 900px) { .library-panel { left: 0; right: 0; width: auto; } }
 @media (max-width: 700px) { .library-panel { left: 10px; right: 10px; width: auto; max-width: none; } }
+
+
+/* Keep sidebar navigation and Sign in separately visible on shorter screens. */
+.app-sidebar {
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+.sidebar-nav {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  align-content: start;
+}
+.sidebar-bottom {
+  flex: 0 0 auto;
+  margin-top: auto;
+  padding-top: 12px;
+  background: var(--sheet);
+  position: relative;
+  z-index: 2;
+}
+.profile-entry { min-height: 52px; }
+@media (max-height: 560px) {
+  .app-sidebar { padding-top: 12px; padding-bottom: 12px; }
+  .sidebar-caption { margin-bottom: 10px; }
+  .shell-nav { min-height: 38px; padding-block: 6px; }
+}
