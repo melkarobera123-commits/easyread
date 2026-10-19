@@ -775,3 +775,7 @@ body.focus-mode .bar { top: 8px; }
 }
 
 .saved-note-content[role="button"]{cursor:pointer;border-radius:8px}.saved-note-content[role="button"]:focus-visible{outline:2px solid var(--accent);outline-offset:3px}.saved-note-content[role="button"]:hover{background:var(--accent-soft)}
+
+
+/* The main navigation already exists in the left sidebar and mobile nav. */
+.top .nav-links { display: none !important; }
