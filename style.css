@@ -779,3 +779,41 @@ body.focus-mode .bar { top: 8px; }
 
 /* The main navigation already exists in the left sidebar and mobile nav. */
 .top .nav-links { display: none !important; }
+
+
+/* Prevent PDF controls and page previews from stacking over the document in fullscreen. */
+#pdf-pages:fullscreen {
+  display: flex !important;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 18px;
+  overflow: auto;
+  padding: max(12px, env(safe-area-inset-top)) 12px max(24px, env(safe-area-inset-bottom));
+  height: 100dvh;
+  max-height: 100dvh;
+}
+#pdf-pages:fullscreen .pdf-toolbar,
+#pdf-pages:fullscreen .pdf-thumbs,
+#pdf-pages:fullscreen .pdf-page {
+  position: relative !important;
+  inset: auto !important;
+  top: auto !important;
+  flex: 0 0 auto;
+  transform: none;
+}
+#pdf-pages:fullscreen .pdf-toolbar,
+#pdf-pages:fullscreen .pdf-thumbs {
+  width: min(100%, 1100px);
+  z-index: 1;
+}
+#pdf-pages:fullscreen .pdf-page {
+  width: min(100%, 1100px);
+  min-height: 0;
+  margin: 0 auto;
+}
+#pdf-pages:fullscreen .pdf-page canvas {
+  display: block;
+  max-width: 100%;
+  height: auto !important;
+}
