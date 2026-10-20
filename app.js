@@ -626,6 +626,53 @@ async function setPdfMode(visual) {
 }
 function scalePdf(amount) { zoom=Math.min(2.4,Math.max(.65,zoom+amount)); pdfPages.querySelectorAll('.pdf-page[data-rendered="yes"]').forEach(releasePdfPage); pdfPages.querySelectorAll('.pdf-page').forEach(frame=>{ if(pageObserver) pageObserver.unobserve(frame); pageObserver?.observe(frame); }); }
 
+// Touchscreen PDF zoom: pinch with two fingers, or double-tap to toggle a closer view.
+let pdfPinchStart = null;
+let pdfLastTap = { time: 0, x: 0, y: 0 };
+let pdfDoubleTapZoomed = false;
+function applyPdfZoomAt(nextZoom, x, y) {
+  const previousZoom = zoom;
+  zoom = Math.min(2.4, Math.max(.65, nextZoom));
+  if (Math.abs(zoom - previousZoom) < .001) return;
+  const rect = pdfPages.getBoundingClientRect();
+  const relativeX = x - rect.left + pdfPages.scrollLeft;
+  const relativeY = y - rect.top + pdfPages.scrollTop;
+  pdfPages.querySelectorAll('.pdf-page[data-rendered="yes"]').forEach(releasePdfPage);
+  pdfPages.querySelectorAll('.pdf-page').forEach(frame => {
+    if (pageObserver) pageObserver.unobserve(frame);
+    pageObserver?.observe(frame);
+  });
+  requestAnimationFrame(() => {
+    pdfPages.scrollLeft = Math.max(0, relativeX * zoom / previousZoom - (x - rect.left));
+    pdfPages.scrollTop = Math.max(0, relativeY * zoom / previousZoom - (y - rect.top));
+  });
+}
+pdfPages.addEventListener('touchstart', event => {
+  if (!activePdf || !pdfMode || event.touches.length !== 2) return;
+  const a = event.touches[0], b = event.touches[1];
+  pdfPinchStart = { distance: Math.hypot(b.clientX-a.clientX,b.clientY-a.clientY), zoom, x:(a.clientX+b.clientX)/2, y:(a.clientY+b.clientY)/2 };
+}, { passive: true });
+pdfPages.addEventListener('touchmove', event => {
+  if (!pdfPinchStart || event.touches.length !== 2) return;
+  event.preventDefault();
+  const a = event.touches[0], b = event.touches[1];
+  const distance = Math.hypot(b.clientX-a.clientX,b.clientY-a.clientY);
+  applyPdfZoomAt(pdfPinchStart.zoom * distance / Math.max(1,pdfPinchStart.distance), (a.clientX+b.clientX)/2, (a.clientY+b.clientY)/2);
+}, { passive: false });
+pdfPages.addEventListener('touchend', event => {
+  if (event.touches.length < 2) pdfPinchStart = null;
+}, { passive: true });
+pdfPages.addEventListener('pointerup', event => {
+  if (!activePdf || !pdfMode || event.pointerType === 'mouse' || event.target.closest('button,a,input,select,textarea,#popup,.pdf-thumb')) return;
+  const now = Date.now();
+  const closeTap = now - pdfLastTap.time < 320 && Math.hypot(event.clientX-pdfLastTap.x,event.clientY-pdfLastTap.y) < 28;
+  if (closeTap) {
+    pdfDoubleTapZoomed = !pdfDoubleTapZoomed;
+    applyPdfZoomAt(pdfDoubleTapZoomed ? Math.min(2.4, Math.max(1.5, zoom * 1.5)) : 1, event.clientX, event.clientY);
+    pdfLastTap = { time: 0, x: 0, y: 0 };
+  } else pdfLastTap = { time: now, x: event.clientX, y: event.clientY };
+}, { passive: true });
+
 // Re-render the original PDF pages when entering or leaving fullscreen. The page canvas
 // must be laid out at the new available width, rather than stretching a previously rendered
 // canvas or switching to the extracted-text reading view.
