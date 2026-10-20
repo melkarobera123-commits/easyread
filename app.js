@@ -88,7 +88,7 @@ function setView(view) {
   else scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-const EASYREAD_ROUTES = new Set(['home', 'library', 'reader', 'notes']);
+const EASYREAD_ROUTES = new Set(['home', 'library', 'reader', 'notes', 'highlights']);
 function routeFromLocation() {
   const path = location.pathname.replace(/\/+$/, '') || '/';
   const route = path === '/' || path === '/index.html' ? 'home' : path.slice(1);
@@ -110,14 +110,14 @@ function renderRoute(route, replace = false) {
   }
   document.body.dataset.route = route;
   byId('library')?.classList.toggle('route-page', route === 'library');
-  byId('notes-panel')?.classList.toggle('route-page', route === 'notes');
+  byId('notes-panel')?.classList.toggle('route-page', route === 'notes' || route === 'highlights');
   byId('library')?.setAttribute('hidden', '');
   byId('notes-panel')?.setAttribute('hidden', '');
   if (route === 'library') {
     setView('about');
     document.body.dataset.route = route;
     showPanel('library', true);
-  } else if (route === 'notes') {
+  } else if (route === 'notes' || route === 'highlights') {
     setView('about');
     document.body.dataset.route = route;
     showPanel('notes-panel', true);
@@ -131,6 +131,10 @@ function renderRoute(route, replace = false) {
   for (const id of ['reader-nav','sidebar-reader','mobile-reader']) byId(id)?.classList.toggle('active', route === 'reader');
   for (const id of ['sidebar-library','mobile-library']) byId(id)?.classList.toggle('active', route === 'library');
   for (const id of ['sidebar-notes','mobile-notes']) byId(id)?.classList.toggle('active', route === 'notes');
+  for (const id of ['sidebar-highlights','mobile-highlights']) byId(id)?.classList.toggle('active', route === 'highlights');
+  const hiIntro=byId('highlights-intro'); if(hiIntro) hiIntro.hidden=route!=='highlights';
+  const notesTitle=byId('notes-panel-title'); if(notesTitle) notesTitle.textContent=route==='highlights'?'My Highlights':'My notes & highlights';
+  if(route==='highlights' && byId('notes-search')) byId('notes-search').placeholder='Search your highlights';
   if (route !== 'reader') scrollTo({ top: 0, behavior: 'auto' });
 }
 function goToUpload() { navigateToRoute('home'); status('Choose a book to open the Reader.'); requestAnimationFrame(() => { drop.scrollIntoView({ behavior: 'smooth', block: 'center' }); drop.focus({ preventScroll: true }); drop.classList.add('guide-focus'); setTimeout(() => drop.classList.remove('guide-focus'), 900); }); }
@@ -147,8 +151,10 @@ function initNavigation() {
     navigateToRoute('library');
   });
   for (const id of ['sidebar-notes','mobile-notes']) byId(id)?.addEventListener('click', () => navigateToRoute('notes'));
+  for (const id of ['sidebar-highlights','mobile-highlights']) byId(id)?.addEventListener('click', () => navigateToRoute('highlights'));
   window.addEventListener('popstate', () => renderRoute(routeFromLocation(), true));
   navigateToRoute(routeFromLocation(), true);
+  updateHighlightCount();
   byId('library-backdrop')?.addEventListener('click',()=>showPanel('library',false));
 document.addEventListener('pointerdown', event => {
   const library = byId('library');
@@ -198,6 +204,7 @@ async function openFile(file) {
     else if (ext === 'txt') appendTextPages(await file.text());
     else await parseImage(file);
     if (!reader.textContent.trim() && ext !== 'pdf') throw new Error('No readable text was found in this file.');
+    paintSavedHighlights();
     activeBook.words = wordCount(reader.textContent); await putBook(activeBook); byId('file-name').textContent = activeBook.title; updateDocMeta(); renderLibrary();
     byId('loading-skeleton').hidden = true; status(''); if (activeBook.position) restorePosition(); byId('reader-page-jump').max=String(Math.max(1,pageCount)); byId('reader-page-jump').value=String(activeBook.position?.page||1); syncPageCounter(Number(activeBook.position?.page)||1); byId('text-view-controls').hidden=Boolean(activePdf&&pdfMode); updateDocumentPageControls(); readerTimerBookKey=activeBook.key;readerTimerRecordedSeconds=elapsedReadingSeconds();startReadingTimer(); toast('Book opened. Your reading position will be saved here.');
   } catch (error) { console.error(error); byId('loading-skeleton').hidden = true; status(error.message || 'Could not open this file. It may be damaged or password-protected.', true); }
@@ -1105,13 +1112,14 @@ function renderMyNotes(){
   if(!list)return;
   list.replaceChildren();
   const query=(byId('notes-search')?.value||'').trim().toLowerCase();
+  const highlightsOnly=document.body.dataset.route==='highlights';
   const notes=local.get('er-notes',[]).map((item,index)=>({...item,kind:'note',index}));
   const highlights=local.get('er-highlights',[]).map((item,index)=>({...item,kind:'highlight',index}));
-  const items=[...notes,...highlights]
+  const items=[...(highlightsOnly?[]:notes),...highlights]
     .filter(item=>(String(item.word||'')+' '+String(item.text||'')+' '+String(item.book||'')).toLowerCase().includes(query))
     .sort((a,b)=>a.kind.localeCompare(b.kind)||(b.created||0)-(a.created||0));
   if(!items.length){
-    safeText(list,'p',query?'No notes match your search.':'Your saved notes and highlights will appear here.','note');
+    safeText(list,'p',query?'No saved items match your search.':(highlightsOnly?'Your color highlights will appear here.':'Your saved notes and highlights will appear here.'),'note');
     return;
   }
   let renderedKind='';
@@ -1121,10 +1129,12 @@ function renderMyNotes(){
     row.className='saved-note-row';
     const content=document.createElement('div');
     content.className='saved-note-content';
-    if(item.book){content.tabIndex=0;content.setAttribute('role','button');content.setAttribute('aria-label','Open source book for this '+item.kind);const openSource=async()=>{const book=await getBook(item.book).catch(()=>null);if(book?.file)openFile(book.file);else toast('The original book is not available in this browser library.');};content.addEventListener('click',openSource);content.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();openSource();}});}
+    if(item.book){content.tabIndex=0;content.setAttribute('role','button');content.setAttribute('aria-label','Open source book for this '+item.kind);const openSource=async()=>{const book=await getBook(item.book).catch(()=>null);if(book?.file){await openFile(book.file);if(item.page){if(activePdf)goPdfPage(item.page);else goToReaderPage(item.page);}}else toast('The original book is not available in this browser library.');};content.addEventListener('click',openSource);content.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();openSource();}});}
     safeText(content,'strong',item.word?'Note for '+item.word:(item.kind==='highlight'?'Highlight':'Note'));
     safeText(content,'p',item.text||item.word||'Saved item','saved-note-text');
-    safeText(content,'small',(item.kind==='highlight'?'Highlight':'Note')+(item.bookName||item.book?' · '+(item.bookName||item.book):'')+(item.created?' · '+new Date(item.created).toLocaleDateString():''));
+    const colorNames={yellow:'Yellow',green:'Green',blue:'Blue',pink:'Pink',purple:'Purple'};
+    safeText(content,'small',(item.kind==='highlight'?(colorNames[item.color]||'Yellow')+' highlight':'Note')+(item.bookName||item.book?' · '+(item.bookName||item.book):'')+(item.page?' · Page '+item.page:'')+(item.created?' · '+new Date(item.created).toLocaleDateString():''));
+    if(item.kind==='highlight'){row.style.setProperty('--saved-highlight-color',({yellow:'#fde68a',green:'#a7f3d0',blue:'#bfdbfe',pink:'#fbcfe8',purple:'#ddd6fe'})[item.color]||'#fde68a');row.classList.add('is-highlight');}
     const actions=document.createElement('div');
     actions.className='saved-note-actions';
     if(item.kind==='note'){
@@ -1154,6 +1164,8 @@ function renderMyNotes(){
     list.append(row);
   });
 }
+function updateHighlightCount(){const count=local.get('er-highlights',[]).length;const node=byId('sidebar-highlight-count');if(node){node.textContent=String(count);node.hidden=count===0;}}
+function paintSavedHighlights(){if(typeof CSS==='undefined'||!CSS.highlights||typeof Highlight==='undefined'||!activeBook)return;const names=['yellow','green','blue','pink','purple'].map(color=>'easyread-'+color);names.forEach(name=>CSS.highlights.delete(name));const root=activePdf&&pdfMode?pdfPages:reader;if(!root)return;const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);const nodes=[];while(walker.nextNode())nodes.push(walker.currentNode);const buckets=new Map();for(const item of local.get('er-highlights',[]).filter(item=>item.book===activeBook.key)){if(!item.text)continue;for(const node of nodes){const at=node.data.indexOf(item.text);if(at<0)continue;try{const range=document.createRange();range.setStart(node,at);range.setEnd(node,at+item.text.length);const name='easyread-'+(item.color||'yellow');if(!buckets.has(name))buckets.set(name,new Highlight());buckets.get(name).add(range);break;}catch{}}}buckets.forEach((value,name)=>CSS.highlights.set(name,value));}
 function openSavedItemDeleteDialog(item){
   const dialog=byId('delete-item-dialog');
   if(!dialog)return;
@@ -1185,6 +1197,8 @@ function confirmDeleteSavedItem(){
   queueCloudSync();
   renderMyNotes();
   renderSavedItems();
+  updateHighlightCount();
+  paintSavedHighlights();
   toast(kind==='note'?'Note deleted.':'Highlight deleted.');
 }
 function updateDocumentPageControls(){
@@ -1446,7 +1460,7 @@ async function init() {
     searchDebounceTimer=setTimeout(()=>searchBook(),120);
   });
   byId('search-prev').addEventListener('click',()=>moveMatch(-1));byId('search-next').addEventListener('click',()=>moveMatch(1));
-  byId('highlight-btn').addEventListener('click',()=>{const text=getSelection()?.toString().trim();if(!text)return;const values=local.get('er-highlights',[]);values.unshift({id:newSavedItemId(),text,book:activeBook?.key,bookName:activeBook?.title||activeBook?.name||'',created:Date.now()});local.set('er-highlights',values);queueCloudSync();renderMyNotes();renderSavedItems();toast('Highlight saved.');});
+  byId('highlight-btn').addEventListener('click',()=>{const selection=getSelection(),text=selection?.toString().trim();if(!text){toast('Select some text first, then choose Highlight selection.');return;}if(!activeBook){toast('Open a book before highlighting.');return;}const color=byId('highlight-color')?.value||'yellow';const range=selection.rangeCount?selection.getRangeAt(0).cloneRange():null;const values=local.get('er-highlights',[]);values.unshift({id:newSavedItemId(),text,color,book:activeBook.key,bookName:activeBook.title||activeBook.name||'',page:activePage||1,created:Date.now()});local.set('er-highlights',values);if(range&&typeof CSS!=='undefined'&&CSS.highlights&&typeof Highlight!=='undefined'){try{const name='easyread-'+color;const existing=CSS.highlights.get(name)||new Highlight();existing.add(range);CSS.highlights.set(name,existing);}catch(error){console.warn('Could not paint selected highlight',error);}}selection.removeAllRanges();queueCloudSync();renderMyNotes();renderSavedItems();updateHighlightCount();toast(color[0].toUpperCase()+color.slice(1)+' highlight saved.');});
   byId('bookmark-btn').addEventListener('click',()=>{const values=local.get('er-bookmarks',[]);values.unshift({id:newSavedItemId(),name:activeBook?.title||activeBook?.name||'Bookmark',book:activeBook?.key,bookName:activeBook?.title||activeBook?.name||'',scroll:scrollY,page:activePage,created:Date.now()});local.set('er-bookmarks',values);queueCloudSync();toast('Bookmark saved.');});
   byId('export-btn').addEventListener('click',exportData);byId('export-all').addEventListener('click',exportData);byId('delete-all').addEventListener('click',deleteLocalData);
   byId('google-signin').addEventListener('click',signInWithGoogle);byId('signin-modal-google').addEventListener('click',signInWithGoogle);byId('welcome-signin-btn')?.addEventListener('click',signInWithGoogle);byId('welcome-dismiss')?.addEventListener('click',()=>{local.set('er-signin-dismissed',true);local.set('er-welcome-intro-dismissed',true);const welcome=byId('welcome-signin');if(welcome)welcome.hidden=true;});byId('email-auth-form')?.addEventListener('submit',submitEmailAuth);byId('auth-tab-signin')?.addEventListener('click',()=>setAuthMode('signin'));byId('auth-tab-signup')?.addEventListener('click',()=>setAuthMode('signup'));byId('forgot-password')?.addEventListener('click',resetPassword);byId('auth-password-toggle')?.addEventListener('click',()=>{const input=byId('auth-password'),button=byId('auth-password-toggle');if(!input||!button)return;const visible=input.type==='text';input.type=visible?'password':'text';button.textContent=visible?'Show':'Hide';button.setAttribute('aria-label',visible?'Show password':'Hide password');});byId('sync-now').addEventListener('click',syncCloud);byId('signout').addEventListener('click',()=>auth?.signOut());
