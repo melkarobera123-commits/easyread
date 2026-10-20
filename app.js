@@ -610,6 +610,7 @@ async function drawPdfPage(pdf,number,frame) {
 
   await buildPdfGeometryIndex(page, frame, viewport).catch(error => console.warn('PDF geometry index unavailable', error));
   registerPdfSelectionLayer(layer);
+  paintSavedHighlights();
 }
 function releasePdfPage(frame) { if(pdfRenderPromises.has(frame)){frame.dataset.releaseAfterRender='yes';return;} if(frame.dataset.rendered!=='yes') return; const canvas=frame.querySelector('canvas'), layer=frame.querySelector('.textLayer'); unregisterPdfSelectionLayer(layer); canvas.width=0; canvas.height=0; layer.replaceChildren(); frame.dataset.rendered=''; delete frame.dataset.releaseAfterRender; }
 async function renderThumbnail(number) { const button=pdfThumbs.querySelector(`[data-page="${number}"]`); if(!button||button.dataset.rendered) return; try { const page=await activePdf.getPage(number), viewport=page.getViewport({scale:.11}), canvas=document.createElement('canvas'); canvas.width=viewport.width*2; canvas.height=viewport.height*2; canvas.style.width='56px'; await page.render({canvasContext:canvas.getContext('2d'),viewport:page.getViewport({scale:.22})}).promise; button.prepend(canvas); button.dataset.rendered='yes'; } catch {} }
