@@ -910,10 +910,12 @@ reader.addEventListener('pointerdown', event => {
 }, { passive: true });
 reader.addEventListener('pointerup', event => {
   if (!textViewTapStart || event.pointerId !== textViewTapStart.pointerId) return;
-  const distance = Math.hypot(event.clientX - textViewTapStart.x, event.clientY - textViewTapStart.y);
+  const start = textViewTapStart;
+  const distance = Math.hypot(event.clientX - start.x, event.clientY - start.y);
   textViewTapStart = null;
-  if (distance > 12 || Date.now() - textViewTapStart.time > 280 || reader.hidden || !reader.classList.contains('pdf-text-reader')) return;
-  if (getSelection() && !getSelection().isCollapsed) return;
+  if (distance > 12 || Date.now() - start.time > 280 || reader.hidden || !reader.classList.contains('pdf-text-reader')) return;
+  const selection = getSelection();
+  if (selection && !selection.isCollapsed) return;
   if (!event.target.closest('#reader .page.readable')) return;
   suppressPdfClick = true;
   handleReadableTap(event, { singleTapTextView: true });
