@@ -292,6 +292,26 @@ async function parsePdf(file) {
     if(number%250===0) await new Promise(requestAnimationFrame);
   }
   pdfPages.append(pageFragment);
+  const fullscreenZoom = document.createElement('div');
+  fullscreenZoom.className = 'pdf-fullscreen-zoom';
+  fullscreenZoom.setAttribute('role', 'group');
+  fullscreenZoom.setAttribute('aria-label', 'Full-screen document zoom');
+  const zoomOutButton = document.createElement('button');
+  zoomOutButton.className = 'icon-btn';
+  zoomOutButton.type = 'button';
+  zoomOutButton.textContent = '−';
+  zoomOutButton.setAttribute('aria-label', 'Zoom out');
+  zoomOutButton.title = 'Zoom out';
+  zoomOutButton.dataset.pdfZoom = 'out';
+  const zoomInButton = document.createElement('button');
+  zoomInButton.className = 'icon-btn';
+  zoomInButton.type = 'button';
+  zoomInButton.textContent = '+';
+  zoomInButton.setAttribute('aria-label', 'Zoom in');
+  zoomInButton.title = 'Zoom in';
+  zoomInButton.dataset.pdfZoom = 'in';
+  fullscreenZoom.append(zoomOutButton, zoomInButton);
+  pdfPages.append(fullscreenZoom);
   pdfThumbs.append(thumbFragment);
   for(const frame of frames) pageObserver.observe(frame);
   for(const thumb of thumbs) thumbObserver.observe(thumb);
@@ -300,6 +320,11 @@ async function parsePdf(file) {
 pdfThumbs.addEventListener('click',event=>{
   const thumb=event.target.closest('.pdf-thumb');
   if(thumb) goPdfPage(Number(thumb.dataset.page));
+});
+pdfPages.addEventListener('click', event => {
+  const zoomButton = event.target.closest('[data-pdf-zoom]');
+  if (!zoomButton) return;
+  scalePdf(zoomButton.dataset.pdfZoom === 'in' ? .15 : -.15);
 });
 async function buildPdfTextView(){
   if(!activePdf)return;
