@@ -852,3 +852,27 @@ body.focus-mode .global-reader-controls { top: 14px; }
   z-index: 1 !important;
   pointer-events: none !important;
 }
+
+
+/* Zoom controls remain available inside the PDF's fullscreen document session. */
+.pdf-fullscreen-zoom { display: none; }
+#pdf-pages:fullscreen .pdf-fullscreen-zoom {
+  position: fixed;
+  top: max(14px, env(safe-area-inset-top));
+  right: max(14px, env(safe-area-inset-right));
+  z-index: 9999;
+  display: flex;
+  gap: 8px;
+  padding: 6px;
+  background: var(--sheet, #fff);
+  border: 1px solid var(--line, #ddd);
+  border-radius: 999px;
+  box-shadow: 0 6px 24px rgba(0,0,0,.2);
+}
+#pdf-pages:fullscreen .pdf-fullscreen-zoom .icon-btn {
+  min-width: 44px;
+  min-height: 44px;
+  font-size: 1.25rem;
+  pointer-events: auto;
+  touch-action: manipulation;
+}
