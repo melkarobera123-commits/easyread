@@ -3,50 +3,5 @@
     "api/definition.js": {
       "includeFiles": "node_modules/wordnet-db/dict/**"
     }
-  },
-  "rewrites": [
-    {
-      "source": "/home",
-      "destination": "/index.html"
-    },
-    {
-      "source": "/library",
-      "destination": "/index.html"
-    },
-    {
-      "source": "/reader",
-      "destination": "/index.html"
-    },
-    {
-      "source": "/notes",
-      "destination": "/index.html"
-    }
-  ],
-  "headers": [
-    {
-      "source": "/(.*)",
-      "headers": [
-        {
-          "key": "X-Content-Type-Options",
-          "value": "nosniff"
-        },
-        {
-          "key": "X-Frame-Options",
-          "value": "SAMEORIGIN"
-        },
-        {
-          "key": "Referrer-Policy",
-          "value": "strict-origin-when-cross-origin"
-        },
-        {
-          "key": "Permissions-Policy",
-          "value": "camera=(), microphone=(self), geolocation=()"
-        },
-        {
-          "key": "Content-Security-Policy",
-          "value": "default-src 'self' https: data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com https://www.gstatic.com https://apis.google.com https://accounts.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' https: data: blob:; connect-src 'self' https: wss:; frame-src https://accounts.google.com https://*.firebaseapp.com https://*.web.app; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'self'; upgrade-insecure-requests"
-        }
-      ]
-    }
-  ]
+  }
 }

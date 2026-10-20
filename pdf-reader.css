@@ -822,28 +822,3 @@ body.focus-mode main, body.focus-mode .site-footer { margin-left: 0; }
 body.focus-mode .bar { top: 8px; }
 body.focus-mode .pdf-toolbar, body.focus-mode .text-view-controls { top: 70px; }
 body.focus-mode .global-reader-controls { top: 14px; }
-
-
-/* Dictionary definition cards must scroll internally on touch screens and desktop. */
-#popup{
-  box-sizing:border-box;
-  display:block;
-  max-height:min(68vh,560px);
-  overflow-x:hidden;
-  overflow-y:auto;
-  overscroll-behavior:contain;
-  -webkit-overflow-scrolling:touch;
-  touch-action:pan-y;
-  scrollbar-gutter:stable;
-}
-#popup .word-actions{flex-wrap:wrap}
-@media(max-width:640px){
-  #popup{
-    max-height:min(62dvh,520px);
-    padding-bottom:calc(18px + env(safe-area-inset-bottom));
-    overscroll-behavior-y:contain;
-    touch-action:pan-y;
-  }
-  #popup .word-actions{gap:6px}
-  #popup .word-actions .btn{min-height:40px}
-}

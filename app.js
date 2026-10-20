@@ -182,7 +182,7 @@ async function openFile(file) {
   pageObserver?.disconnect(); thumbObserver?.disconnect();
   pageObserver=null; thumbObserver=null;
   activePdf = null; pdfTextPromise = null; pdfRenderPromises.clear(); pdfMode = true; documentPageMode = false; byId('pdf-toolbar').hidden = true; byId('pdf-controls').hidden = true; pageCount = 0;
-  byId('loading-skeleton').hidden = false; readerWrap.hidden = false; navigateToRoute('reader'); if(byId('document-page-toggle')){byId('document-page-toggle').setAttribute('aria-pressed','false');byId('document-page-toggle').textContent='Page view';} status(`Preparing ${file.name}…`);
+  byId('loading-skeleton').hidden = false; readerWrap.hidden = false; navigateToRoute('reader'); if(byId('document-page-toggle')){byId('document-page-toggle').setAttribute('aria-pressed','false');byId('document-page-toggle').textContent='Split pages';} status(`Preparing ${file.name}…`);
   const key = `${file.name}:${file.size}:${file.lastModified}`;
   activeBook = await getBook(key).catch(() => null) || { key, name: file.name, title: file.name.replace(/\.[^.]+$/, ''), file, type: ext, added: Date.now(), favorite: false, progress: 0 };
   const rememberedPosition = local.get(`er-position:${key}`);
@@ -254,7 +254,7 @@ async function parsePdf(file) {
   await loadPdfLibrary();
   let pdf; try { pdf=await pdfjsLib.getDocument({data:new Uint8Array(await file.arrayBuffer())}).promise; } catch { throw new Error('Could not open this PDF. It may be damaged or password-protected.'); }
   activePdf=pdf; pageCount=pdf.numPages; zoom=1; pdfPages.hidden=false; pdfThumbs.hidden=!pdfPreviewsVisible; byId('pdf-toolbar').hidden=false; byId('pdf-controls').hidden=false; byId('pdf-mode-btn').textContent='Text view';byId('jump').max=String(pageCount);byId('pdf-preview-toggle').textContent=pdfPreviewsVisible?'Hide previews':'Show previews';byId('pdf-preview-toggle').setAttribute('aria-pressed',String(pdfPreviewsVisible));reader.hidden=true;
-  pageObserver=new IntersectionObserver(entries=>entries.forEach(entry=>{ if(entry.isIntersecting){ const page=Number(entry.target.dataset.page); activePage=page; byId('pdf-page-label').textContent=`Page ${page} of ${pageCount}`; syncPageCounter(page); renderPdfPage(page).catch(console.error); } else if(Math.abs(Number(entry.target.dataset.page)-activePage)>1) releasePdfPage(entry.target); }),{rootMargin:'30% 0px'});
+  pageObserver=new IntersectionObserver(entries=>entries.forEach(entry=>{ if(entry.isIntersecting){ const page=Number(entry.target.dataset.page); renderPdfPage(page).catch(console.error); } else if(Math.abs(Number(entry.target.dataset.page)-activePage)>1) releasePdfPage(entry.target); }),{rootMargin:'30% 0px'});
   thumbObserver=new IntersectionObserver(entries=>entries.forEach(entry=>{ if(entry.isIntersecting) renderThumbnail(Number(entry.target.dataset.page)); }),{rootMargin:'0px 240px'});
   const pageFragment=document.createDocumentFragment();
   const thumbFragment=document.createDocumentFragment();
@@ -706,7 +706,7 @@ function pdfTextNodeAtPoint(x, y) {
 function wordRangeAtNode(node, x, y, caretIndex = null) {
   if (!node || node.nodeType !== Node.TEXT_NODE || !node.data.trim()) return null;
   const text = node.data;
-  const wordPattern = /[-'’\\p{L}\\p{M}]+/gu;
+  const wordPattern = /[-'’\p{L}\p{M}]+/gu;
   const words = [];
   let match;
   while ((match = wordPattern.exec(text))) {
@@ -1143,7 +1143,7 @@ function updateDocumentPageControls(){
   const toggle=byId('document-page-toggle'),label=byId('document-page-label'),prev=byId('document-page-prev'),next=byId('document-page-next');
   if(!toggle||activePdf)return;
   const total=Math.max(1,pageCount),page=Math.min(total,Math.max(1,activePage||1));syncPageCounter(page);
-  toggle.textContent=documentPageMode?'Reading view':'Page view';
+  toggle.textContent=documentPageMode?'Continuous':'Split pages';
   toggle.setAttribute('aria-pressed',String(documentPageMode));
   if(label)label.textContent=`Page ${page} of ${total}`;
   if(prev)prev.disabled=!documentPageMode||page<=1;
@@ -1859,4 +1859,49 @@ async function restoreBooks() {
   };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind);
   else bind();
+})();
+
+// ---------- Phones: slide the main reader toolbar away while reading down, bring it back on scroll up ----------
+(() => {
+  const phone = matchMedia('(max-width: 700px)');
+  let last = scrollY, ticking = false;
+  const show = () => document.body.classList.remove('bar-away');
+  addEventListener('scroll', () => {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(() => {
+      ticking = false;
+      const y = scrollY, delta = y - last;
+      if (!phone.matches || y < 140 || document.querySelector('.toolbar-more[open]') || document.body.classList.contains('focus-mode')) { show(); last = y; return; }
+      if (Math.abs(delta) < 12) return;
+      document.body.classList.toggle('bar-away', delta > 0);
+      last = y;
+    });
+  }, { passive: true });
+  document.addEventListener('toggle', event => { if (event.target.matches?.('.toolbar-more') && event.target.open) show(); }, true);
+  document.addEventListener('focusin', event => { if (event.target.closest?.('.bar')) show(); });
+  phone.addEventListener?.('change', show);
+})();
+
+// ---------- PDF page view: the page counter follows the page actually under the reading line ----------
+(() => {
+  let ticking = false;
+  const update = () => {
+    ticking = false;
+    if (typeof activePdf === 'undefined' || !activePdf || pdfPages.hidden) return;
+    const line = innerHeight * 0.4;
+    let best = null, bestGap = Infinity;
+    for (const frame of pdfPages.children) {
+      const rect = frame.getBoundingClientRect();
+      if (rect.top <= line && rect.bottom > line) { best = frame; break; }
+      const gap = Math.min(Math.abs(rect.top - line), Math.abs(rect.bottom - line));
+      if (gap < bestGap) { bestGap = gap; best = frame; }
+    }
+    const page = Number(best?.dataset?.page);
+    if (!page || page === activePage) return;
+    activePage = page;
+    byId('pdf-page-label').textContent = `Page ${page} of ${pageCount}`;
+    syncPageCounter(page);
+  };
+  addEventListener('scroll', () => { if (!ticking) { ticking = true; requestAnimationFrame(update); } }, { passive: true });
 })();

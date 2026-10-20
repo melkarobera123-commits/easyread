@@ -857,3 +857,49 @@ body.focus-mode .bar { top: 8px; }
   .sidebar-caption { margin-bottom: 10px; }
   .shell-nav { min-height: 38px; padding-block: 6px; }
 }
+
+
+/* Library and My notes are full pages: sit beside the sidebar and read as one flat surface (no box inside a box). */
+.panel.route-page { left: auto; right: auto; z-index: 1; box-sizing: border-box; }
+@media (min-width: 901px) {
+  .panel.route-page {
+    width: auto;
+    max-width: 1060px;
+    margin: 28px 32px 40px max(264px, calc(232px + (100% - 232px - 1060px) / 2));
+    padding: 8px 0 24px;
+    background: transparent;
+  }
+}
+.panel.route-page .contents-head {
+  position: static;
+  margin: 0 0 18px;
+  padding: 4px 0 16px;
+  background: transparent;
+  border-bottom: 1px solid var(--line);
+}
+@media (max-width: 900px) {
+  .panel.route-page { margin: 0; padding-top: 10px; }
+  .panel.route-page .contents-head { padding-top: 6px; }
+}
+
+
+/* Contents opens beside the desktop sidebar, never over its tabs or Sign in. */
+@media (min-width: 901px) {
+  .contents { left: 232px; }
+  .contents:not(.open) { transform: translateX(calc(-100% - 260px)); }
+}
+
+/* Phone panels stop above the bottom navigation instead of tucking 3px under it. */
+@media (max-width: 900px) {
+  .panel:not(.route-page) { bottom: calc(80px + env(safe-area-inset-bottom)); }
+}
+
+
+/* Phones: keep the reading area clear. Secondary toolbars scroll away; the main toolbar slides away while reading down and returns on scroll up. */
+@media (max-width: 700px) {
+  #pdf-toolbar.pdf-toolbar, #text-view-controls.text-view-controls { position: static; }
+  .bar { transition: transform .22s ease; }
+  body.bar-away .bar { transform: translateY(calc(-100% - 72px)); pointer-events: none; }
+  body.bar-away .toolbar-more[open] .toolbar-menu { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .bar { transition: none; } }
