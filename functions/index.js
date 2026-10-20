@@ -1,6 +1,5 @@
-const { onUserCreated } = require("firebase-functions/v2/auth");
+const { onUserCreated } = require("firebase-functions/v2/identity");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
-const { onDocumentCreated } = require("firebase-functions/v2/firestore");
 const admin = require("firebase-admin");
 
 admin.initializeApp();
