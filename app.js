@@ -131,7 +131,7 @@ function renderRoute(route, replace = false) {
   for (const id of ['reader-nav','sidebar-reader','mobile-reader']) byId(id)?.classList.toggle('active', route === 'reader');
   for (const id of ['sidebar-library','mobile-library']) byId(id)?.classList.toggle('active', route === 'library');
   for (const id of ['sidebar-notes','mobile-notes']) byId(id)?.classList.toggle('active', route === 'notes');
-  for (const id of ['sidebar-highlights','mobile-highlights']) byId(id)?.classList.toggle('active', route === 'highlights');
+  for (const id of ['sidebar-highlights']) byId(id)?.classList.toggle('active', route === 'highlights');
   const hiIntro=byId('highlights-intro'); if(hiIntro) hiIntro.hidden=route!=='highlights';
   const notesTitle=byId('notes-panel-title'); if(notesTitle) notesTitle.textContent=route==='highlights'?'My Highlights':'My notes & highlights';
   if(route==='highlights' && byId('notes-search')) byId('notes-search').placeholder='Search your highlights';
@@ -892,10 +892,9 @@ function handleReadableTap(event, options = {}) {
   const selection = getSelection();
   // In text view, mobile browsers can create a temporary word selection on a
   // single tap. Prefer the tapped word unless the user is actively selecting text.
-  if (selection && !selection.isCollapsed && !options.singleTapTextView) return;
+  if (selection && !selection.isCollapsed) return;
   const hit = wordAt(event.clientX, event.clientY);
   if (hit) {
-    if (options.singleTapTextView && selection && !selection.isCollapsed) selection.removeAllRanges();
     showWord(hit);
   } else hidePopup();
 }
@@ -907,13 +906,14 @@ reader.addEventListener('pointerdown', event => {
   if (reader.hidden || !reader.classList.contains('pdf-text-reader')) return;
   if (event.pointerType !== 'touch' && event.pointerType !== 'pen') return;
   if (event.target.closest('button,a,input,select,textarea,#popup')) return;
-  textViewTapStart = { x: event.clientX, y: event.clientY, pointerId: event.pointerId };
+  textViewTapStart = { x: event.clientX, y: event.clientY, pointerId: event.pointerId, time: Date.now() };
 }, { passive: true });
 reader.addEventListener('pointerup', event => {
   if (!textViewTapStart || event.pointerId !== textViewTapStart.pointerId) return;
   const distance = Math.hypot(event.clientX - textViewTapStart.x, event.clientY - textViewTapStart.y);
   textViewTapStart = null;
-  if (distance > 12 || reader.hidden || !reader.classList.contains('pdf-text-reader')) return;
+  if (distance > 12 || Date.now() - textViewTapStart.time > 280 || reader.hidden || !reader.classList.contains('pdf-text-reader')) return;
+  if (getSelection() && !getSelection().isCollapsed) return;
   if (!event.target.closest('#reader .page.readable')) return;
   suppressPdfClick = true;
   handleReadableTap(event, { singleTapTextView: true });
@@ -1479,34 +1479,6 @@ async function init() {
   for(const id of ['library-search'])byId(id)?.addEventListener('input',renderLibraryPanel);for(const id of ['library-filter','library-sort'])byId(id)?.addEventListener('change',renderLibraryPanel);byId('home-library-sort')?.addEventListener('change',renderLibrary);
   byId('timer-toggle').addEventListener('click',()=>readerTimerRunning?pauseReadingTimer():startReadingTimer());byId('timer-reset').addEventListener('click',resetReadingTimer);byId('reading-goal').addEventListener('change',event=>{readerTimerGoal=Math.max(0,Number(event.target.value)||0);local.set('er-reading-goal',readerTimerGoal);updateReadingTimer();});
   byId('pdf-mode-btn').addEventListener('click',()=>setPdfMode(!pdfMode));byId('pdf-prev').addEventListener('click',()=>goPdfPage(activePage-1));byId('pdf-next').addEventListener('click',()=>goPdfPage(activePage+1));byId('pdf-zoom-in').addEventListener('click',()=>scalePdf(.15));byId('pdf-zoom-out').addEventListener('click',()=>scalePdf(-.15));byId('pdf-fullscreen').addEventListener('click',()=>pdfPages.requestFullscreen?.());byId('pdf-preview-toggle').addEventListener('click',()=>{pdfPreviewsVisible=!pdfPreviewsVisible;local.set('er-pdf-previews',pdfPreviewsVisible);pdfThumbs.hidden=!pdfMode||!pdfPreviewsVisible;byId('pdf-preview-toggle').textContent=pdfPreviewsVisible?'Hide previews':'Show previews';byId('pdf-preview-toggle').setAttribute('aria-pressed',String(pdfPreviewsVisible));});
-  byId('copy-selection-btn')?.addEventListener('click', async () => {
-    const selection = document.getSelection();
-    const text = selection && !selection.isCollapsed ? selection.toString().trim() : '';
-    if (!text) {
-      toast('Select the text you want to copy first.');
-      return;
-    }
-    try {
-      if (navigator.clipboard && window.isSecureContext) {
-        await navigator.clipboard.writeText(text);
-      } else {
-        const copyArea = document.createElement('textarea');
-        copyArea.value = text;
-        copyArea.setAttribute('readonly', '');
-        copyArea.style.position = 'fixed';
-        copyArea.style.opacity = '0';
-        copyArea.style.pointerEvents = 'none';
-        document.body.append(copyArea);
-        copyArea.select();
-        const copied = document.execCommand('copy');
-        copyArea.remove();
-        if (!copied) throw new Error('Copy command unavailable');
-      }
-      toast('Text copied to clipboard.');
-    } catch (error) {
-      toast('Copy was blocked by your browser. Try Ctrl+C or use the device Copy menu.', true);
-    }
-  });
   byId('fullscreen-btn').addEventListener('click',toggleReaderFullscreen);
   byId('search-btn').addEventListener('click',()=>{closeDictionaryPanel();byId('reader-tools').hidden=!byId('reader-tools').hidden;byId('search-input').focus();});
   byId('search-input').addEventListener('input',()=>{
