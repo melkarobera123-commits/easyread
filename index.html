@@ -19,6 +19,7 @@
 <meta property="og:image" content="og-image.svg">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <script src="script.js" defer></script>
+<script src="pdf-pro-tools.js" defer></script>
 </head>
 <body data-view="about">
 <div id="meter" aria-hidden="true"></div>
@@ -200,7 +201,7 @@
     </div>
     <div id="pdf-toolbar" class="pdf-toolbar" hidden>
       <button id="pdf-mode-btn" class="btn" type="button">Text view</button>
-      <span id="pdf-controls" class="pdf-controls" hidden><button id="pdf-prev" class="icon-btn" type="button" aria-label="Previous PDF page">‹</button><span id="pdf-page-label">Page 1</span><button id="pdf-next" class="icon-btn" type="button" aria-label="Next PDF page">›</button><button id="pdf-zoom-out" class="icon-btn" type="button" aria-label="Zoom out">−</button><button id="pdf-zoom-in" class="icon-btn" type="button" aria-label="Zoom in">+</button><button id="pdf-preview-toggle" class="btn" type="button" aria-pressed="true">Hide previews</button><button id="pdf-fullscreen" class="btn" type="button">Full document</button></span>
+      <span id="pdf-controls" class="pdf-controls" hidden><button id="pdf-prev" class="icon-btn" type="button" aria-label="Previous PDF page">‹</button><span id="pdf-page-label">Page 1</span><button id="pdf-next" class="icon-btn" type="button" aria-label="Next PDF page">›</button><button id="pdf-zoom-out" class="icon-btn" type="button" aria-label="Zoom out">−</button><button id="pdf-zoom-in" class="icon-btn" type="button" aria-label="Zoom in">+</button><button id="pdf-preview-toggle" class="btn" type="button" aria-pressed="true">Hide previews</button><button id="pdf-print-page" class="btn" type="button" title="Print the current rendered page">Print page</button><button id="pdf-save-page" class="btn" type="button" title="Save the current rendered page as a PNG image">Save page image</button><button id="pdf-fullscreen" class="btn" type="button">Full document</button></span>
     </div>
     <div id="pdf-thumbs" class="pdf-thumbs" hidden></div>
     <div id="text-view-controls" class="text-view-controls" hidden aria-label="Document view controls">
