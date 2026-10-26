@@ -958,3 +958,56 @@ body.focus-mode .global-reader-controls { top: 14px; }
   .pdf-annotation-note { font-size: 12px; width: 48%; }
   #pdf-draw-toggle, #pdf-note-add, #pdf-marks-clear { min-height: 40px; }
 }
+
+
+/* PDF drawing and sticky-note annotations */
+.pdf-page { position: relative; }
+.pdf-annotation-layer {
+  position: absolute;
+  z-index: 12;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+  touch-action: none;
+}
+.pdf-annotation-layer.is-drawing { pointer-events: auto; cursor: crosshair; }
+.pdf-annotation-layer path {
+  fill: none;
+  stroke: #f4c542;
+  stroke-width: 7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+.pdf-annotation-note {
+  position: absolute;
+  z-index: 13;
+  top: 14%;
+  right: 5%;
+  width: min(220px, 42%);
+  padding: 9px 11px;
+  color: #352d16;
+  background: #fff0a8;
+  border: 1px solid #e4c95b;
+  border-radius: 8px;
+  box-shadow: 0 5px 16px rgba(0,0,0,.16);
+  font: 500 13px/1.45 system-ui, sans-serif;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  pointer-events: auto;
+}
+.pdf-annotation-note button {
+  float: right;
+  margin: -3px -5px 3px 8px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 18px;
+}
+@media (max-width: 640px) {
+  .pdf-annotation-note { font-size: 12px; width: 48%; }
+  #pdf-draw-toggle, #pdf-note-add, #pdf-marks-clear { min-height: 40px; }
+}
