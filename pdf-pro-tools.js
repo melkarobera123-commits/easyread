@@ -54,11 +54,15 @@
     printWindow.document.write('<!doctype html><html><head><meta charset="utf-8"><title>EasyRead PDF page</title><style>html,body{margin:0;padding:0;background:#fff}body{display:grid;place-items:start center}img{display:block;width:auto;height:auto;max-width:100%;max-height:100vh;object-fit:contain}@page{margin:8mm}</style></head><body><img alt="PDF page" src="' + image + '"></body></html>');
     printWindow.document.close();
     const imageNode = printWindow.document.querySelector('img');
-    imageNode.addEventListener('load', () => {
+    const startPrint = () => {
       printWindow.focus();
       printWindow.print();
-    }, { once: true });
-    imageNode.addEventListener('error', () => printWindow.close(), { once: true });
+    };
+    if (imageNode.complete && imageNode.naturalWidth) startPrint();
+    else {
+      imageNode.addEventListener('load', startPrint, { once: true });
+      imageNode.addEventListener('error', () => printWindow.close(), { once: true });
+    }
   }
 
   function saveCurrentPageImage() {
