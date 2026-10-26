@@ -870,3 +870,44 @@ body.focus-mode .global-reader-controls { top: 14px; }
   -webkit-user-select: none;
   user-select: none;
 }
+
+
+/* PDF reading: the transparent PDF.js text layer must sit above the page canvas
+   so mouse drag, touch selection, and Ctrl+C work directly on the document. */
+.pdf-page {
+  position: relative;
+  user-select: text !important;
+  -webkit-user-select: text !important;
+}
+.pdf-page > canvas {
+  position: relative;
+  z-index: 1;
+  pointer-events: none !important;
+}
+.pdf-page > .textLayer {
+  position: absolute !important;
+  z-index: 2 !important;
+  display: block !important;
+  overflow: hidden;
+  opacity: 1;
+  pointer-events: auto !important;
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  -webkit-touch-callout: default;
+}
+.pdf-page > .textLayer span,
+.pdf-page > .textLayer br,
+.pdf-page > .textLayer .markedContent {
+  color: transparent !important;
+  cursor: text;
+  pointer-events: auto !important;
+  user-select: text !important;
+  -webkit-user-select: text !important;
+}
+.pdf-page > .textLayer ::selection {
+  background: rgba(67, 132, 111, .38) !important;
+  color: transparent !important;
+}
+.pdf-page > .textLayer .endOfContent {
+  pointer-events: none !important;
+}
