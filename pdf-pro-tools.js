@@ -45,7 +45,7 @@
     let image;
     try { image = current.canvas.toDataURL('image/png'); }
     catch { announce('This page could not be prepared for printing.'); return; }
-    const printWindow = window.open('', '_blank', 'noopener');
+    const printWindow = window.open('', '_blank');
     if (!printWindow) {
       announce('Allow pop-ups for EasyRead to print this page.');
       return;
