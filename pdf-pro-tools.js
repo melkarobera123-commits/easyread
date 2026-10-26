@@ -160,8 +160,9 @@
     if (text === null || !text.trim()) return;
     const note = { id: (window.crypto?.randomUUID?.() || String(Date.now())), text: text.trim().slice(0,1000), top: 14, right: 5 };
     const marks = pageMarks(current.number); marks.notes.push(note); savePageMarks(current.number, marks);
-    if (!current.page.querySelector('.pdf-annotation-layer')) renderMarks(current.page);
-    makeNote(current.page, current.number, note); announce('Note saved on page '+current.number+'.');
+    if (current.page.querySelector('.pdf-annotation-layer')) makeNote(current.page, current.number, note);
+    else renderMarks(current.page);
+    announce('Note saved on page '+current.number+'.');
   }
   function clearPageMarks() {
     const current = getPageCanvas(); if (!current) return;
