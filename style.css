@@ -1601,3 +1601,32 @@ body.ask-ai-open #ai-passage-panel { z-index: 1001; }
     font-size: .8rem;
   }
 }
+
+
+/* Mobile: keep the floating Ask AI shortcut clear of the reader's move/scroll controls. */
+@media (max-width: 700px) {
+  .ask-ai-float {
+    right: max(14px, env(safe-area-inset-right));
+    bottom: calc(164px + env(safe-area-inset-bottom));
+    min-height: 46px;
+    padding: 0 14px 0 10px;
+    gap: 7px;
+  }
+  .ask-ai-float-icon {
+    width: 26px;
+    height: 26px;
+  }
+  /* Keep the move/scroll controls in their own lower lane, below Ask AI. */
+  body .scroll-nav {
+    bottom: calc(92px + env(safe-area-inset-bottom)) !important;
+  }
+}
+@media (max-width: 380px) {
+  .ask-ai-float {
+    bottom: calc(158px + env(safe-area-inset-bottom));
+    right: max(10px, env(safe-area-inset-right));
+  }
+  body .scroll-nav {
+    bottom: calc(82px + env(safe-area-inset-bottom)) !important;
+  }
+}
