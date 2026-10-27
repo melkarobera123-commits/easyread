@@ -1544,22 +1544,9 @@ body .steps li { -webkit-backdrop-filter: none; backdrop-filter: none; }
   z-index: 2147483647 !important;
   pointer-events: auto;
 }
-#fullscreen-dictionary-layer:has(#ai-passage-panel)::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  background: rgba(10, 20, 16, .18);
-  pointer-events: none;
-}
-/* Never blur or block the document itself when Ask AI is open. */
-body.ask-ai-open::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  background: rgba(10, 20, 16, .18);
-  pointer-events: none;
-}
+/* Ask AI is a clear dialog; the document behind it is never dimmed or blurred. */
+#fullscreen-dictionary-layer:has(#ai-passage-panel)::before,
+body.ask-ai-open::before { content: none !important; }
 body.ask-ai-open #ai-passage-panel { z-index: 1001; }
 @media (max-width: 700px) {
   #ai-passage-panel.ai-passage-panel {
@@ -1568,5 +1555,49 @@ body.ask-ai-open #ai-passage-panel { z-index: 1001; }
     max-height: calc(100dvh - 24px);
     padding: 15px;
     border-radius: 18px;
+  }
+}
+
+
+/* Controls that remain reachable inside the browser's fullscreen subtree. */
+#fullscreen-dictionary-layer { pointer-events: none; }
+#fullscreen-dictionary-layer #ai-passage-panel,
+#fullscreen-dictionary-layer #popup,
+#fullscreen-dictionary-layer #fullscreen-reader-controls { pointer-events: auto; }
+.fullscreen-reader-controls {
+  position: fixed;
+  z-index: 2147483647;
+  top: max(12px, env(safe-area-inset-top));
+  right: max(12px, env(safe-area-inset-right));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 7px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--sheet) 96%, transparent);
+  box-shadow: 0 8px 28px rgba(0,0,0,.18);
+}
+.fullscreen-reader-controls .btn {
+  min-height: 42px;
+  padding: 8px 13px;
+  white-space: nowrap;
+}
+#fullscreen-ask-ai { background: linear-gradient(135deg,#315f4e,#203f35); color: #fff; border-color: transparent; }
+@media(max-width:600px) {
+  .fullscreen-reader-controls {
+    top: max(8px, env(safe-area-inset-top));
+    right: 8px;
+    left: 8px;
+    gap: 5px;
+    padding: 5px;
+  }
+  .fullscreen-reader-controls .btn {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 42px;
+    padding: 7px 9px;
+    font-size: .8rem;
   }
 }
