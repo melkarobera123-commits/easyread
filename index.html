@@ -47,7 +47,6 @@
     <button id="sidebar-reader" class="shell-nav" type="button"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h11a3 3 0 0 1 3 3v15H8a3 3 0 0 0-3 3zM5 3v18a3 3 0 0 1 3-3h11"/><path d="M9 8h6M9 12h6"/></svg><span>Reader</span></button>
     <button id="sidebar-library" class="shell-nav" type="button"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v16H4zM8 3v18M12 7h5M12 11h5"/></svg><span>Library</span></button>
     <button id="sidebar-notes" class="shell-nav" type="button"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h14v18H5zM8 8h8M8 12h8M8 16h5"/></svg><span>My Notes</span></button>
-    
   </nav>
   <div class="sidebar-bottom">
     <button id="sidebar-account" class="profile-entry" type="button"><span class="profile-avatar"><img id="sidebar-avatar" alt=""></span><span><strong id="sidebar-account-label">Sign in</strong><small id="sidebar-account-meta">Sync your reading</small></span></button>
@@ -186,8 +185,7 @@
       <span id="search-count"></span>
       <button id="search-prev" class="btn" type="button" aria-label="Previous result">↑</button>
       <button id="search-next" class="btn" type="button" aria-label="Next result">↓</button>
-      <label class="highlight-color-control" for="highlight-color">Color <select id="highlight-color" aria-label="Choose highlight color"><option value="yellow">Yellow</option><option value="green">Green</option><option value="blue">Blue</option><option value="pink">Pink</option><option value="purple">Purple</option></select></label>
-      <button id="highlight-btn" class="btn" type="button">Highlight selection</button>
+      <button id="highlight-btn" class="btn" type="button">Highlight</button>
       <button id="vocab-btn" class="btn" type="button">Vocabulary</button>
       <button id="stats-btn" class="btn" type="button">Stats</button>
       <button id="bookmark-btn" class="btn" type="button">Bookmark</button>
@@ -226,7 +224,7 @@
   </section>
 </main>
 
-<footer class="site-footer"><span class="footer-credit">Rob_Era (Abiti) <span aria-hidden="true">♥</span> Made with love</span><span class="footer-links"><a id="contact-link" href="#contact">Contact</a><button id="faq-link" class="footer-button" type="button">FAQ</button><button id="privacy-link" class="footer-button" type="button">Privacy</button><button id="shortcuts-link" class="footer-button" type="button">Shortcuts</button><a class="coffee-link" href="https://gurshaplus.com/apothecariwu" target="_blank" rel="noopener noreferrer"><span aria-hidden="true">☕</span> Buy me a coffee <span aria-hidden="true">↗</span></a></span></footer>
+<footer class="site-footer"><span class="footer-credit">Rob_Era (Abiti) <span aria-hidden="true">♥</span> Made with love</span><span class="footer-links"><a id="contact-link" href="#contact">Contact</a><button id="privacy-link" class="footer-button" type="button">Privacy</button><button id="shortcuts-link" class="footer-button" type="button">Shortcuts</button><a class="coffee-link" href="https://gurshaplus.com/apothecariwu" target="_blank" rel="noopener noreferrer"><span aria-hidden="true">☕</span> Buy me a coffee <span aria-hidden="true">↗</span></a></span></footer>
 
 <aside id="contents" class="contents" aria-label="Contents">
   <div class="contents-head"><h2>Contents</h2><button id="contents-close" class="btn" type="button">Close</button></div>
@@ -273,7 +271,7 @@
   <label>Voice <select id="speech-voice"><option value="">Browser default</option></select></label>
 </aside>
 
-<aside id="notes-panel" class="panel notes-panel" hidden role="dialog" aria-modal="true" aria-labelledby="notes-panel-title"><div class="contents-head"><h2 id="notes-panel-title">My notes &amp; highlights</h2><button id="notes-close" class="btn" type="button">Close</button></div><p id="highlights-intro" class="highlights-intro" hidden>Your saved color highlights from all books. Select one to reopen its book.</p><label class="library-search">Find a note <input id="notes-search" type="search" placeholder="Search notes and highlights"></label><div id="my-notes-list"></div></aside>
+<aside id="notes-panel" class="panel notes-panel" hidden role="dialog" aria-modal="true" aria-labelledby="notes-panel-title"><div class="contents-head"><h2 id="notes-panel-title">My notes &amp; highlights</h2><button id="notes-close" class="btn" type="button">Close</button></div><label class="library-search">Find a note <input id="notes-search" type="search" placeholder="Search notes and highlights"></label><div id="my-notes-list"></div></aside>
 
 <aside id="vocab" class="panel vocab-panel" hidden role="dialog" aria-modal="true" aria-labelledby="vocab-title">
   <div class="contents-head"><h2 id="vocab-title">My vocabulary</h2><button id="vocab-close" class="btn" type="button">Close</button></div>
@@ -378,6 +376,10 @@
   <section class="privacy-detail">
     <div class="privacy-detail-heading"><span class="privacy-detail-icon" aria-hidden="true">⌕</span><div><h3>Online tools</h3><p>Dictionary, translation and other connected services may send the specific text or request needed to provide that feature.</p></div></div>
   </section>
+  <section class="privacy-detail">
+    <div class="privacy-detail-heading"><span class="privacy-detail-icon" aria-hidden="true">✦</span><div><h3>Explain simply (AI)</h3><p>Only when you tap this button, the word and the sentence around it are sent to Google&rsquo;s Gemini service to write a simple explanation. Nothing is sent otherwise. On the free tier, Google may use these requests to improve its products.</p></div></div>
+    <span class="privacy-tag">Only when you tap it</span>
+  </section>
   <section class="privacy-actions" aria-label="Manage your data">
     <h3>Manage your data</h3>
     <p>Export saved words, notes, highlights, bookmarks, settings, reading positions and book details. Original book files are not included. You can also clear the data stored locally on this device.</p>
@@ -386,27 +388,6 @@
     <p class="privacy-caution">Deleting local data is destructive. Export a backup first if you may need it later.</p>
     <p id="privacy-status" class="note privacy-status" role="status" aria-live="polite"></p>
   </section>
-</aside>
-
-
-<aside id="faq" class="panel faq-panel" hidden role="dialog" aria-modal="true" aria-labelledby="faq-title">
-  <div class="faq-hero">
-    <div class="faq-hero-top"><span class="faq-mark" aria-hidden="true">?</span><button id="faq-close" class="panel-close" type="button" aria-label="Close frequently asked questions">×</button></div>
-    <p class="eyebrow">A FEW HELPFUL ANSWERS</p>
-    <h2 id="faq-title">Frequently asked questions.</h2>
-    <p class="faq-intro">Quick answers about reading with EasyRead, your files, and getting help.</p>
-  </div>
-  <section class="faq-list" aria-label="Frequently asked questions">
-    <details class="faq-item"><summary>What is EasyRead?</summary><p>A reading companion intended to help people work through difficult material with less interruption.</p></details>
-    <details class="faq-item"><summary>Who is it for?</summary><p>Students, readers, and language learners who want word lookup and reading notes close to the text.</p></details>
-    <details class="faq-item"><summary>What files can I open?</summary><p>The app supports selected formats. Check the current file picker and test your format; document structure and browser can affect compatibility.</p></details>
-    <details class="faq-item"><summary>Are my books stored online?</summary><p>Check the published privacy notice for the actual behavior. Do not promise all content stays local until the deployed app and third-party requests have been verified.</p></details>
-    <details class="faq-item"><summary>Does it work offline?</summary><p>Some resources may be cached, but online dictionary/translation requests need connectivity. Test before making a stronger claim.</p></details>
-    <details class="faq-item"><summary>Are definitions and translations always correct?</summary><p>No. Results can be incomplete, unavailable, or imperfect.</p></details>
-    <details class="faq-item"><summary>How do I report a problem?</summary><p>Email <a href="mailto:melkarobera123@gmail.com">melkarobera123@gmail.com</a> or message <a href="https://t.me/Rob_Era26" target="_blank" rel="noopener noreferrer">Rob_Era26 on Telegram</a>. Include device, browser, steps, and expected behavior. Never send passwords or private documents.</p></details>
-    <details class="faq-item"><summary>Is it finished?</summary><p>It is an evolving project; feedback helps guide improvements.</p></details>
-  </section>
-  <p class="faq-contact-note">Still have a question? <button id="faq-contact-link" class="text-button" type="button">Contact EasyRead</button>.</p>
 </aside>
 
 <aside id="shortcuts" class="panel shortcuts-panel" hidden role="dialog" aria-modal="true" aria-labelledby="shortcuts-title">

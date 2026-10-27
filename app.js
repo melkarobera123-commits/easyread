@@ -56,6 +56,7 @@ let popupReturnFocus = null;
 let activeImageWords = [], activeImageElement = null, activeImageUrl = null;
 let positionFrame = 0, positionWriteTimer = null, searchDebounceTimer = null;
 let activeDictionaryRange = null;
+let aiExplainUnavailable = false;
 let activeNoteWord = '';
 let pdfPreviewsVisible = local.get('er-pdf-previews', false) === true;
 let readerTimerInterval = null, readerTimerStart = 0, readerTimerSeconds = 0, readerTimerGoal = 0, readerTimerDay = '', readerTimerRunning = false, readerTimerRecordedSeconds = 0, readerTimerBookKey = null, timerResumeOnVisible = false;
@@ -88,7 +89,7 @@ function setView(view) {
   else scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-const EASYREAD_ROUTES = new Set(['home', 'library', 'reader', 'notes', 'highlights']);
+const EASYREAD_ROUTES = new Set(['home', 'library', 'reader', 'notes']);
 function routeFromLocation() {
   const path = location.pathname.replace(/\/+$/, '') || '/';
   const route = path === '/' || path === '/index.html' ? 'home' : path.slice(1);
@@ -110,14 +111,14 @@ function renderRoute(route, replace = false) {
   }
   document.body.dataset.route = route;
   byId('library')?.classList.toggle('route-page', route === 'library');
-  byId('notes-panel')?.classList.toggle('route-page', route === 'notes' || route === 'highlights');
+  byId('notes-panel')?.classList.toggle('route-page', route === 'notes');
   byId('library')?.setAttribute('hidden', '');
   byId('notes-panel')?.setAttribute('hidden', '');
   if (route === 'library') {
     setView('about');
     document.body.dataset.route = route;
     showPanel('library', true);
-  } else if (route === 'notes' || route === 'highlights') {
+  } else if (route === 'notes') {
     setView('about');
     document.body.dataset.route = route;
     showPanel('notes-panel', true);
@@ -131,10 +132,6 @@ function renderRoute(route, replace = false) {
   for (const id of ['reader-nav','sidebar-reader','mobile-reader']) byId(id)?.classList.toggle('active', route === 'reader');
   for (const id of ['sidebar-library','mobile-library']) byId(id)?.classList.toggle('active', route === 'library');
   for (const id of ['sidebar-notes','mobile-notes']) byId(id)?.classList.toggle('active', route === 'notes');
-  for (const id of ['sidebar-highlights']) byId(id)?.classList.toggle('active', route === 'highlights');
-  const hiIntro=byId('highlights-intro'); if(hiIntro) hiIntro.hidden=route!=='highlights';
-  const notesTitle=byId('notes-panel-title'); if(notesTitle) notesTitle.textContent=route==='highlights'?'My Highlights':'My notes & highlights';
-  if(route==='highlights' && byId('notes-search')) byId('notes-search').placeholder='Search your highlights';
   if (route !== 'reader') scrollTo({ top: 0, behavior: 'auto' });
 }
 function goToUpload() { navigateToRoute('home'); status('Choose a book to open the Reader.'); requestAnimationFrame(() => { drop.scrollIntoView({ behavior: 'smooth', block: 'center' }); drop.focus({ preventScroll: true }); drop.classList.add('guide-focus'); setTimeout(() => drop.classList.remove('guide-focus'), 900); }); }
@@ -151,10 +148,8 @@ function initNavigation() {
     navigateToRoute('library');
   });
   for (const id of ['sidebar-notes','mobile-notes']) byId(id)?.addEventListener('click', () => navigateToRoute('notes'));
-  for (const id of ['sidebar-highlights','mobile-highlights']) byId(id)?.addEventListener('click', () => navigateToRoute('highlights'));
   window.addEventListener('popstate', () => renderRoute(routeFromLocation(), true));
   navigateToRoute(routeFromLocation(), true);
-  updateHighlightCount();
   byId('library-backdrop')?.addEventListener('click',()=>showPanel('library',false));
 document.addEventListener('pointerdown', event => {
   const library = byId('library');
@@ -168,9 +163,8 @@ document.addEventListener('pointerdown', event => {
   byId('notes-search')?.addEventListener('input',renderMyNotes);
   for(const id of ['contents-notes-link','vocab-notes-link'])byId(id)?.addEventListener('click',()=>{showPanel('notes-panel');renderMyNotes();});
   byId('full-document-btn')?.addEventListener('click',async()=>{try{readerWrap.hidden=false;if(activePdf){await setPdfMode(true);pdfPages.hidden=false;await pdfPages.requestFullscreen?.();}else{setDocumentPageMode(false);reader.hidden=false;await reader.requestFullscreen?.();}toast('Full-screen document view enabled.');}catch(error){console.error('Full-screen document view failed',error);toast('Could not open full-screen document view.');}});
-  for (const [id, panel] of [['settings-btn','settings'],['vocab-btn','vocab'],['stats-btn','stats'],['flashcards-btn','learning'],['contact-link','contact'],['faq-link','faq'],['privacy-link','privacy'],['shortcuts-link','shortcuts']]) byId(id)?.addEventListener('click', event => { if (id === 'contact-link') event.preventDefault(); showPanel(panel); });
-  byId('faq-contact-link')?.addEventListener('click',()=>showPanel('contact'));
-   byId('contents-btn')?.addEventListener('click',()=>{const panel=byId('contents'),open=!panel.classList.contains('open');if(open){closeOtherPanels('contents');markPanelOpened('contents');}panel.hidden=false;panel.classList.toggle('open',open);byId('contents-btn').setAttribute('aria-expanded',String(open));if(open){renderContents();renderSavedItems();}});
+  for (const [id, panel] of [['settings-btn','settings'],['vocab-btn','vocab'],['stats-btn','stats'],['flashcards-btn','learning'],['contact-link','contact'],['privacy-link','privacy'],['shortcuts-link','shortcuts']]) byId(id)?.addEventListener('click', event => { if (id === 'contact-link') event.preventDefault(); showPanel(panel); });
+  byId('contents-btn')?.addEventListener('click',()=>{const panel=byId('contents'),open=!panel.classList.contains('open');if(open){closeOtherPanels('contents');markPanelOpened('contents');}panel.hidden=false;panel.classList.toggle('open',open);byId('contents-btn').setAttribute('aria-expanded',String(open));if(open){renderContents();renderSavedItems();}});
   document.querySelectorAll('[id$="-close"]').forEach(button => button.addEventListener('click', () => { const panel = button.closest('aside'); if (panel) showPanel(panel.id, false); if (panel?.id === 'contents') panel.classList.remove('open'); }));
   document.addEventListener('click',event=>{if(!byId('dictionary-panel').hidden&&!event.target.closest('#dictionary-panel,#dictionary-btn'))closeDictionaryPanel();});
   byId('again')?.addEventListener('click', () => { pauseReadingTimer(); readerWrap.hidden = true; navigateToRoute('home'); hidePopup(); });
@@ -204,7 +198,6 @@ async function openFile(file) {
     else if (ext === 'txt') appendTextPages(await file.text());
     else await parseImage(file);
     if (!reader.textContent.trim() && ext !== 'pdf') throw new Error('No readable text was found in this file.');
-    paintSavedHighlights();
     activeBook.words = wordCount(reader.textContent); await putBook(activeBook); byId('file-name').textContent = activeBook.title; updateDocMeta(); renderLibrary();
     byId('loading-skeleton').hidden = true; status(''); if (activeBook.position) restorePosition(); byId('reader-page-jump').max=String(Math.max(1,pageCount)); byId('reader-page-jump').value=String(activeBook.position?.page||1); syncPageCounter(Number(activeBook.position?.page)||1); byId('text-view-controls').hidden=Boolean(activePdf&&pdfMode); updateDocumentPageControls(); readerTimerBookKey=activeBook.key;readerTimerRecordedSeconds=elapsedReadingSeconds();startReadingTimer(); toast('Book opened. Your reading position will be saved here.');
   } catch (error) { console.error(error); byId('loading-skeleton').hidden = true; status(error.message || 'Could not open this file. It may be damaged or password-protected.', true); }
@@ -292,26 +285,6 @@ async function parsePdf(file) {
     if(number%250===0) await new Promise(requestAnimationFrame);
   }
   pdfPages.append(pageFragment);
-  const fullscreenZoom = document.createElement('div');
-  fullscreenZoom.className = 'pdf-fullscreen-zoom';
-  fullscreenZoom.setAttribute('role', 'group');
-  fullscreenZoom.setAttribute('aria-label', 'Full-screen document zoom');
-  const zoomOutButton = document.createElement('button');
-  zoomOutButton.className = 'icon-btn';
-  zoomOutButton.type = 'button';
-  zoomOutButton.textContent = '−';
-  zoomOutButton.setAttribute('aria-label', 'Zoom out');
-  zoomOutButton.title = 'Zoom out';
-  zoomOutButton.dataset.pdfZoom = 'out';
-  const zoomInButton = document.createElement('button');
-  zoomInButton.className = 'icon-btn';
-  zoomInButton.type = 'button';
-  zoomInButton.textContent = '+';
-  zoomInButton.setAttribute('aria-label', 'Zoom in');
-  zoomInButton.title = 'Zoom in';
-  zoomInButton.dataset.pdfZoom = 'in';
-  fullscreenZoom.append(zoomOutButton, zoomInButton);
-  pdfPages.append(fullscreenZoom);
   pdfThumbs.append(thumbFragment);
   for(const frame of frames) pageObserver.observe(frame);
   for(const thumb of thumbs) thumbObserver.observe(thumb);
@@ -320,11 +293,6 @@ async function parsePdf(file) {
 pdfThumbs.addEventListener('click',event=>{
   const thumb=event.target.closest('.pdf-thumb');
   if(thumb) goPdfPage(Number(thumb.dataset.page));
-});
-pdfPages.addEventListener('click', event => {
-  const zoomButton = event.target.closest('[data-pdf-zoom]');
-  if (!zoomButton) return;
-  scalePdf(zoomButton.dataset.pdfZoom === 'in' ? .15 : -.15);
 });
 async function buildPdfTextView(){
   if(!activePdf)return;
@@ -635,7 +603,6 @@ async function drawPdfPage(pdf,number,frame) {
 
   await buildPdfGeometryIndex(page, frame, viewport).catch(error => console.warn('PDF geometry index unavailable', error));
   registerPdfSelectionLayer(layer);
-  paintSavedHighlights();
 }
 function releasePdfPage(frame) { if(pdfRenderPromises.has(frame)){frame.dataset.releaseAfterRender='yes';return;} if(frame.dataset.rendered!=='yes') return; const canvas=frame.querySelector('canvas'), layer=frame.querySelector('.textLayer'); unregisterPdfSelectionLayer(layer); canvas.width=0; canvas.height=0; layer.replaceChildren(); frame.dataset.rendered=''; delete frame.dataset.releaseAfterRender; }
 async function renderThumbnail(number) { const button=pdfThumbs.querySelector(`[data-page="${number}"]`); if(!button||button.dataset.rendered) return; try { const page=await activePdf.getPage(number), viewport=page.getViewport({scale:.11}), canvas=document.createElement('canvas'); canvas.width=viewport.width*2; canvas.height=viewport.height*2; canvas.style.width='56px'; await page.render({canvasContext:canvas.getContext('2d'),viewport:page.getViewport({scale:.22})}).promise; button.prepend(canvas); button.dataset.rendered='yes'; } catch {} }
@@ -659,53 +626,6 @@ async function setPdfMode(visual) {
   updateDocumentPageControls();
 }
 function scalePdf(amount) { zoom=Math.min(2.4,Math.max(.65,zoom+amount)); pdfPages.querySelectorAll('.pdf-page[data-rendered="yes"]').forEach(releasePdfPage); pdfPages.querySelectorAll('.pdf-page').forEach(frame=>{ if(pageObserver) pageObserver.unobserve(frame); pageObserver?.observe(frame); }); }
-
-// Touchscreen PDF zoom: pinch with two fingers, or double-tap to toggle a closer view.
-let pdfPinchStart = null;
-let pdfLastTap = { time: 0, x: 0, y: 0 };
-let pdfDoubleTapZoomed = false;
-function applyPdfZoomAt(nextZoom, x, y) {
-  const previousZoom = zoom;
-  zoom = Math.min(2.4, Math.max(.65, nextZoom));
-  if (Math.abs(zoom - previousZoom) < .001) return;
-  const rect = pdfPages.getBoundingClientRect();
-  const relativeX = x - rect.left + pdfPages.scrollLeft;
-  const relativeY = y - rect.top + pdfPages.scrollTop;
-  pdfPages.querySelectorAll('.pdf-page[data-rendered="yes"]').forEach(releasePdfPage);
-  pdfPages.querySelectorAll('.pdf-page').forEach(frame => {
-    if (pageObserver) pageObserver.unobserve(frame);
-    pageObserver?.observe(frame);
-  });
-  requestAnimationFrame(() => {
-    pdfPages.scrollLeft = Math.max(0, relativeX * zoom / previousZoom - (x - rect.left));
-    pdfPages.scrollTop = Math.max(0, relativeY * zoom / previousZoom - (y - rect.top));
-  });
-}
-pdfPages.addEventListener('touchstart', event => {
-  if (!activePdf || !pdfMode || event.touches.length !== 2) return;
-  const a = event.touches[0], b = event.touches[1];
-  pdfPinchStart = { distance: Math.hypot(b.clientX-a.clientX,b.clientY-a.clientY), zoom, x:(a.clientX+b.clientX)/2, y:(a.clientY+b.clientY)/2 };
-}, { passive: true });
-pdfPages.addEventListener('touchmove', event => {
-  if (!pdfPinchStart || event.touches.length !== 2) return;
-  event.preventDefault();
-  const a = event.touches[0], b = event.touches[1];
-  const distance = Math.hypot(b.clientX-a.clientX,b.clientY-a.clientY);
-  applyPdfZoomAt(pdfPinchStart.zoom * distance / Math.max(1,pdfPinchStart.distance), (a.clientX+b.clientX)/2, (a.clientY+b.clientY)/2);
-}, { passive: false });
-pdfPages.addEventListener('touchend', event => {
-  if (event.touches.length < 2) pdfPinchStart = null;
-}, { passive: true });
-pdfPages.addEventListener('pointerup', event => {
-  if (!activePdf || !pdfMode || event.pointerType === 'mouse' || event.target.closest('button,a,input,select,textarea,#popup,.pdf-thumb')) return;
-  const now = Date.now();
-  const closeTap = now - pdfLastTap.time < 320 && Math.hypot(event.clientX-pdfLastTap.x,event.clientY-pdfLastTap.y) < 28;
-  if (closeTap) {
-    pdfDoubleTapZoomed = !pdfDoubleTapZoomed;
-    applyPdfZoomAt(pdfDoubleTapZoomed ? Math.min(2.4, Math.max(1.5, zoom * 1.5)) : 1, event.clientX, event.clientY);
-    pdfLastTap = { time: 0, x: 0, y: 0 };
-  } else pdfLastTap = { time: now, x: event.clientX, y: event.clientY };
-}, { passive: true });
 
 // Re-render the original PDF pages when entering or leaving fullscreen. The page canvas
 // must be laid out at the new available width, rather than stretching a previously rendered
@@ -892,9 +812,10 @@ function handleReadableTap(event, options = {}) {
   const selection = getSelection();
   // In text view, mobile browsers can create a temporary word selection on a
   // single tap. Prefer the tapped word unless the user is actively selecting text.
-  if (selection && !selection.isCollapsed) return;
+  if (selection && !selection.isCollapsed && !options.singleTapTextView) return;
   const hit = wordAt(event.clientX, event.clientY);
   if (hit) {
+    if (options.singleTapTextView && selection && !selection.isCollapsed) selection.removeAllRanges();
     showWord(hit);
   } else hidePopup();
 }
@@ -906,16 +827,13 @@ reader.addEventListener('pointerdown', event => {
   if (reader.hidden || !reader.classList.contains('pdf-text-reader')) return;
   if (event.pointerType !== 'touch' && event.pointerType !== 'pen') return;
   if (event.target.closest('button,a,input,select,textarea,#popup')) return;
-  textViewTapStart = { x: event.clientX, y: event.clientY, pointerId: event.pointerId, time: Date.now() };
+  textViewTapStart = { x: event.clientX, y: event.clientY, pointerId: event.pointerId };
 }, { passive: true });
 reader.addEventListener('pointerup', event => {
   if (!textViewTapStart || event.pointerId !== textViewTapStart.pointerId) return;
-  const start = textViewTapStart;
-  const distance = Math.hypot(event.clientX - start.x, event.clientY - start.y);
+  const distance = Math.hypot(event.clientX - textViewTapStart.x, event.clientY - textViewTapStart.y);
   textViewTapStart = null;
-  if (distance > 12 || Date.now() - start.time > 280 || reader.hidden || !reader.classList.contains('pdf-text-reader')) return;
-  const selection = getSelection();
-  if (selection && !selection.isCollapsed) return;
+  if (distance > 12 || reader.hidden || !reader.classList.contains('pdf-text-reader')) return;
   if (!event.target.closest('#reader .page.readable')) return;
   suppressPdfClick = true;
   handleReadableTap(event, { singleTapTextView: true });
@@ -1018,6 +936,37 @@ async function define(word,signal){
   if(fallback){const result={...fallback,source:'Built-in'};await putDefinition({word:stem,result}).catch(()=>{});return result;}
   throw new Error(`No definition found for “${stem.replace(/_/g,' ')}”. Try checking the spelling or search another word.`);
 }
+// ---------- Optional AI "Explain simply" (Gemini via /api/explain; the key stays on the server) ----------
+const aiExplainCache = new Map();
+function sentenceAroundRange(range) {
+  try {
+    if (!range) return '';
+    const start = range.startContainer;
+    const element = start.nodeType === Node.TEXT_NODE ? start.parentElement : start;
+    const block = element?.closest?.('p,li,blockquote,h1,h2,h3,.page,.pdf-page') || element;
+    if (!block) return '';
+    const before = document.createRange();
+    before.setStart(block, 0);
+    before.setEnd(range.startContainer, range.startOffset);
+    const full = block.textContent.replace(/\s+/g, ' ');
+    const at = Math.min(before.toString().replace(/\s+/g, ' ').length, full.length);
+    let from = Math.max(full.lastIndexOf('. ', at), full.lastIndexOf('? ', at), full.lastIndexOf('! ', at));
+    from = from < 0 ? Math.max(0, at - 150) : from + 2;
+    const tails = ['. ', '? ', '! '].map(mark => full.indexOf(mark, at)).filter(index => index >= 0);
+    const to = tails.length ? Math.min(...tails) + 1 : Math.min(full.length, at + 150);
+    return full.slice(Math.max(from, at - 220), Math.min(to, at + 220)).trim();
+  } catch { return ''; }
+}
+async function fetchAiExplanation(word, context, signal) {
+  const key = word + '|' + context;
+  if (aiExplainCache.has(key)) return aiExplainCache.get(key);
+  const response = await fetch('/api/explain?word=' + encodeURIComponent(word) + '&context=' + encodeURIComponent(context), { signal });
+  let data = {};
+  try { data = await response.json(); } catch {}
+  if (!response.ok) { const error = new Error(data.error || 'AI explain is unavailable right now.'); error.notConfigured = Boolean(data.notConfigured); throw error; }
+  aiExplainCache.set(key, data.explanation);
+  return data.explanation;
+}
 function renderDefinition(result,asked){popup.replaceChildren();safeText(popup,'button','×','close').addEventListener('click',hidePopup);safeText(popup,'h2',result.word);const source=result.source||'';if(result.phonetic)safeText(popup,'p',result.phonetic,'ph');if(source)safeText(popup,'span',result.cached?'Cached · '+source:source,'dictionary-source');const actions=document.createElement('div');actions.className='word-actions';const button=(label,handler)=>{const control=document.createElement('button');control.className='btn';control.type='button';control.textContent=label;control.addEventListener('click',handler);actions.append(control);return control;};const savedValues=local.get('er-vocabulary',[]);const isSaved=savedValues.some(item=>String(item.word||'').trim().toLowerCase()===String(result.word||'').trim().toLowerCase());const saveButton=button(isSaved?'Remove':'Save',event=>{const values=local.get('er-vocabulary',[]);const target=String(result.word||'').trim().toLowerCase();const existing=values.findIndex(item=>String(item.word||'').trim().toLowerCase()===target);if(existing>=0){removeSavedWord(result.word);event.currentTarget.textContent='Save';}else{const tombstones=local.get('er-vocabulary-deleted',{}),created=Math.max(Date.now(),Number(tombstones[target]||0)+1);values.unshift({word:result.word,definition:plainDefinition(result.meanings[0]?.definition),created});local.set('er-vocabulary',values);queueCloudSync();renderVocabulary();event.currentTarget.textContent='Remove';event.currentTarget.setAttribute('aria-pressed','true');toast('Word saved to your vocabulary.');}});button('Listen',()=>playWordAudio(result));button('Translate',async event=>{const control=event.currentTarget;control.textContent='Translating…';try{const language=byId('translation-language').value,response=await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(result.word)}&langpair=en|${language}`,{signal:lookupController?.signal});if(!response.ok)throw new Error();const data=await response.json();safeText(popup,'p',data.responseData?.translatedText||'Translation unavailable','note');control.textContent='Translated';}catch{control.textContent='Translation unavailable';safeText(popup,'p','Translation is temporarily unavailable. The free service may have reached its daily limit; please try again later.','note');}});button('Note',()=>{const text=prompt(`Add a note for “${result.word}”`);if(text?.trim()){const notes=local.get('er-notes',[]);notes.unshift({id:newSavedItemId(),word:result.word,text:text.trim(),book:activeBook?.key,bookName:activeBook?.title||activeBook?.name||'',created:Date.now()});local.set('er-notes',notes);queueCloudSync();renderMyNotes();renderSavedItems();toast('Note saved.');}});popup.append(actions);result.meanings.forEach(item=>{safeText(popup,'p',item.partOfSpeech,'pos');safeText(popup,'p',item.definition,'def');if(item.example)safeText(popup,'p',`“${item.example}”`,'ex');});if(result.word!==asked)safeText(popup,'p',`Showing the base form “${result.word}”.`,'note');}
 
 function renderDefinition(result,asked){
@@ -1035,6 +984,11 @@ function renderDefinition(result,asked){
   translated.hidden=true;
   translated.setAttribute('role','status');
   translated.setAttribute('aria-live','polite');
+  const explained=document.createElement('div');
+  explained.className='ai-explain';
+  explained.hidden=true;
+  explained.setAttribute('role','status');
+  explained.setAttribute('aria-live','polite');
   const actions=document.createElement('div');
   actions.className='word-actions';
   const button=(label,handler)=>{
@@ -1075,8 +1029,31 @@ function renderDefinition(result,asked){
       control.textContent='Translate';
     }finally{control.disabled=false;}
   });
+  if(!aiExplainUnavailable){
+    const aiButton=button('Explain simply',async event=>{
+      const control=event.currentTarget;
+      if(!navigator.onLine){explained.hidden=false;explained.textContent='Connect to the internet to use Explain simply.';return;}
+      control.disabled=true;control.textContent='Thinking…';
+      explained.hidden=false;explained.replaceChildren();safeText(explained,'p','Thinking…','ai-explain-text');
+      try{
+        const text=await fetchAiExplanation(result.word,sentenceAroundRange(activeDictionaryRange),lookupController?.signal);
+        explained.replaceChildren();
+        safeText(explained,'p',text,'ai-explain-text');
+        safeText(explained,'small','AI-generated by Gemini. It can make mistakes, so check the dictionary meaning below.','ai-explain-note');
+        control.textContent='Explain again';
+      }catch(error){
+        if(error.name==='AbortError')return;
+        explained.replaceChildren();
+        if(error.notConfigured){aiExplainUnavailable=true;control.remove();explained.hidden=true;return;}
+        safeText(explained,'p',error.message||'AI explain is unavailable right now.','ai-explain-text');
+        control.textContent='Explain simply';
+      }finally{control.disabled=false;}
+    });
+    aiButton.classList.add('ai-explain-btn');
+  }
   button('Note',()=>openNoteEditor(result.word));
   popup.append(actions);
+  popup.append(explained);
   result.meanings.forEach(item=>{
     safeText(popup,'p',item.partOfSpeech,'pos');
     safeText(popup,'p',plainDefinition(item.definition),'def');
@@ -1140,14 +1117,13 @@ function renderMyNotes(){
   if(!list)return;
   list.replaceChildren();
   const query=(byId('notes-search')?.value||'').trim().toLowerCase();
-  const highlightsOnly=document.body.dataset.route==='highlights';
   const notes=local.get('er-notes',[]).map((item,index)=>({...item,kind:'note',index}));
   const highlights=local.get('er-highlights',[]).map((item,index)=>({...item,kind:'highlight',index}));
-  const items=[...(highlightsOnly?[]:notes),...highlights]
+  const items=[...notes,...highlights]
     .filter(item=>(String(item.word||'')+' '+String(item.text||'')+' '+String(item.book||'')).toLowerCase().includes(query))
     .sort((a,b)=>a.kind.localeCompare(b.kind)||(b.created||0)-(a.created||0));
   if(!items.length){
-    safeText(list,'p',query?'No saved items match your search.':(highlightsOnly?'Your color highlights will appear here.':'Your saved notes and highlights will appear here.'),'note');
+    safeText(list,'p',query?'No notes match your search.':'Your saved notes and highlights will appear here.','note');
     return;
   }
   let renderedKind='';
@@ -1157,12 +1133,10 @@ function renderMyNotes(){
     row.className='saved-note-row';
     const content=document.createElement('div');
     content.className='saved-note-content';
-    if(item.book){content.tabIndex=0;content.setAttribute('role','button');content.setAttribute('aria-label','Open source book for this '+item.kind);const openSource=async()=>{const book=await getBook(item.book).catch(()=>null);if(book?.file){await openFile(book.file);if(item.page){if(activePdf)goPdfPage(item.page);else goToReaderPage(item.page);}}else toast('The original book is not available in this browser library.');};content.addEventListener('click',openSource);content.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();openSource();}});}
+    if(item.book){content.tabIndex=0;content.setAttribute('role','button');content.setAttribute('aria-label','Open source book for this '+item.kind);const openSource=async()=>{const book=await getBook(item.book).catch(()=>null);if(book?.file)openFile(book.file);else toast('The original book is not available in this browser library.');};content.addEventListener('click',openSource);content.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();openSource();}});}
     safeText(content,'strong',item.word?'Note for '+item.word:(item.kind==='highlight'?'Highlight':'Note'));
     safeText(content,'p',item.text||item.word||'Saved item','saved-note-text');
-    const colorNames={yellow:'Yellow',green:'Green',blue:'Blue',pink:'Pink',purple:'Purple'};
-    safeText(content,'small',(item.kind==='highlight'?(colorNames[item.color]||'Yellow')+' highlight':'Note')+(item.bookName||item.book?' · '+(item.bookName||item.book):'')+(item.page?' · Page '+item.page:'')+(item.created?' · '+new Date(item.created).toLocaleDateString():''));
-    if(item.kind==='highlight'){row.style.setProperty('--saved-highlight-color',({yellow:'#fde68a',green:'#a7f3d0',blue:'#bfdbfe',pink:'#fbcfe8',purple:'#ddd6fe'})[item.color]||'#fde68a');row.classList.add('is-highlight');}
+    safeText(content,'small',(item.kind==='highlight'?'Highlight':'Note')+(item.bookName||item.book?' · '+(item.bookName||item.book):'')+(item.created?' · '+new Date(item.created).toLocaleDateString():''));
     const actions=document.createElement('div');
     actions.className='saved-note-actions';
     if(item.kind==='note'){
@@ -1192,8 +1166,6 @@ function renderMyNotes(){
     list.append(row);
   });
 }
-function updateHighlightCount(){const count=local.get('er-highlights',[]).length;const node=byId('sidebar-highlight-count');if(node){node.textContent=String(count);node.hidden=count===0;}}
-function paintSavedHighlights(){if(typeof CSS==='undefined'||!CSS.highlights||typeof Highlight==='undefined'||!activeBook)return;const names=['yellow','green','blue','pink','purple'].map(color=>'easyread-'+color);names.forEach(name=>CSS.highlights.delete(name));const root=activePdf&&pdfMode?pdfPages:reader;if(!root)return;const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);const nodes=[];while(walker.nextNode())nodes.push(walker.currentNode);const buckets=new Map();for(const item of local.get('er-highlights',[]).filter(item=>item.book===activeBook.key)){if(!item.text)continue;for(const node of nodes){const at=node.data.indexOf(item.text);if(at<0)continue;try{const range=document.createRange();range.setStart(node,at);range.setEnd(node,at+item.text.length);const name='easyread-'+(item.color||'yellow');if(!buckets.has(name))buckets.set(name,new Highlight());buckets.get(name).add(range);break;}catch{}}}buckets.forEach((value,name)=>CSS.highlights.set(name,value));}
 function openSavedItemDeleteDialog(item){
   const dialog=byId('delete-item-dialog');
   if(!dialog)return;
@@ -1225,8 +1197,6 @@ function confirmDeleteSavedItem(){
   queueCloudSync();
   renderMyNotes();
   renderSavedItems();
-  updateHighlightCount();
-  paintSavedHighlights();
   toast(kind==='note'?'Note deleted.':'Highlight deleted.');
 }
 function updateDocumentPageControls(){
@@ -1488,7 +1458,7 @@ async function init() {
     searchDebounceTimer=setTimeout(()=>searchBook(),120);
   });
   byId('search-prev').addEventListener('click',()=>moveMatch(-1));byId('search-next').addEventListener('click',()=>moveMatch(1));
-  byId('highlight-btn').addEventListener('click',()=>{const selection=getSelection(),text=selection?.toString().trim();if(!text){toast('Select some text first, then choose Highlight selection.');return;}if(!activeBook){toast('Open a book before highlighting.');return;}const color=byId('highlight-color')?.value||'yellow';const range=selection.rangeCount?selection.getRangeAt(0).cloneRange():null;const values=local.get('er-highlights',[]);values.unshift({id:newSavedItemId(),text,color,book:activeBook.key,bookName:activeBook.title||activeBook.name||'',page:activePage||1,created:Date.now()});local.set('er-highlights',values);if(range&&typeof CSS!=='undefined'&&CSS.highlights&&typeof Highlight!=='undefined'){try{const name='easyread-'+color;const existing=CSS.highlights.get(name)||new Highlight();existing.add(range);CSS.highlights.set(name,existing);}catch(error){console.warn('Could not paint selected highlight',error);}}selection.removeAllRanges();queueCloudSync();renderMyNotes();renderSavedItems();updateHighlightCount();toast(color[0].toUpperCase()+color.slice(1)+' highlight saved.');});
+  byId('highlight-btn').addEventListener('click',()=>{const text=getSelection()?.toString().trim();if(!text)return;const values=local.get('er-highlights',[]);values.unshift({id:newSavedItemId(),text,book:activeBook?.key,bookName:activeBook?.title||activeBook?.name||'',created:Date.now()});local.set('er-highlights',values);queueCloudSync();renderMyNotes();renderSavedItems();toast('Highlight saved.');});
   byId('bookmark-btn').addEventListener('click',()=>{const values=local.get('er-bookmarks',[]);values.unshift({id:newSavedItemId(),name:activeBook?.title||activeBook?.name||'Bookmark',book:activeBook?.key,bookName:activeBook?.title||activeBook?.name||'',scroll:scrollY,page:activePage,created:Date.now()});local.set('er-bookmarks',values);queueCloudSync();toast('Bookmark saved.');});
   byId('export-btn').addEventListener('click',exportData);byId('export-all').addEventListener('click',exportData);byId('delete-all').addEventListener('click',deleteLocalData);
   byId('google-signin').addEventListener('click',signInWithGoogle);byId('signin-modal-google').addEventListener('click',signInWithGoogle);byId('welcome-signin-btn')?.addEventListener('click',signInWithGoogle);byId('welcome-dismiss')?.addEventListener('click',()=>{local.set('er-signin-dismissed',true);local.set('er-welcome-intro-dismissed',true);const welcome=byId('welcome-signin');if(welcome)welcome.hidden=true;});byId('email-auth-form')?.addEventListener('submit',submitEmailAuth);byId('auth-tab-signin')?.addEventListener('click',()=>setAuthMode('signin'));byId('auth-tab-signup')?.addEventListener('click',()=>setAuthMode('signup'));byId('forgot-password')?.addEventListener('click',resetPassword);byId('auth-password-toggle')?.addEventListener('click',()=>{const input=byId('auth-password'),button=byId('auth-password-toggle');if(!input||!button)return;const visible=input.type==='text';input.type=visible?'password':'text';button.textContent=visible?'Show':'Hide';button.setAttribute('aria-label',visible?'Show password':'Hide password');});byId('sync-now').addEventListener('click',syncCloud);byId('signout').addEventListener('click',()=>auth?.signOut());

@@ -3,23 +3,5 @@
     "api/definition.js": {
       "includeFiles": "node_modules/wordnet-db/dict/**"
     }
-  },
-  "rewrites": [
-    {
-      "source": "/home",
-      "destination": "/index.html"
-    },
-    {
-      "source": "/library",
-      "destination": "/index.html"
-    },
-    {
-      "source": "/reader",
-      "destination": "/index.html"
-    },
-    {
-      "source": "/notes",
-      "destination": "/index.html"
-    }
-  ]
+  }
 }
