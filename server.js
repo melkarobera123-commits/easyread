@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const { lookupWordnet } = require('./dictionary');
 const { lookupRemoteDictionary } = require('./dictionary-fallback');
+const { handleExplain } = require('./gemini-explain');
 
 const root = __dirname;
 const port = Number(process.env.PORT || 8080);
@@ -14,6 +15,23 @@ function send(res, status, body, type = 'application/json') {
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, JSON.stringify({ error: 'Method not allowed.' }));
+  if (url.pathname === '/api/explain') {
+    const query = Object.fromEntries(url.searchParams.entries());
+    const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown').split(',')[0].trim();
+    return handleExplain({ method: req.method, query, headers: req.headers, ip }).then(result => {
+      res.writeHead(result.status, {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'no-store',
+        'X-Content-Type-Options': 'nosniff',
+        'Referrer-Policy': 'strict-origin-when-cross-origin',
+        ...result.headers
+      });
+      res.end(JSON.stringify(result.body));
+    }).catch(error => {
+      console.error('AI explanation failed:', error);
+      send(res, 500, JSON.stringify({ error: 'AI explanation is temporarily unavailable.' }));
+    });
+  }
   if (url.pathname === '/api/definition') {
     const word = (url.searchParams.get('word') || '').trim().toLowerCase().replace(/\s+/g, '_');
     if (!/^[a-z][a-z0-9_'’\-]{0,59}$/.test(word)) return send(res, 400, JSON.stringify({ error: 'Enter a valid word.' }));
