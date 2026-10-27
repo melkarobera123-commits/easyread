@@ -910,3 +910,116 @@ body.focus-mode .bar { top: 8px; }
 .ai-explain[hidden] { display: none; }
 #popup .ai-explain-text { margin: 0; color: #eef3f9; font-size: .92rem; white-space: pre-line; line-height: 1.5; }
 #popup .ai-explain-note { display: block; margin-top: 6px; color: #c4d0df; font-size: .78rem; line-height: 1.35; }
+
+
+/* ===== Glass surfaces: one consistent frosted-glass system (header, sidebar, toolbars, nav, drawers, cards) ===== */
+:root {
+  --glass: color-mix(in srgb, var(--sheet) 80%, transparent);
+  --glass-soft: color-mix(in srgb, var(--sheet) 66%, transparent);
+  --glass-strong: color-mix(in srgb, var(--sheet) 84%, transparent);
+  --glass-edge: color-mix(in srgb, #ffffff 58%, var(--line));
+  --glass-shine: inset 0 1px 0 rgba(255, 255, 255, .55);
+  --glass-shadow: 0 10px 34px rgba(31, 45, 40, .10);
+  --glass-blur: blur(18px) saturate(1.5);
+}
+[data-theme=dark] {
+  --glass: color-mix(in srgb, var(--sheet) 76%, transparent);
+  --glass-soft: color-mix(in srgb, var(--sheet) 60%, transparent);
+  --glass-strong: color-mix(in srgb, var(--sheet) 84%, transparent);
+  --glass-edge: rgba(255, 255, 255, .11);
+  --glass-shine: inset 0 1px 0 rgba(255, 255, 255, .07);
+  --glass-shadow: 0 12px 38px rgba(0, 0, 0, .38);
+}
+/* Soft colour behind the glass so there is something to frost. Kept faint so reading stays calm. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(60vmax 50vmax at 6% -4%, color-mix(in srgb, var(--accent) 17%, transparent), transparent 62%),
+    radial-gradient(50vmax 44vmax at 100% 16%, color-mix(in srgb, var(--marker) 20%, transparent), transparent 60%),
+    radial-gradient(56vmax 50vmax at 72% 108%, color-mix(in srgb, var(--accent) 13%, transparent), transparent 62%);
+}
+body .top,
+body .app-sidebar,
+body .bar,
+body .mobile-nav,
+body .global-reader-controls,
+body #pdf-toolbar.pdf-toolbar,
+body #text-view-controls.text-view-controls {
+  background: var(--glass);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border-color: var(--glass-edge);
+  box-shadow: var(--glass-shine), var(--glass-shadow);
+}
+body .top { box-shadow: var(--glass-shine); }
+body .app-sidebar { background: var(--glass-soft); }
+body .app-sidebar { box-shadow: var(--glass-shine), 6px 0 30px rgba(31, 45, 40, .05); }
+[data-theme=dark] body .app-sidebar { box-shadow: var(--glass-shine), 6px 0 30px rgba(0, 0, 0, .25); }
+body .contents,
+body .panel:not(.route-page) {
+  background: var(--glass-strong);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border-color: var(--glass-edge);
+}
+body .bar .btn,
+body .pdf-toolbar .btn,
+body .text-view-controls .btn,
+body .mobile-nav .shell-nav:not(.active) {
+  background: color-mix(in srgb, var(--sheet) 55%, transparent);
+  border-color: var(--glass-edge);
+}
+body .scroll-nav .icon-btn {
+  background: var(--glass);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border-color: var(--glass-edge);
+  box-shadow: var(--glass-shine), var(--glass-shadow);
+}
+body .toast {
+  background: rgba(24, 38, 36, .82);
+  -webkit-backdrop-filter: blur(14px) saturate(1.4);
+  backdrop-filter: blur(14px) saturate(1.4);
+  border: 1px solid rgba(255, 255, 255, .14);
+}
+/* Cards on the home page and in the library read as glass too. */
+body .paste-reader,
+body .library-grid > *,
+body .continue-card,
+body .steps li {
+  background: var(--glass-strong);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border-color: var(--glass-edge);
+}
+/* Secondary toolbars scroll away on every screen size so they never ghost through the main bar. */
+body #pdf-toolbar.pdf-toolbar,
+body #text-view-controls.text-view-controls { position: static; }
+/* Desktop: the main bar sits flush under the header, so scrolled text never shows in a gap between them. */
+@media (min-width: 901px) { body .bar { top: 64px; } }
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root, [data-theme=dark] { --glass: var(--sheet); --glass-soft: var(--sheet); --glass-strong: var(--sheet); }
+}
+@media (prefers-reduced-transparency: reduce) {
+  :root, [data-theme=dark] { --glass: var(--sheet); --glass-soft: var(--sheet); --glass-strong: var(--sheet); }
+  body::before { display: none; }
+}
+body .sidebar-bottom { background: transparent; }
+
+/* PDF zoom: a page zoomed past the screen width scrolls sideways instead of being squashed (the canvas was clamped to 100% width while its height kept growing). */
+body .pdf-page { overflow-x: auto; overflow-y: hidden; }
+body .pdf-page canvas { max-width: none; }
+
+/* The PDF text layer must always match its (possibly zoomed, side-scrolling) canvas; on phones a max-width clamp made it narrower than the page. */
+body .pdf-page .textLayer { max-width: none; }
+
+/* Glass performance: cards sit on a plain gradient, so they keep the translucent look without a blur pass; phones use a lighter blur. */
+body .paste-reader,
+body .library-grid > *,
+body .continue-card,
+body .steps li { -webkit-backdrop-filter: none; backdrop-filter: none; }
+@media (max-width: 700px) { :root { --glass-blur: blur(10px) saturate(1.3); } }
