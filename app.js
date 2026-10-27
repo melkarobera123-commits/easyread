@@ -1973,6 +1973,7 @@ async function restoreBooks() {
 // ---------- Ask AI about a selected phrase or sentence while reading ----------
 (() => {
   const bind = () => {
+    const toggles = [byId('ask-ai-toggle'), byId('ask-ai-float')].filter(Boolean);
     const toggle = byId('ask-ai-toggle');
     const panel = byId('ai-passage-panel');
     const passage = byId('ai-passage-text');
@@ -1980,7 +1981,7 @@ async function restoreBooks() {
     const answer = byId('ai-passage-answer');
     const submit = byId('ai-passage-submit');
     const count = byId('ai-passage-count');
-    if (!toggle || !panel || !passage || !question || !answer || !submit) return;
+    if (!toggles.length || !panel || !passage || !question || !answer || !submit) return;
 
     let rememberedSelection = '';
     const getSelectedPassage = () => {
@@ -2006,7 +2007,8 @@ async function restoreBooks() {
     const updateCount = () => { if (count) count.textContent = passage.value.length + ' / 900'; };
     const openPanel = () => {
       panel.hidden = false;
-      toggle.setAttribute('aria-expanded', 'true');
+      toggles.forEach(button => button.setAttribute('aria-expanded', 'true'));
+      document.body.classList.add('ask-ai-open');
       const selected = getSelectedPassage();
       if (selected) passage.value = selected;
       updateCount();
@@ -2014,14 +2016,17 @@ async function restoreBooks() {
     };
     const closePanel = () => {
       panel.hidden = true;
-      toggle.setAttribute('aria-expanded', 'false');
-      toggle.focus({ preventScroll: true });
+      toggles.forEach(button => button.setAttribute('aria-expanded', 'false'));
+      document.body.classList.remove('ask-ai-open');
+      toggle?.focus({ preventScroll: true });
     };
 
-    toggle.addEventListener('pointerdown', () => { rememberedSelection = getSelectedPassage() || rememberedSelection; });
-    toggle.addEventListener('click', () => {
-      if (panel.hidden) openPanel();
-      else closePanel();
+    toggles.forEach(button => {
+      button.addEventListener('pointerdown', () => { rememberedSelection = getSelectedPassage() || rememberedSelection; });
+      button.addEventListener('click', () => {
+        if (panel.hidden) openPanel();
+        else closePanel();
+      });
     });
     byId('ai-passage-close')?.addEventListener('click', closePanel);
     passage.addEventListener('input', updateCount);
