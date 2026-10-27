@@ -1452,3 +1452,68 @@ body .steps li { -webkit-backdrop-filter: none; backdrop-filter: none; }
   #ai-passage-close.icon-btn:hover,
   #ai-passage-submit.btn:hover { transform: none; }
 }
+
+
+/* Persistent Ask AI shortcut: stays reachable while moving through the book */
+.ask-ai-float {
+  position: fixed;
+  z-index: 45;
+  right: max(24px, env(safe-area-inset-right));
+  bottom: max(24px, env(safe-area-inset-bottom));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 52px;
+  padding: 0 18px 0 12px;
+  border: 1px solid rgba(255,255,255,.2);
+  border-radius: 999px;
+  background: linear-gradient(135deg, #315f4e, #203f35);
+  color: #fff;
+  box-shadow: 0 12px 32px rgba(24,58,44,.27), inset 0 1px 0 rgba(255,255,255,.18);
+  font: 750 .9rem/1 var(--ui, system-ui, sans-serif);
+  letter-spacing: -.01em;
+  cursor: pointer;
+  transition: transform .18s ease, box-shadow .18s ease, opacity .18s ease, background .18s ease;
+}
+.ask-ai-float-icon {
+  display: grid;
+  place-items: center;
+  width: 29px;
+  height: 29px;
+  border: 1px solid rgba(255,255,255,.24);
+  border-radius: 50%;
+  background: linear-gradient(145deg, rgba(255,255,255,.2), rgba(255,255,255,.06));
+  color: #f2d29a;
+  font-size: 1rem;
+}
+.ask-ai-float:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 16px 36px rgba(24,58,44,.34), inset 0 1px 0 rgba(255,255,255,.2);
+}
+.ask-ai-float:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  outline-offset: 4px;
+}
+.ask-ai-float[aria-expanded="true"] {
+  background: linear-gradient(135deg, #467b68, #315f4e);
+  box-shadow: 0 8px 24px rgba(24,58,44,.23), inset 0 1px 0 rgba(255,255,255,.18);
+}
+[data-theme="dark"] .ask-ai-float {
+  background: linear-gradient(135deg, #477c66, #2d5b49);
+  box-shadow: 0 12px 32px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.15);
+}
+@media (max-width: 700px) {
+  .ask-ai-float {
+    right: max(14px, env(safe-area-inset-right));
+    bottom: calc(104px + env(safe-area-inset-bottom));
+    min-height: 48px;
+    padding-right: 15px;
+    gap: 8px;
+  }
+  body.bar-away .ask-ai-float { opacity: 1; pointer-events: auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ask-ai-float { transition: none; }
+  .ask-ai-float:hover { transform: none; }
+}
