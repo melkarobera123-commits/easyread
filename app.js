@@ -1983,6 +1983,21 @@ async function restoreBooks() {
     const count = byId('ai-passage-count');
     if (!toggles.length || !panel || !passage || !question || !answer || !submit) return;
 
+    // Keep the panel in the active fullscreen subtree, otherwise browsers hide it
+    // when Full document is opened on the PDF pages element.
+    const originalParent = panel.parentElement;
+    const originalNextSibling = panel.nextSibling;
+    const movePanelForFullscreen = () => {
+      const host = typeof fullscreenReaderHost === 'function' ? fullscreenReaderHost() : null;
+      if (host) {
+        const layer = typeof getFullscreenDictionaryLayer === 'function' ? getFullscreenDictionaryLayer(host) : null;
+        if (layer && panel.parentElement !== layer) layer.appendChild(panel);
+      } else if (originalParent && panel.parentElement !== originalParent) {
+        originalParent.insertBefore(panel, originalNextSibling?.parentElement === originalParent ? originalNextSibling : null);
+      }
+    };
+    document.addEventListener('fullscreenchange', movePanelForFullscreen);
+
     let rememberedSelection = '';
     const getSelectedPassage = () => {
       const selection = window.getSelection();

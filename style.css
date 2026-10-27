@@ -1517,3 +1517,58 @@ body .steps li { -webkit-backdrop-filter: none; backdrop-filter: none; }
   .ask-ai-float { transition: none; }
   .ask-ai-float:hover { transform: none; }
 }
+
+
+/* Ask AI behaves as a movable dialog, not a sticky block in the document flow. */
+#ai-passage-panel.ai-passage-panel {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  right: auto;
+  bottom: auto;
+  width: min(720px, calc(100vw - 32px));
+  max-width: 720px;
+  max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px);
+  margin: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  transform: translate(-50%, -50%);
+  z-index: 2147483647;
+  box-sizing: border-box;
+}
+#fullscreen-dictionary-layer #ai-passage-panel {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 2147483647 !important;
+  pointer-events: auto;
+}
+#fullscreen-dictionary-layer:has(#ai-passage-panel)::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 20, 16, .42);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+  pointer-events: auto;
+}
+body.ask-ai-open::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(10, 20, 16, .42);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+}
+body.ask-ai-open #ai-passage-panel { z-index: 1001; }
+@media (max-width: 700px) {
+  #ai-passage-panel.ai-passage-panel {
+    width: calc(100vw - 20px);
+    max-height: calc(100vh - 24px);
+    max-height: calc(100dvh - 24px);
+    padding: 15px;
+    border-radius: 18px;
+  }
+}
