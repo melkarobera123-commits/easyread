@@ -1548,19 +1548,17 @@ body .steps li { -webkit-backdrop-filter: none; backdrop-filter: none; }
   content: "";
   position: fixed;
   inset: 0;
-  background: rgba(10, 20, 16, .42);
-  -webkit-backdrop-filter: blur(3px);
-  backdrop-filter: blur(3px);
-  pointer-events: auto;
+  background: rgba(10, 20, 16, .18);
+  pointer-events: none;
 }
+/* Never blur or block the document itself when Ask AI is open. */
 body.ask-ai-open::before {
   content: "";
   position: fixed;
   inset: 0;
   z-index: 1000;
-  background: rgba(10, 20, 16, .42);
-  -webkit-backdrop-filter: blur(3px);
-  backdrop-filter: blur(3px);
+  background: rgba(10, 20, 16, .18);
+  pointer-events: none;
 }
 body.ask-ai-open #ai-passage-panel { z-index: 1001; }
 @media (max-width: 700px) {
