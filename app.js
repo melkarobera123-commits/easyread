@@ -1481,7 +1481,7 @@ async function init() {
   window.__easyReadReady = true;
 }
 let matches=[],matchIndex=-1;async function searchBook(){const query=byId('search-input').value.trim().toLowerCase(),token=++searchToken;if(CSS.highlights)CSS.highlights.delete('search');matches=[];pdfSearchMatches=[];matchIndex=pdfSearchIndex=-1;if(!query){byId('search-count').textContent='';return;}if(activePdf&&pdfMode){for(let pageNumber=1;pageNumber<=activePdf.numPages;pageNumber++){if(token!==searchToken)return;const page=await activePdf.getPage(pageNumber),content=await page.getTextContent(),text=content.items.map(item=>item.str).join(' ').toLowerCase();let from=0,index;while((index=text.indexOf(query,from))>=0){pdfSearchMatches.push({page:pageNumber});from=index+query.length;}if(pageNumber%20===0){byId('search-count').textContent=`Searching ${pageNumber} of ${activePdf.numPages}…`;await new Promise(requestAnimationFrame);}}if(token!==searchToken)return;byId('search-count').textContent=`${pdfSearchMatches.length} results`;if(pdfSearchMatches.length)moveMatch(1);return;}const walker=document.createTreeWalker(reader,NodeFilter.SHOW_TEXT);while(walker.nextNode()){const node=walker.currentNode;let from=0,index;while((index=node.data.toLowerCase().indexOf(query,from))>=0){const range=new Range();range.setStart(node,index);range.setEnd(node,index+query.length);matches.push(range);from=index+query.length;}}if(CSS.highlights&&matches.length)CSS.highlights.set('search',new Highlight(...matches));byId('search-count').textContent=`${matches.length} results`;if(matches.length)moveMatch(1);}
-function fullscreenReaderHost(){return document.fullscreenElement===readerWrap||document.fullscreenElement===pdfPages?document.fullscreenElement:null;}
+function fullscreenReaderHost(){return document.fullscreenElement===readerWrap||document.fullscreenElement===pdfPages||document.fullscreenElement===reader?document.fullscreenElement:null;}
 function getFullscreenDictionaryLayer(host){
   if(!host)return null;
   let layer=host.querySelector(':scope > #fullscreen-dictionary-layer');
@@ -1491,7 +1491,37 @@ function getFullscreenDictionaryLayer(host){
     layer.setAttribute('aria-live','polite');
     host.append(layer);
   }
+  ensureFullscreenReaderControls(layer);
   return layer;
+}
+function ensureFullscreenReaderControls(layer){
+  if(!layer || layer.querySelector('#fullscreen-reader-controls')) return;
+  const controls=document.createElement('div');
+  controls.id='fullscreen-reader-controls';
+  controls.className='fullscreen-reader-controls';
+  controls.setAttribute('role','group');
+  controls.setAttribute('aria-label','Fullscreen document controls');
+  const makeButton=(id,label,aria,action)=>{
+    const button=document.createElement('button');
+    button.type='button';button.id=id;button.className='btn';
+    button.textContent=label;button.setAttribute('aria-label',aria);
+    button.addEventListener('click',action);
+    controls.append(button);
+  };
+  makeButton('fullscreen-ask-ai','✦ Ask AI','Ask AI about this passage',()=>{
+    const trigger=byId('ask-ai-toggle')||byId('ask-ai-float');
+    if(trigger) trigger.click();
+  });
+  makeButton('fullscreen-zoom-out','−','Zoom out',()=>{
+    if(activePdf) scalePdf(-.15); else changeReaderTextSize(-.1);
+  });
+  makeButton('fullscreen-zoom-in','+','Zoom in',()=>{
+    if(activePdf) scalePdf(.15); else changeReaderTextSize(.1);
+  });
+  makeButton('fullscreen-exit','Exit fullscreen','Exit fullscreen document view',()=>{
+    if(document.fullscreenElement) document.exitFullscreen?.().catch(()=>{});
+  });
+  layer.append(controls);
 }
 function movePopupToFullscreenHost(){
   const host=fullscreenReaderHost();
@@ -2029,11 +2059,12 @@ async function restoreBooks() {
       updateCount();
       requestAnimationFrame(() => passage.focus({ preventScroll: true }));
     };
-    const closePanel = () => {
+    const closePanel = (restoreFocus = true) => {
+      if (panel.hidden) return;
       panel.hidden = true;
       toggles.forEach(button => button.setAttribute('aria-expanded', 'false'));
       document.body.classList.remove('ask-ai-open');
-      toggle?.focus({ preventScroll: true });
+      if (restoreFocus) toggle?.focus({ preventScroll: true });
     };
 
     toggles.forEach(button => {
@@ -2043,6 +2074,13 @@ async function restoreBooks() {
         else closePanel();
       });
     });
+    // Clicking anywhere outside the Ask AI dialog dismisses it without stealing focus.
+    document.addEventListener('pointerdown', event => {
+      if (panel.hidden) return;
+      if (panel.contains(event.target) || toggles.some(button => button.contains(event.target)) ||
+          event.target.closest?.('#fullscreen-ask-ai')) return;
+      closePanel(false);
+    }, true);
     byId('ai-passage-close')?.addEventListener('click', closePanel);
     passage.addEventListener('input', updateCount);
     passage.addEventListener('keydown', event => {
