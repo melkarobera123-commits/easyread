@@ -66,7 +66,7 @@ function toast(message) { const node = byId('toast'); node.textContent = message
 function status(message, error = false) { const node = byId('status'); node.textContent = message; node.classList.toggle('err', error); }
 function safeText(parent, tag, text, className = '') { const node = document.createElement(tag); if (className) node.className = className; node.textContent = text; parent.append(node); return node; }
 function closeOverlayPanels(except='') {
-  for (const id of ['library','contents','settings','vocab','stats','privacy','shortcuts','notes-panel']) {
+  for (const id of ['library','contents','settings','vocab','stats','privacy','shortcuts','notes-panel','ask-ai']) {
     if (id === except) continue;
     const panel = byId(id);
     if (!panel) continue;
@@ -137,7 +137,7 @@ function renderRoute(route, replace = false) {
 function goToUpload() { navigateToRoute('home'); status('Choose a book to open the Reader.'); requestAnimationFrame(() => { drop.scrollIntoView({ behavior: 'smooth', block: 'center' }); drop.focus({ preventScroll: true }); drop.classList.add('guide-focus'); setTimeout(() => drop.classList.remove('guide-focus'), 900); }); }
 function closeDictionaryPanel(){const panel=byId('dictionary-panel');if(panel)panel.hidden=true;byId('dictionary-btn')?.setAttribute('aria-expanded','false');}
 function showPanel(id, open) { const panel = byId(id); if (!panel) return; closeDictionaryPanel();panel.hidden = open === undefined ? !panel.hidden : !open; if (!panel.hidden) { closeOtherPanels(id); markPanelOpened(id); } if (id === 'library') { const backdrop=byId('library-backdrop'); if(backdrop) backdrop.hidden=panel.hidden; } if (id === 'library' && !panel.hidden) renderLibraryPanel(); if (id === 'vocab' && !panel.hidden) renderVocabulary(); if (id === 'stats' && !panel.hidden) renderStats(); if (id === 'privacy' && !panel.hidden) renderPrivacyState(); }
-function hidePanels() { document.querySelectorAll('.panel, .contents').forEach(panel => { panel.hidden = true; panel.classList.remove('open'); }); }
+function hidePanels() { document.querySelectorAll('.panel, .contents').forEach(panel => { panel.hidden = true; panel.classList.remove('open'); }); const sheet = byId('tools-sheet'); if (sheet) sheet.hidden = true; }
 
 function initNavigation() {
   document.querySelectorAll('.brand, .sidebar-brand').forEach(brand => brand.addEventListener('click', event => { event.preventDefault(); navigateToRoute('home'); }));
@@ -970,6 +970,8 @@ async function fetchAiExplanation(word, context, signal) {
   aiExplainCache.set(key, data.explanation);
   return data.explanation;
 }
+function renderDefinition(result,asked){popup.replaceChildren();safeText(popup,'button','×','close').addEventListener('click',hidePopup);safeText(popup,'h2',result.word);const source=result.source||'';if(result.phonetic)safeText(popup,'p',result.phonetic,'ph');if(source)safeText(popup,'span',result.cached?'Cached · '+source:source,'dictionary-source');const actions=document.createElement('div');actions.className='word-actions';const button=(label,handler)=>{const control=document.createElement('button');control.className='btn';control.type='button';control.textContent=label;control.addEventListener('click',handler);actions.append(control);return control;};const savedValues=local.get('er-vocabulary',[]);const isSaved=savedValues.some(item=>String(item.word||'').trim().toLowerCase()===String(result.word||'').trim().toLowerCase());const saveButton=button(isSaved?'Remove':'Save',event=>{const values=local.get('er-vocabulary',[]);const target=String(result.word||'').trim().toLowerCase();const existing=values.findIndex(item=>String(item.word||'').trim().toLowerCase()===target);if(existing>=0){removeSavedWord(result.word);event.currentTarget.textContent='Save';}else{const tombstones=local.get('er-vocabulary-deleted',{}),created=Math.max(Date.now(),Number(tombstones[target]||0)+1);values.unshift({word:result.word,definition:plainDefinition(result.meanings[0]?.definition),created});local.set('er-vocabulary',values);queueCloudSync();renderVocabulary();event.currentTarget.textContent='Remove';event.currentTarget.setAttribute('aria-pressed','true');toast('Word saved to your vocabulary.');}});button('Listen',()=>playWordAudio(result));button('AI Translate',async event=>{const control=event.currentTarget;control.disabled=true;control.textContent='Translating…';const language=byId('translation-language').value,label=byId('translation-language').selectedOptions?.[0]?.textContent||language;let shown='';try{const range=activeDictionaryRange||null,context=range?sentenceAroundRange(range):'';const response=await fetch(`/api/translate?word=${encodeURIComponent(String(result.word).toLowerCase())}&lang=${encodeURIComponent(language)}&context=${encodeURIComponent(context||'')}`,{signal:lookupController?.signal});if(response.ok){const data=await response.json();shown=data.translation;}else if(response.status!==503&&response.status!==400)throw new Error();if(!shown){const fallback=await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(result.word)}&langpair=en|${language}`,{signal:lookupController?.signal});if(!fallback.ok)throw new Error();shown=(await fallback.json()).responseData?.translatedText||'';}if(!shown)throw new Error();const block=safeText(popup,'p',label+': '+shown,'note');control.textContent='Translated';}catch{control.textContent='Translation unavailable';safeText(popup,'p','Translation is temporarily unavailable. Please try again in a moment.','note');}finally{control.disabled=false;}});button('Note',()=>{const text=prompt(`Add a note for “${result.word}”`);if(text?.trim()){const notes=local.get('er-notes',[]);notes.unshift({id:newSavedItemId(),word:result.word,text:text.trim(),book:activeBook?.key,bookName:activeBook?.title||activeBook?.name||'',created:Date.now()});local.set('er-notes',notes);queueCloudSync();renderMyNotes();renderSavedItems();toast('Note saved.');}});popup.append(actions);result.meanings.forEach(item=>{safeText(popup,'p',item.partOfSpeech,'pos');safeText(popup,'p',item.definition,'def');if(item.example)safeText(popup,'p',`“${item.example}”`,'ex');});if(result.word!==asked)safeText(popup,'p',`Showing the base form “${result.word}”.`,'note');}
+
 function renderDefinition(result,asked){
   popup.replaceChildren();
   const close=safeText(popup,'button','×','close');
@@ -979,14 +981,12 @@ function renderDefinition(result,asked){
   const heading=safeText(popup,'h2',result.word);
   heading.id='popup-word';
   popup.setAttribute('aria-labelledby','popup-word');
-  const translationResult=document.createElement('div');
-  translationResult.className='translation-result';
-  translationResult.hidden=true;
-  translationResult.setAttribute('role','status');
-  translationResult.setAttribute('aria-live','polite');
-  popup.append(translationResult);
   if(result.phonetic)safeText(popup,'p',result.phonetic,'ph');
   if(result.source)safeText(popup,'span',result.cached?'Cached · '+result.source:result.source,'dictionary-source');
+  const translated=safeText(popup,'p','','translation-result');
+  translated.hidden=true;
+  translated.setAttribute('role','status');
+  translated.setAttribute('aria-live','polite');
   const explained=document.createElement('div');
   explained.className='ai-explain';
   explained.hidden=true;
@@ -1015,26 +1015,28 @@ function renderDefinition(result,asked){
   button('Listen',()=>playWordAudio(result));
   button('AI Translate',async event=>{
     const control=event.currentTarget;
-    const originalLabel=control.textContent;
     control.disabled=true;
     control.textContent='Translating…';
-    translationResult.hidden=false;
-    translationResult.textContent='Translating into '+byId('translation-language').selectedOptions[0].text+'…';
+    translated.hidden=false;
+    translated.textContent='Translating…';
+    const select=byId('translation-language'),language=select.value,label=select.selectedOptions?.[0]?.textContent||language;
     try{
-      const language=byId('translation-language').value;
-      const response=await fetch('/api/explain?mode=translate&text='+encodeURIComponent(result.word)+'&targetLanguage='+encodeURIComponent(language),{signal:lookupController?.signal});
-      const data=await response.json().catch(()=>({}));
-      if(!response.ok)throw new Error(data.error||'AI translation is unavailable right now.');
-      translationResult.textContent=data.translation||data.explanation||'AI translation unavailable.';
-      control.textContent='Translate again';
-    }catch(error){
-      if(error.name==='AbortError')return;
-      translationResult.textContent=error.message||'AI translation is temporarily unavailable.';
-      control.textContent='Try again';
-    }finally{
-      control.disabled=false;
-      setTimeout(()=>{if(control.isConnected)control.textContent=originalLabel;},2200);
-    }
+      let value='';
+      const context=activeDictionaryRange?sentenceAroundRange(activeDictionaryRange):'';
+      const response=await fetch('/api/translate?word='+encodeURIComponent(String(result.word).toLowerCase())+'&lang='+encodeURIComponent(language)+'&context='+encodeURIComponent(context||''),{signal:lookupController?.signal});
+      if(response.ok)value=String((await response.json()).translation||'');
+      else if(response.status!==503&&response.status!==400&&response.status!==404)throw new Error();
+      if(!value){
+        const fallback=await fetch('https://api.mymemory.translated.net/get?q='+encodeURIComponent(result.word)+'&langpair=en|'+language,{signal:lookupController?.signal});
+        if(!fallback.ok)throw new Error();
+        value=plainDefinition((await fallback.json()).responseData?.translatedText);
+      }
+      translated.textContent=value?label+': '+value:'No translation was returned.';
+      control.textContent='AI Translate';
+    }catch{
+      translated.textContent='Translation is unavailable right now.';
+      control.textContent='AI Translate';
+    }finally{control.disabled=false;}
   });
   if(!aiExplainUnavailable){
     const aiButton=button('Explain simply',async event=>{
@@ -1043,10 +1045,14 @@ function renderDefinition(result,asked){
       control.disabled=true;control.textContent='Thinking…';
       explained.hidden=false;explained.replaceChildren();safeText(explained,'p','Thinking…','ai-explain-text');
       try{
-        const text=await fetchAiExplanation(result.word,sentenceAroundRange(activeDictionaryRange),lookupController?.signal);
+        const sentence=sentenceAroundRange(activeDictionaryRange);
+        const text=await fetchAiExplanation(result.word,sentence,lookupController?.signal);
         explained.replaceChildren();
         safeText(explained,'p',text,'ai-explain-text');
         safeText(explained,'small','AI-generated by Gemini. It can make mistakes, so check the dictionary meaning below.','ai-explain-note');
+        const followUp=safeText(explained,'button','Ask a follow-up','ask-followup');
+        followUp.type='button';
+        followUp.addEventListener('click',()=>window.openAskAi?.({text:sentence||result.word,context:sentence,question:'',draft:`What does \u201c${result.word}\u201d mean here?`}));
         control.textContent='Explain again';
       }catch(error){
         if(error.name==='AbortError')return;
@@ -1252,7 +1258,7 @@ async function renderContents(){const outline=byId('outline'),empty=byId('outlin
   empty.hidden=found;
 }
 function renderStats(){const stats=local.get('er-stats',{}),seconds=Object.values(stats).reduce((sum,item)=>sum+(item.seconds||0),0);const node=byId('stats-content');node.replaceChildren();safeText(node,'strong',`${Math.round(seconds/60)} minutes read`);safeText(node,'p',`${local.get('er-vocabulary',[]).length} saved words`);}
-function updateDocMeta(){if(activeBook){byId('doc-meta').textContent=activePdf?`${pageCount} pages · original PDF layout`:`${pageCount?pageCount+' sections · ':''}${(activeBook.words||0).toLocaleString()} words`;if(byId('jump'))byId('jump').max=String(Math.max(1,pageCount));if(byId('reader-page-jump'))byId('reader-page-jump').max=String(Math.max(1,pageCount));}}
+function updateDocMeta(){if(activeBook){byId('doc-meta').textContent=activePdf?`${pageCount} pages · original PDF layout`:`${pageCount?pageCount+(pageCount===1?' section · ':' sections · '):''}${(activeBook.words||0).toLocaleString()} words`;if(byId('jump'))byId('jump').max=String(Math.max(1,pageCount));if(byId('reader-page-jump'))byId('reader-page-jump').max=String(Math.max(1,pageCount));}}
 function restorePosition(){setTimeout(()=>{if(activePdf)goPdfPage(activeBook.position?.page||1);else scrollTo({top:activeBook.position?.scroll||0});},120);}
 function savePosition(force=false){
   if(!activeBook)return;
@@ -1327,7 +1333,8 @@ function updateWelcomeSignin(){
 function updateProfile(){
   const label=user?.displayName?.split(' ')[0]||'Sign in';for(const id of ['account-label','sidebar-account-label'])if(byId(id))byId(id).textContent=label;
   if(byId('sidebar-account-meta'))byId('sidebar-account-meta').textContent=user?.email||'Sync your reading';
-  for(const id of ['account-avatar','account-photo','sidebar-avatar'])if(byId(id)){byId(id).src=user?.photoURL||'';byId(id).hidden=!user?.photoURL;}
+  const pic=profilePhoto();for(const id of ['account-avatar','account-photo','sidebar-avatar'])if(byId(id)){byId(id).src=pic;byId(id).hidden=!pic;}
+  if(byId('photo-remove'))byId('photo-remove').hidden=!(user&&local.get('er-photo-'+user.uid,''));
   if(byId('account-name'))byId('account-name').textContent=user?.displayName||'';if(byId('account-email'))byId('account-email').textContent=user?.email||'';
   if(byId('account-signed-out'))byId('account-signed-out').hidden=!!user;if(byId('account-signed-in'))byId('account-signed-in').hidden=!user;
   updateWelcomeSignin();
@@ -1340,16 +1347,8 @@ async function submitEmailAuth(event){
   event.preventDefault();const email=byId('auth-email')?.value.trim(),password=byId('auth-password')?.value,name=byId('auth-name')?.value.trim();
   if(!email||!password)return setAuthStatus('Enter your email and password.','error');if(authMode==='signup'&&!name)return setAuthStatus('Enter your name to create your account.','error');
   const submit=byId('email-auth-submit');submit?.classList.add('auth-loading');if(submit)submit.disabled=true;setAuthStatus(authMode==='signup'?'Creating your account…':'Signing you in…');
-  try{
-    await initFirebase();
-    if(authMode==='signup'){
-      const credential=await auth.createUserWithEmailAndPassword(email,password);
-      if(name&&credential.user)await credential.user.updateProfile({displayName:name});
-      user=auth.currentUser;updateProfile();showPanel('account',false);
-      toast('Your EasyRead account is ready.');
-    }else{await auth.signInWithEmailAndPassword(email,password);showPanel('account',false);toast('Welcome back to EasyRead.');}
-  }catch(error){setAuthStatus(friendlyAuthError(error),'error');}
-  finally{submit?.classList.remove('auth-loading');if(submit)submit.disabled=false;}
+  try{await initFirebase();if(authMode==='signup'){const credential=await auth.createUserWithEmailAndPassword(email,password);if(name&&credential.user)await credential.user.updateProfile({displayName:name});user=auth.currentUser;updateProfile();showPanel('account',false);toast('Your EasyRead account is ready.');}else{await auth.signInWithEmailAndPassword(email,password);showPanel('account',false);toast('Welcome back to EasyRead.');}}
+  catch(error){setAuthStatus(friendlyAuthError(error),'error');}finally{submit?.classList.remove('auth-loading');if(submit)submit.disabled=false;}
 }
 async function resetPassword(){
   const email=byId('auth-email')?.value.trim();if(!email)return setAuthStatus('Enter your email first, then choose “Forgot password?”.','error');
@@ -1357,7 +1356,7 @@ async function resetPassword(){
 }
 async function signIn(){return signInWithGoogle();}
 function queueCloudSync(){if(!user)return;clearTimeout(cloudSyncTimer);cloudSyncTimer=setTimeout(syncCloud,800);}
-async function syncCloud(){if(!user||!navigator.onLine)return;try{if(!firestore)await initFirebase();const ref=firestore.collection('users').doc(user.uid),snapshot=await ref.get(),remote=snapshot.exists?snapshot.data():{},data={};const localTombstones=local.get('er-vocabulary-deleted',{}),remoteTombstones=remote.vocabularyDeleted&&typeof remote.vocabularyDeleted==='object'?remote.vocabularyDeleted:{},tombstones={};for(const key of new Set([...Object.keys(remoteTombstones),...Object.keys(localTombstones)]))tombstones[key]=Math.max(Number(remoteTombstones[key]||0),Number(localTombstones[key]||0));const localDeletedSaved=local.get('er-deleted-saved-items',{}),remoteDeletedSaved=remote.deletedSavedItems&&typeof remote.deletedSavedItems==='object'?remote.deletedSavedItems:{},deletedSaved={};for(const key of new Set([...Object.keys(remoteDeletedSaved),...Object.keys(localDeletedSaved)]))deletedSaved[key]=Math.max(Number(remoteDeletedSaved[key]||0),Number(localDeletedSaved[key]||0));const localDeletedBookmarks=local.get('er-deleted-bookmarks',{}),remoteDeletedBookmarks=remote.deletedBookmarks&&typeof remote.deletedBookmarks==='object'?remote.deletedBookmarks:{},deletedBookmarks={};for(const key of new Set([...Object.keys(remoteDeletedBookmarks),...Object.keys(localDeletedBookmarks)]))deletedBookmarks[key]=Math.max(Number(remoteDeletedBookmarks[key]||0),Number(localDeletedBookmarks[key]||0));for(const [name,key]of Object.entries(STORE_KEYS)){const localItems=local.get(key,name==='stats'?{}:[]),remoteItems=Array.isArray(remote[name])?remote[name]:[];if(name==='stats'){const localStats=localItems&&typeof localItems==='object'&&!Array.isArray(localItems)?localItems:{},remoteStats=remote[name]&&typeof remote[name]==='object'&&!Array.isArray(remote[name])?remote[name]:{};data[name]={...remoteStats,...localStats};local.set(key,data[name]);continue;}let merged;if(name==='notes'||name==='highlights'){const kind=name==='notes'?'note':'highlight',byIdentity=new Map();for(const item of remoteItems)byIdentity.set(item.id?'id:'+item.id:savedItemLegacyKey(item,kind),item);for(const item of localItems)byIdentity.set(item.id?'id:'+item.id:savedItemLegacyKey(item,kind),item);merged=[...byIdentity.values()];}else{const seen=new Set();merged=[];for(const item of [...remoteItems,...localItems]){const identity=JSON.stringify(item);if(!seen.has(identity)){seen.add(identity);merged.push(item);}}}let finalItems=merged;if(name==='vocabulary'){finalItems=merged.filter(item=>{const word=String(item.word||'').trim().toLowerCase(),deletedAt=Number(tombstones[word]||0),savedAt=Number(item.created||0);return !deletedAt||savedAt>deletedAt;});}if(name==='notes'||name==='highlights'){const kind=name==='notes'?'note':'highlight';finalItems=merged.filter(item=>!savedItemTombstoneKeys(item,kind).some(tombstoneKey=>deletedSaved[tombstoneKey]));}if(name==='bookmarks'){finalItems=merged.filter(item=>!deletedBookmarks[item.id||savedItemLegacyKey(item,'bookmark')]);}data[name]=finalItems.slice(-1000);local.set(key,data[name]);}data.vocabularyDeleted=tombstones;data.deletedSavedItems=deletedSaved;data.deletedBookmarks=deletedBookmarks;local.set('er-vocabulary-deleted',tombstones);local.set('er-deleted-saved-items',deletedSaved);local.set('er-deleted-bookmarks',deletedBookmarks);await ref.set(data,{merge:true});byId('sync-label').textContent='Synced just now';byId('last-synced').textContent='Last synced '+new Date().toLocaleString();toast('Reading data synced.');}catch(error){byId('sync-label').textContent='Sync needs attention';console.warn('Sync failed',error);}}
+async function syncCloud(){if(!user||!navigator.onLine)return;try{if(!firestore)await initFirebase();const ref=firestore.collection('users').doc(user.uid),snapshot=await ref.get(),remote=snapshot.exists?snapshot.data():{},data={};if(typeof remote.photoData==='string'&&remote.photoData.startsWith('data:image/')&&remote.photoData.length<200000&&remote.photoData!==local.get('er-photo-'+user.uid,'')){local.set('er-photo-'+user.uid,remote.photoData);updateProfile();}const localTombstones=local.get('er-vocabulary-deleted',{}),remoteTombstones=remote.vocabularyDeleted&&typeof remote.vocabularyDeleted==='object'?remote.vocabularyDeleted:{},tombstones={};for(const key of new Set([...Object.keys(remoteTombstones),...Object.keys(localTombstones)]))tombstones[key]=Math.max(Number(remoteTombstones[key]||0),Number(localTombstones[key]||0));const localDeletedSaved=local.get('er-deleted-saved-items',{}),remoteDeletedSaved=remote.deletedSavedItems&&typeof remote.deletedSavedItems==='object'?remote.deletedSavedItems:{},deletedSaved={};for(const key of new Set([...Object.keys(remoteDeletedSaved),...Object.keys(localDeletedSaved)]))deletedSaved[key]=Math.max(Number(remoteDeletedSaved[key]||0),Number(localDeletedSaved[key]||0));const localDeletedBookmarks=local.get('er-deleted-bookmarks',{}),remoteDeletedBookmarks=remote.deletedBookmarks&&typeof remote.deletedBookmarks==='object'?remote.deletedBookmarks:{},deletedBookmarks={};for(const key of new Set([...Object.keys(remoteDeletedBookmarks),...Object.keys(localDeletedBookmarks)]))deletedBookmarks[key]=Math.max(Number(remoteDeletedBookmarks[key]||0),Number(localDeletedBookmarks[key]||0));for(const [name,key]of Object.entries(STORE_KEYS)){const localItems=local.get(key,name==='stats'?{}:[]),remoteItems=Array.isArray(remote[name])?remote[name]:[];if(name==='stats'){const localStats=localItems&&typeof localItems==='object'&&!Array.isArray(localItems)?localItems:{},remoteStats=remote[name]&&typeof remote[name]==='object'&&!Array.isArray(remote[name])?remote[name]:{};data[name]={...remoteStats,...localStats};local.set(key,data[name]);continue;}let merged;if(name==='notes'||name==='highlights'){const kind=name==='notes'?'note':'highlight',byIdentity=new Map();for(const item of remoteItems)byIdentity.set(item.id?'id:'+item.id:savedItemLegacyKey(item,kind),item);for(const item of localItems)byIdentity.set(item.id?'id:'+item.id:savedItemLegacyKey(item,kind),item);merged=[...byIdentity.values()];}else{const seen=new Set();merged=[];for(const item of [...remoteItems,...localItems]){const identity=JSON.stringify(item);if(!seen.has(identity)){seen.add(identity);merged.push(item);}}}let finalItems=merged;if(name==='vocabulary'){finalItems=merged.filter(item=>{const word=String(item.word||'').trim().toLowerCase(),deletedAt=Number(tombstones[word]||0),savedAt=Number(item.created||0);return !deletedAt||savedAt>deletedAt;});}if(name==='notes'||name==='highlights'){const kind=name==='notes'?'note':'highlight';finalItems=merged.filter(item=>!savedItemTombstoneKeys(item,kind).some(tombstoneKey=>deletedSaved[tombstoneKey]));}if(name==='bookmarks'){finalItems=merged.filter(item=>!deletedBookmarks[item.id||savedItemLegacyKey(item,'bookmark')]);}data[name]=finalItems.slice(-1000);local.set(key,data[name]);}data.vocabularyDeleted=tombstones;data.deletedSavedItems=deletedSaved;data.deletedBookmarks=deletedBookmarks;local.set('er-vocabulary-deleted',tombstones);local.set('er-deleted-saved-items',deletedSaved);local.set('er-deleted-bookmarks',deletedBookmarks);await ref.set(data,{merge:true});byId('sync-label').textContent='Synced just now';byId('last-synced').textContent='Last synced '+new Date().toLocaleString();toast('Reading data synced.');}catch(error){byId('sync-label').textContent='Sync needs attention';console.warn('Sync failed',error);}}
 function updateInstallButton() {
   const button = byId('install-btn');
   if (!button) return;
@@ -1493,7 +1492,7 @@ async function init() {
   window.__easyReadReady = true;
 }
 let matches=[],matchIndex=-1;async function searchBook(){const query=byId('search-input').value.trim().toLowerCase(),token=++searchToken;if(CSS.highlights)CSS.highlights.delete('search');matches=[];pdfSearchMatches=[];matchIndex=pdfSearchIndex=-1;if(!query){byId('search-count').textContent='';return;}if(activePdf&&pdfMode){for(let pageNumber=1;pageNumber<=activePdf.numPages;pageNumber++){if(token!==searchToken)return;const page=await activePdf.getPage(pageNumber),content=await page.getTextContent(),text=content.items.map(item=>item.str).join(' ').toLowerCase();let from=0,index;while((index=text.indexOf(query,from))>=0){pdfSearchMatches.push({page:pageNumber});from=index+query.length;}if(pageNumber%20===0){byId('search-count').textContent=`Searching ${pageNumber} of ${activePdf.numPages}…`;await new Promise(requestAnimationFrame);}}if(token!==searchToken)return;byId('search-count').textContent=`${pdfSearchMatches.length} results`;if(pdfSearchMatches.length)moveMatch(1);return;}const walker=document.createTreeWalker(reader,NodeFilter.SHOW_TEXT);while(walker.nextNode()){const node=walker.currentNode;let from=0,index;while((index=node.data.toLowerCase().indexOf(query,from))>=0){const range=new Range();range.setStart(node,index);range.setEnd(node,index+query.length);matches.push(range);from=index+query.length;}}if(CSS.highlights&&matches.length)CSS.highlights.set('search',new Highlight(...matches));byId('search-count').textContent=`${matches.length} results`;if(matches.length)moveMatch(1);}
-function fullscreenReaderHost(){return document.fullscreenElement===readerWrap||document.fullscreenElement===pdfPages||document.fullscreenElement===reader?document.fullscreenElement:null;}
+function fullscreenReaderHost(){return document.fullscreenElement===readerWrap||document.fullscreenElement===pdfPages?document.fullscreenElement:null;}
 function getFullscreenDictionaryLayer(host){
   if(!host)return null;
   let layer=host.querySelector(':scope > #fullscreen-dictionary-layer');
@@ -1503,37 +1502,7 @@ function getFullscreenDictionaryLayer(host){
     layer.setAttribute('aria-live','polite');
     host.append(layer);
   }
-  ensureFullscreenReaderControls(layer);
   return layer;
-}
-function ensureFullscreenReaderControls(layer){
-  if(!layer || layer.querySelector('#fullscreen-reader-controls')) return;
-  const controls=document.createElement('div');
-  controls.id='fullscreen-reader-controls';
-  controls.className='fullscreen-reader-controls';
-  controls.setAttribute('role','group');
-  controls.setAttribute('aria-label','Fullscreen document controls');
-  const makeButton=(id,label,aria,action)=>{
-    const button=document.createElement('button');
-    button.type='button';button.id=id;button.className='btn';
-    button.textContent=label;button.setAttribute('aria-label',aria);
-    button.addEventListener('click',action);
-    controls.append(button);
-  };
-  makeButton('fullscreen-ask-ai','✦ Ask AI','Ask AI about this passage',()=>{
-    const trigger=byId('ask-ai-toggle')||byId('ask-ai-float');
-    if(trigger) trigger.click();
-  });
-  makeButton('fullscreen-zoom-out','−','Zoom out',()=>{
-    if(activePdf) scalePdf(-.15); else changeReaderTextSize(-.1);
-  });
-  makeButton('fullscreen-zoom-in','+','Zoom in',()=>{
-    if(activePdf) scalePdf(.15); else changeReaderTextSize(.1);
-  });
-  makeButton('fullscreen-exit','Exit fullscreen','Exit fullscreen document view',()=>{
-    if(document.fullscreenElement) document.exitFullscreen?.().catch(()=>{});
-  });
-  layer.append(controls);
 }
 function movePopupToFullscreenHost(){
   const host=fullscreenReaderHost();
@@ -1737,9 +1706,11 @@ function markPanelOpened(id) {
   panelJustOpened = id;
   setTimeout(() => { panelJustOpened = ''; }, 0);
 }
-function closeOtherPanels(except = '') {
+function closeOtherPanels(except = '', outsideClick = false) {
+  if (except !== 'tools-sheet') { const sheet = byId('tools-sheet'); if (sheet && !sheet.hidden) { sheet.hidden = true; byId('tools-btn')?.setAttribute('aria-expanded', 'false'); } }
   document.querySelectorAll('.panel, .contents').forEach(panel => {
     if (panel.id === except) return;
+    if (outsideClick && panel.dataset.sticky === 'true') return;
     if (panel.classList.contains('contents')) panel.classList.remove('open');
     else panel.hidden = true;
   });
@@ -1776,7 +1747,7 @@ document.addEventListener('click', event => {
   const anyOpen = document.querySelector('.panel:not([hidden]), .contents.open');
   if (!anyOpen) return;
   if (inside('.panel, .contents, #popup, dialog, #signin-modal, #library-backdrop')) return;
-  closeOtherPanels(panelJustOpened);
+  closeOtherPanels(panelJustOpened, true);
 });
 
 // Library panel: All books / Favorites switch.
@@ -2011,151 +1982,231 @@ async function restoreBooks() {
   addEventListener('scroll', () => { if (!ticking) { ticking = true; requestAnimationFrame(update); } }, { passive: true });
 })();
 
-
-// ---------- Ask AI about a selected phrase or sentence while reading ----------
+// ---------- Ask AI: ask about a selected phrase or sentence (same Gemini key as Explain simply) ----------
 (() => {
-  const bind = () => {
-    const toggles = [byId('ask-ai-toggle'), byId('ask-ai-float')].filter(Boolean);
-    const toggle = byId('ask-ai-toggle');
-    const panel = byId('ai-passage-panel');
-    const passage = byId('ai-passage-text');
-    const question = byId('ai-passage-question');
-    const answer = byId('ai-passage-answer');
-    const submit = byId('ai-passage-submit');
-    const count = byId('ai-passage-count');
-    if (!toggles.length || !panel || !passage || !question || !answer || !submit) return;
+  const panel = byId('ask-ai');
+  if (!panel) return;
+  const log = byId('ask-ai-log'), input = byId('ask-ai-input'), form = byId('ask-ai-form'), send = byId('ask-ai-send');
+  const quoteBox = byId('ask-ai-quote'), quoteText = byId('ask-ai-quote-text'), hint = byId('ask-ai-hint'), chips = byId('ask-ai-chips'), newChat = byId('ask-ai-new');
+  const phone = matchMedia('(max-width: 900px)');
+  let subject = { text: '', context: '' }, history = [], busy = false, controller = null, unavailable = false;
+  const norm = value => String(value || '').replace(/\s+/g, ' ').trim();
 
-    // Keep the panel in the active fullscreen subtree, otherwise browsers hide it
-    // when Full document is opened on the PDF pages element.
-    const originalParent = panel.parentElement;
-    const originalNextSibling = panel.nextSibling;
-    const movePanelForFullscreen = () => {
-      const host = typeof fullscreenReaderHost === 'function' ? fullscreenReaderHost() : null;
-      if (host) {
-        const layer = typeof getFullscreenDictionaryLayer === 'function' ? getFullscreenDictionaryLayer(host) : null;
-        if (layer && panel.parentElement !== layer) layer.appendChild(panel);
-      } else if (originalParent && panel.parentElement !== originalParent) {
-        originalParent.insertBefore(panel, originalNextSibling?.parentElement === originalParent ? originalNextSibling : null);
-      }
-    };
-    document.addEventListener('fullscreenchange', movePanelForFullscreen);
-
-    let rememberedSelection = '';
-    const getSelectedPassage = () => {
-      const selection = window.getSelection();
-      const text = String(selection?.toString() || '').replace(/\s+/g, ' ').trim();
-      if (!text) return rememberedSelection;
-      const anchor = selection?.anchorNode;
-      const reader = byId('reader-wrap');
-      if (reader && anchor && reader.contains(anchor)) {
-        rememberedSelection = text.slice(0, 900);
-        return rememberedSelection;
-      }
-      return text.slice(0, 900);
-    };
-    document.addEventListener('selectionchange', () => {
-      const selection = window.getSelection();
-      const text = String(selection?.toString() || '').replace(/\s+/g, ' ').trim();
-      const anchor = selection?.anchorNode;
-      const reader = byId('reader-wrap');
-      if (text && reader && anchor && reader.contains(anchor)) rememberedSelection = text.slice(0, 900);
-    });
-
-    const updateCount = () => { if (count) count.textContent = passage.value.length + ' / 900'; };
-    const openPanel = () => {
-      panel.hidden = false;
-      toggles.forEach(button => button.setAttribute('aria-expanded', 'true'));
-      document.body.classList.add('ask-ai-open');
-      const selected = getSelectedPassage();
-      if (selected) passage.value = selected;
-      updateCount();
-      requestAnimationFrame(() => passage.focus({ preventScroll: true }));
-    };
-    const closePanel = (restoreFocus = true) => {
-      if (panel.hidden) return;
-      panel.hidden = true;
-      toggles.forEach(button => button.setAttribute('aria-expanded', 'false'));
-      document.body.classList.remove('ask-ai-open');
-      if (restoreFocus) toggle?.focus({ preventScroll: true });
-    };
-
-    toggles.forEach(button => {
-      button.addEventListener('pointerdown', () => { rememberedSelection = getSelectedPassage() || rememberedSelection; });
-      button.addEventListener('click', () => {
-        if (panel.hidden) openPanel();
-        else closePanel();
-      });
-    });
-    // Clicking anywhere outside the Ask AI dialog dismisses it without stealing focus.
-    document.addEventListener('pointerdown', event => {
-      if (panel.hidden) return;
-      if (panel.contains(event.target) || toggles.some(button => button.contains(event.target)) ||
-          event.target.closest?.('#fullscreen-ask-ai')) return;
-      closePanel(false);
-    }, true);
-    byId('ai-passage-close')?.addEventListener('click', closePanel);
-    passage.addEventListener('input', updateCount);
-    passage.addEventListener('keydown', event => {
-      if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') panel.requestSubmit();
-    });
-
-    const cache = new Map();
-    panel.addEventListener('submit', async event => {
-      event.preventDefault();
-      const text = passage.value.replace(/\s+/g, ' ').trim().slice(0, 900);
-      const questionText = question.value.replace(/\s+/g, ' ').trim().slice(0, 300);
-      if (!text) {
-        passage.setCustomValidity('Select or enter a phrase or sentence first.');
-        passage.reportValidity();
-        passage.setCustomValidity('');
-        passage.focus();
-        return;
-      }
-      if (!navigator.onLine) {
-        answer.hidden = false;
-        answer.textContent = 'Connect to the internet to ask AI about this passage.';
-        return;
-      }
-      const cacheKey = text + '|' + questionText;
-      answer.hidden = false;
-      answer.textContent = 'Reading the passage…';
-      submit.disabled = true;
-      submit.textContent = 'Thinking…';
-      try {
-        let explanation = cache.get(cacheKey);
-        if (!explanation) {
-          const params = new URLSearchParams({ text, question: questionText });
-          const response = await fetch('/api/explain?' + params.toString(), {
-            headers: { accept: 'application/json' }
-          });
-          let data = {};
-          try { data = await response.json(); } catch {}
-          if (!response.ok) {
-            const error = new Error(data.error || 'AI explanation is unavailable right now.');
-            error.notConfigured = Boolean(data.notConfigured);
-            throw error;
-          }
-          explanation = String(data.explanation || '').trim();
-          if (!explanation) throw new Error('AI did not return an explanation. Please try again.');
-          cache.set(cacheKey, explanation);
-        }
-        answer.replaceChildren();
-        const responseText = document.createElement('p');
-        responseText.className = 'ai-passage-response';
-        responseText.textContent = explanation;
-        answer.append(responseText);
-        const source = document.createElement('small');
-        source.textContent = 'AI-generated by Gemini. It may miss the author’s intended meaning, so use the surrounding text as context.';
-        answer.append(source);
-        submit.textContent = 'Explain again';
-      } catch (error) {
-        answer.textContent = error.message || 'AI explanation is unavailable right now.';
-        submit.textContent = 'Try again';
-      } finally {
-        submit.disabled = false;
-      }
-    });
+  const render = () => {
+    const hasText = Boolean(subject.text);
+    quoteBox.hidden = !hasText;
+    quoteText.textContent = subject.text;
+    hint.hidden = hasText || history.length > 0 || log.childElementCount > 0;
+    newChat.hidden = !(hasText || log.childElementCount > 0);
+    chips.hidden = unavailable;
+    input.placeholder = hasText ? 'Ask about this text\u2026' : 'Ask a question about what you are reading\u2026';
+    send.disabled = busy;
+    panel.dataset.started = log.childElementCount > 0 ? 'true' : 'false';
   };
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind);
-  else bind();
+  const addMessage = (kind, text) => {
+    const item = document.createElement('div');
+    item.className = 'ask-msg ask-' + kind;
+    const paragraph = document.createElement('p');
+    paragraph.textContent = text;
+    item.append(paragraph);
+    log.append(item);
+    log.scrollTop = log.scrollHeight;
+    return item;
+  };
+  const reset = (text = '', context = '') => {
+    controller?.abort();
+    busy = false;
+    subject = { text: norm(text).slice(0, 600), context: norm(context).slice(0, 900) };
+    history = [];
+    log.replaceChildren();
+    render();
+  };
+
+  async function ask(rawQuestion) {
+    const question = norm(rawQuestion).slice(0, 300);
+    if (!question || busy) return;
+    if (!navigator.onLine) { addMessage('error', 'Connect to the internet to use Ask AI.'); return; }
+    addMessage('user', question);
+    const pending = addMessage('model', 'Thinking\u2026');
+    pending.classList.add('ask-thinking');
+    input.value = '';
+    busy = true;
+    render();
+    controller = new AbortController();
+    try {
+      const response = await fetch('/api/ask', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', accept: 'application/json' },
+        body: JSON.stringify({ text: subject.text, context: subject.context, question, history: history.slice(-6) }),
+        signal: controller.signal
+      });
+      let data = {};
+      try { data = await response.json(); } catch {}
+      if (!response.ok) {
+        const error = new Error(data.error || 'AI is unavailable right now.');
+        error.notConfigured = Boolean(data.notConfigured);
+        throw error;
+      }
+      pending.classList.remove('ask-thinking');
+      pending.firstChild.textContent = data.answer;
+      history.push({ role: 'user', text: question }, { role: 'model', text: data.answer });
+    } catch (error) {
+      if (error.name === 'AbortError') { pending.remove(); return; }
+      pending.classList.remove('ask-thinking');
+      pending.className = 'ask-msg ask-error';
+      if (error.notConfigured) { unavailable = true; pending.firstChild.textContent = 'Ask AI is not set up on this site yet.'; }
+      else pending.firstChild.textContent = error.message || 'AI is unavailable right now.';
+    } finally {
+      busy = false;
+      render();
+    }
+  }
+
+  function open(details = {}) {
+    showPanel('ask-ai', true);
+    const text = norm(details.text);
+    if (text && text !== subject.text) reset(text, details.context);
+    else render();
+    if (details.draft) input.value = details.draft;
+    if (details.question) ask(details.question);
+    else if (matchMedia('(hover: hover)').matches) input.focus();
+  }
+  window.openAskAi = open;
+
+  // ----- selection helpers -----
+  const contextAround = (range, text) => {
+    try {
+      const start = range.startContainer;
+      const element = start.nodeType === Node.TEXT_NODE ? start.parentElement : start;
+      const block = element?.closest?.('p,li,blockquote,.pdf-page,.page,#reader') || element;
+      const full = norm(block?.textContent);
+      const wanted = norm(text);
+      const at = full.indexOf(wanted.slice(0, 60));
+      if (at < 0) return '';
+      return full.slice(Math.max(0, at - 300), Math.min(full.length, at + wanted.length + 300));
+    } catch { return ''; }
+  };
+  const captureSelection = () => {
+    const selection = getSelection();
+    if (!selection || selection.isCollapsed || !selection.rangeCount) return null;
+    const range = selection.getRangeAt(0);
+    const text = norm(selection.toString());
+    if (text.split(' ').length < 2 || text.length > 600) return null;
+    const node = range.commonAncestorContainer;
+    const element = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
+    if (!element?.closest?.('#reader, #pdf-pages, .readable') || element.closest('#ask-ai, #popup, input, textarea, dialog')) return null;
+    return { text, context: contextAround(range, text), rect: range.getBoundingClientRect() };
+  };
+
+  // ----- floating "Ask AI" chip near a selection -----
+  const chip = document.createElement('button');
+  chip.id = 'ask-ai-chip';
+  chip.className = 'ask-selection-chip';
+  chip.type = 'button';
+  chip.hidden = true;
+  chip.innerHTML = '<span aria-hidden="true">\u2726</span> Ask AI';
+  document.body.append(chip);
+  let chipSelection = null, chipTimer = 0;
+  const hideChip = () => { chip.hidden = true; chipSelection = null; };
+  const updateChip = () => {
+    if (unavailable) return hideChip();
+    const found = captureSelection();
+    if (!found) return hideChip();
+    chipSelection = found;
+    chip.hidden = false;
+    chip.classList.toggle('dock', phone.matches);
+    if (!phone.matches) {
+      if (found.rect.bottom < 60 || found.rect.top > innerHeight - 20) return hideChip();
+      const width = chip.offsetWidth || 90;
+      const above = found.rect.top - 46;
+      chip.style.top = `${above > 72 ? above : found.rect.bottom + 10}px`;
+      chip.style.left = `${Math.min(Math.max(8, found.rect.left + found.rect.width / 2 - width / 2), innerWidth - width - 8)}px`;
+    } else { chip.style.top = ''; chip.style.left = ''; }
+  };
+  const scheduleChip = () => { clearTimeout(chipTimer); chipTimer = setTimeout(updateChip, 300); };
+  document.addEventListener('selectionchange', scheduleChip);
+  addEventListener('scroll', () => { if (!chip.hidden) scheduleChip(); }, { passive: true });
+  chip.addEventListener('mousedown', event => event.preventDefault());
+  chip.addEventListener('click', () => {
+    const found = chipSelection || captureSelection();
+    hideChip();
+    if (found) open({ text: found.text, context: found.context });
+  });
+
+  // ----- wiring -----
+  byId('ask-ai-btn')?.addEventListener('click', () => {
+    const found = captureSelection();
+    open(found ? { text: found.text, context: found.context } : {});
+  });
+  byId('ask-ai-close')?.addEventListener('click', () => { panel.hidden = true; });
+  newChat.addEventListener('click', () => { reset(); input.focus?.(); });
+  chips.addEventListener('click', event => { const button = event.target.closest('[data-ask]'); if (button) ask(button.dataset.ask); });
+  form.addEventListener('submit', event => { event.preventDefault(); ask(input.value); });
+  input.addEventListener('keydown', event => { if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); ask(input.value); } });
+  render();
+})();
+
+// ---------- Reader tools: a slim bar plus a roomy Tools sheet on phones; everything stays in the bar on desktop ----------
+(() => {
+  const phone = matchMedia('(max-width: 700px)');
+  const sheet = byId('tools-sheet'), grid = byId('tools-sheet-grid'), toolsBtn = byId('tools-btn');
+  if (!sheet || !grid || !toolsBtn) return;
+  const el = id => byId(id);
+  const place = (parent, nodes, before = null) => nodes.filter(Boolean).forEach(node => parent.insertBefore(node, before));
+  const closeSheet = () => { sheet.hidden = true; toolsBtn.setAttribute('aria-expanded', 'false'); };
+  const openSheet = () => {
+    closeOverlayPanels();
+    byId('contents')?.classList.remove('open');
+    hidePopup?.();
+    sheet.hidden = false;
+    toolsBtn.setAttribute('aria-expanded', 'true');
+  };
+  const layout = () => {
+    const primary = document.querySelector('.bar-primary'), menu = document.querySelector('.toolbar-menu'), barEnd = document.querySelector('.bar-end');
+    const timer = document.querySelector('.reading-timer'), textSize = document.querySelector('.toolbar-menu .text-size, #tools-sheet-grid .text-size');
+    if (!primary || !menu || !barEnd) return;
+    if (phone.matches) {
+      place(grid, [timer, el('saved-btn'), el('notes-btn'), el('dictionary-btn'), el('ask-ai-btn'), el('full-document-btn'), el('focus-btn'), el('fullscreen-btn'), el('settings-btn'), textSize, el('again')]);
+    } else {
+      closeSheet();
+      place(primary, [el('contents-btn'), el('saved-btn'), el('notes-btn'), el('search-btn'), el('dictionary-btn'), el('ask-ai-btn')]);
+      place(menu, [el('full-document-btn'), el('focus-btn'), el('fullscreen-btn'), el('settings-btn'), textSize, el('again')]);
+      if (timer) barEnd.insertBefore(timer, document.querySelector('.page-jump-inline'));
+    }
+  };
+  toolsBtn.addEventListener('click', event => { event.stopPropagation(); if (sheet.hidden) openSheet(); else closeSheet(); });
+  byId('tools-close')?.addEventListener('click', closeSheet);
+  sheet.addEventListener('click', event => {
+    const button = event.target.closest('button');
+    if (!button || ['tools-close', 'smaller', 'larger', 'timer-toggle', 'timer-reset'].includes(button.id)) return;
+    setTimeout(closeSheet, 0);
+  });
+  document.addEventListener('click', event => {
+    if (sheet.hidden) return;
+    const path = event.composedPath();
+    if (!path.includes(sheet) && !path.includes(toolsBtn)) closeSheet();
+  });
+  document.addEventListener('keydown', event => { if (event.key === 'Escape' && !sheet.hidden) closeSheet(); });
+  phone.addEventListener?.('change', layout);
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', layout); else layout();
+})();
+
+
+// ---------- Profile picture (custom photo overrides the Google one; stored locally and in the user's own Firestore doc) ----------
+function profilePhoto(){return user?(local.get('er-photo-'+user.uid,'')||user.photoURL||''):'';}
+(() => {
+  const input=byId('photo-input'),pick=byId('photo-change'),remove=byId('photo-remove');
+  if(!input||!pick)return;
+  const saveRemote=async data=>{try{if(!firestore)await initFirebase();await firestore.collection('users').doc(user.uid).set({photoData:data},{merge:true});}catch(e){}};
+  pick.addEventListener('click',()=>input.click());
+  input.addEventListener('change',async()=>{
+    const file=input.files?.[0];input.value='';if(!file||!user)return;
+    if(!/^image\//.test(file.type))return toast('Please choose an image file.');
+    try{
+      const bmp=await createImageBitmap(file),size=256,side=Math.min(bmp.width,bmp.height),canvas=document.createElement('canvas');
+      canvas.width=canvas.height=size;canvas.getContext('2d').drawImage(bmp,(bmp.width-side)/2,(bmp.height-side)/2,side,side,0,0,size,size);
+      const data=canvas.toDataURL('image/jpeg',.85);local.set('er-photo-'+user.uid,data);updateProfile();toast('Profile picture updated.');saveRemote(data);
+    }catch(e){toast('That image could not be used. Try another one.');}
+  });
+  remove?.addEventListener('click',()=>{if(!user)return;local.remove?local.remove('er-photo-'+user.uid):localStorage.removeItem('er-photo-'+user.uid);updateProfile();toast('Profile picture removed.');saveRemote('');});
 })();

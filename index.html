@@ -160,32 +160,22 @@
   </section>
 
   <section id="reader-wrap" class="reader-wrap" hidden>
-    <button id="ask-ai-float" class="ask-ai-float" type="button" aria-expanded="false" aria-controls="ai-passage-panel"><span class="ask-ai-float-icon" aria-hidden="true">✦</span><span>Ask AI</span></button>
     <div class="bar">
-      <div class="bar-primary"><button id="contents-btn" class="btn" type="button" aria-expanded="false" aria-controls="contents">Contents</button><button id="saved-btn" class="btn" type="button">Saved words</button><button id="notes-btn" class="btn" type="button">My notes</button><button id="full-document-btn" class="btn" type="button">Full document</button><button id="search-btn" class="btn" type="button">Search</button><button id="dictionary-btn" class="btn" type="button" aria-expanded="false" aria-controls="dictionary-panel">Dictionary</button><button id="ask-ai-toggle" class="btn ai-passage-toggle" type="button" aria-expanded="false" aria-controls="ai-passage-panel">Ask AI</button></div>
+      <div class="bar-primary"><button id="contents-btn" class="btn" type="button" aria-expanded="false" aria-controls="contents">Contents</button><button id="saved-btn" class="btn" type="button">Saved words</button><button id="notes-btn" class="btn" type="button">My notes</button><button id="full-document-btn" class="btn" type="button">Full document</button><button id="search-btn" class="btn" type="button">Search</button><button id="dictionary-btn" class="btn" type="button" aria-expanded="false" aria-controls="dictionary-panel">Dictionary</button></div>
       
       <div class="bar-end">
         <div class="reading-timer" role="group" aria-label="Reading timer"><output id="timer-display" aria-live="off" aria-label="Elapsed reading time">00:00</output><span id="timer-state" class="timer-state">Counting up</span><button id="timer-toggle" class="icon-btn" type="button" aria-label="Pause reading timer">Pause</button><button id="timer-reset" class="icon-btn" type="button" aria-label="Reset reading timer">Reset</button></div>
         <label class="page-jump-inline" for="reader-page-jump">Page <input id="reader-page-jump" type="number" min="1" inputmode="numeric" value="1" aria-label="Jump to page"><span id="reader-page-total" class="page-total"></span></label>
       <span id="page-now"></span>
       <span id="progress"></span>
-      <details class="toolbar-more"><summary class="btn">More</summary><div class="toolbar-menu"><button id="focus-btn" class="btn" type="button">Focus</button><button id="fullscreen-btn" class="btn" type="button" aria-label="Enter fullscreen reading">Fullscreen</button><button id="settings-btn" class="btn" type="button" aria-expanded="false">Settings</button><span class="text-size"><button id="smaller" class="btn" type="button" aria-label="Smaller text">A−</button><button id="larger" class="btn" type="button" aria-label="Larger text">A+</button></span><button id="again" class="btn" type="button">New file</button></div></details>
+      <button id="tools-btn" class="btn tools-btn" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="tools-sheet"><span class="tools-label">Tools</span></button>
+      <details class="toolbar-more"><summary class="btn">More</summary><div class="toolbar-menu"><button id="ask-ai-btn" class="btn" type="button">Ask AI</button><button id="focus-btn" class="btn" type="button">Focus</button><button id="fullscreen-btn" class="btn" type="button" aria-label="Enter fullscreen reading">Fullscreen</button><button id="settings-btn" class="btn" type="button" aria-expanded="false">Settings</button><span class="text-size"><button id="smaller" class="btn" type="button" aria-label="Smaller text">A−</button><button id="larger" class="btn" type="button" aria-label="Larger text">A+</button></span><button id="again" class="btn" type="button">New file</button></div></details>
       </div>
     </div>
     <form id="dictionary-panel" class="dictionary-panel" hidden>
       <label for="dictionary-query">Look up a word</label>
       <input id="dictionary-query" type="search" maxlength="60" autocomplete="off" spellcheck="false" placeholder="Type an English word">
       <button id="dictionary-submit" class="btn" type="submit">Look up</button>
-    </form>
-    <form id="ai-passage-panel" class="ai-passage-panel" hidden>
-      <div class="ai-passage-heading"><div><p class="eyebrow">READING COMPANION</p><h3>Ask AI about this passage</h3><p>Select a phrase or sentence in your book, then ask what it means.</p></div><button id="ai-passage-close" class="icon-btn" type="button" aria-label="Close AI explanation panel">×</button></div>
-      <label for="ai-passage-text">Phrase or sentence</label>
-      <textarea id="ai-passage-text" maxlength="900" rows="3" placeholder="Select text in your book, or type/paste a passage here…" required></textarea>
-      <label for="ai-passage-question">What would you like to understand? <span>(optional)</span></label>
-      <input id="ai-passage-question" type="text" maxlength="300" placeholder="e.g. What does the author imply here?">
-      <div class="ai-passage-footer"><small id="ai-passage-count">0 / 900</small><button id="ai-passage-submit" class="btn" type="submit">Explain this passage</button></div>
-      <div id="ai-passage-answer" class="ai-passage-answer" role="status" aria-live="polite" hidden></div>
-      <p class="ai-passage-disclaimer">AI explanations can make mistakes. Use them as a guide alongside the book.</p>
     </form>
     <header class="doc-head">
       <p id="file-name" class="doc-title"></p>
@@ -237,6 +227,11 @@
 
 <footer class="site-footer"><span class="footer-credit">Rob_Era (Abiti) <span aria-hidden="true">♥</span> Made with love</span><span class="footer-links"><a id="contact-link" href="#contact">Contact</a><button id="privacy-link" class="footer-button" type="button">Privacy</button><button id="shortcuts-link" class="footer-button" type="button">Shortcuts</button><a class="coffee-link" href="https://gurshaplus.com/apothecariwu" target="_blank" rel="noopener noreferrer"><span aria-hidden="true">☕</span> Buy me a coffee <span aria-hidden="true">↗</span></a></span></footer>
 
+<aside id="tools-sheet" class="tools-sheet" hidden role="dialog" aria-modal="false" aria-label="Reader tools">
+  <div class="tools-sheet-head"><strong>Reader tools</strong><button id="tools-close" class="btn" type="button">Close</button></div>
+  <div id="tools-sheet-grid" class="tools-sheet-grid"></div>
+</aside>
+
 <aside id="contents" class="contents" aria-label="Contents">
   <div class="contents-head"><h2>Contents</h2><button id="contents-close" class="btn" type="button">Close</button></div>
   <label class="jump">Go to page <input id="jump" type="number" min="1" inputmode="numeric" placeholder="12"></label>
@@ -276,13 +271,27 @@
   <label>Page width <input id="width" type="range" min="620" max="980" step="20" value="780"></label>
   <label class="check"><input id="contrast" type="checkbox"> High contrast</label>
   <label>Daily reading goal <select id="reading-goal"><option value="0">No goal</option><option value="10">10 minutes</option><option value="20">20 minutes</option><option value="30">30 minutes</option><option value="45">45 minutes</option><option value="60">60 minutes</option></select></label>
-  <label>Reading language <select id="source-language"><option value="en">English</option><option value="am">Amharic</option><option value="es">Spanish</option><option value="fr">French</option><option value="de">German</option></select></label>
-  <label>Translation language <select id="translation-language"><option value="am">Amharic</option><option value="es">Spanish</option><option value="fr">French</option><option value="de">German</option></select></label>
+  <label>Reading language <select id="source-language"><option value="en">English</option><option value="am">Amharic</option><option value="om">Afaan Oromoo</option><option value="ti">Tigrinya</option><option value="so">Somali</option><option value="ar">Arabic</option><option value="sw">Swahili</option><option value="es">Spanish</option><option value="fr">French</option><option value="de">German</option></select></label>
+  <label>Translation language <select id="translation-language"><option value="am">Amharic</option><option value="om">Afaan Oromoo</option><option value="ti">Tigrinya</option><option value="so">Somali</option><option value="ar">Arabic</option><option value="sw">Swahili</option><option value="es">Spanish</option><option value="fr">French</option><option value="de">German</option></select></label>
   <label>Read-aloud speed <input id="speech-rate" type="range" min="0.7" max="1.4" step="0.1" value="1"><output id="speech-rate-value">1.0×</output></label>
   <label>Voice <select id="speech-voice"><option value="">Browser default</option></select></label>
 </aside>
 
 <aside id="notes-panel" class="panel notes-panel" hidden role="dialog" aria-modal="true" aria-labelledby="notes-panel-title"><div class="contents-head"><h2 id="notes-panel-title">My notes &amp; highlights</h2><button id="notes-close" class="btn" type="button">Close</button></div><label class="library-search">Find a note <input id="notes-search" type="search" placeholder="Search notes and highlights"></label><div id="my-notes-list"></div></aside>
+
+<aside id="ask-ai" class="panel ask-panel" data-sticky="true" hidden role="dialog" aria-modal="false" aria-labelledby="ask-ai-title">
+  <div class="contents-head"><h2 id="ask-ai-title">Ask AI</h2><span class="ask-head-actions"><button id="ask-ai-new" class="btn" type="button" hidden>New chat</button><button id="ask-ai-close" class="btn" type="button">Close</button></span></div>
+  <div id="ask-ai-quote" class="ask-quote" hidden><span class="ask-quote-label">About this text</span><q id="ask-ai-quote-text"></q></div>
+  <p id="ask-ai-hint" class="note">Select a phrase or sentence in your book, then ask what it means. You can also type any question about what you are reading.</p>
+  <div id="ask-ai-chips" class="ask-chips" role="group" aria-label="Quick questions"><button class="ask-chip-btn" type="button" data-ask="What does this mean?">What does this mean?</button><button class="ask-chip-btn" type="button" data-ask="Explain this in simpler words.">Simpler words</button><button class="ask-chip-btn" type="button" data-ask="Give me an easy example.">Give an example</button><button class="ask-chip-btn" type="button" data-ask="Why is it said this way?">Why this way?</button></div>
+  <div id="ask-ai-log" class="ask-log" role="log" aria-live="polite" aria-relevant="additions"></div>
+  <form id="ask-ai-form" class="ask-form">
+    <label class="sr-only" for="ask-ai-input">Your question</label>
+    <textarea id="ask-ai-input" rows="2" maxlength="300" placeholder="Ask about this text…" enterkeyhint="send"></textarea>
+    <button id="ask-ai-send" class="btn account-action" type="submit">Ask</button>
+  </form>
+  <p class="ask-note">AI-generated by Gemini. It can make mistakes, so check important meanings in a dictionary or with your teacher.</p>
+</aside>
 
 <aside id="vocab" class="panel vocab-panel" hidden role="dialog" aria-modal="true" aria-labelledby="vocab-title">
   <div class="contents-head"><h2 id="vocab-title">My vocabulary</h2><button id="vocab-close" class="btn" type="button">Close</button></div>
@@ -337,7 +346,8 @@
     <p id="auth-status" class="note" role="status" aria-live="polite"></p>
   </div>
   <div id="account-signed-in" hidden>
-    <div class="account-summary"><img id="account-photo" class="account-photo" alt="Profile photo"><div><strong id="account-name"></strong><small id="account-email"></small></div></div>
+    <div class="account-summary"><img id="account-photo" class="account-photo" alt="Your profile picture"><div><strong id="account-name"></strong><small id="account-email"></small></div></div>
+    <div class="photo-actions"><input id="photo-input" type="file" accept="image/*" hidden><button id="photo-change" class="btn" type="button">Change picture</button><button id="photo-remove" class="btn" type="button" hidden>Remove</button></div>
     <p id="sync-status" class="sync-state"><span class="sync-dot"></span><span id="sync-label">Not synced yet</span></p>
     <p id="last-synced" class="note"></p>
     <p id="pending-sync" class="note"></p>
@@ -388,7 +398,7 @@
     <div class="privacy-detail-heading"><span class="privacy-detail-icon" aria-hidden="true">⌕</span><div><h3>Online tools</h3><p>Dictionary, translation and other connected services may send the specific text or request needed to provide that feature.</p></div></div>
   </section>
   <section class="privacy-detail">
-    <div class="privacy-detail-heading"><span class="privacy-detail-icon" aria-hidden="true">✦</span><div><h3>Explain simply (AI)</h3><p>Only when you tap this button, the word and the sentence around it are sent to Google&rsquo;s Gemini service to write a simple explanation. Nothing is sent otherwise. On the free tier, Google may use these requests to improve its products.</p></div></div>
+    <div class="privacy-detail-heading"><span class="privacy-detail-icon" aria-hidden="true">✦</span><div><h3>Explain simply (AI)</h3><p>Only when you tap Explain simply or use Ask AI, the word or text you selected, the passage around it and your question are sent to Google&rsquo;s Gemini service to write an explanation or translation. Nothing is sent otherwise. On the free tier, Google may use these requests to improve its products.</p></div></div>
     <span class="privacy-tag">Only when you tap it</span>
   </section>
   <section class="privacy-actions" aria-label="Manage your data">
