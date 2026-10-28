@@ -1737,3 +1737,19 @@ body.ask-ai-open #ai-passage-panel { z-index: 1001; }
   .bar-primary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .bar-primary .btn { font-size: .82rem; }
 }
+
+
+/* Keep the AI translation directly beneath the dictionary word heading. */
+#popup > .translation-result[hidden] { display: none; }
+#popup > .translation-result {
+  margin: 9px 0 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(226,196,139,.28);
+  border-radius: 10px;
+  background: rgba(226,196,139,.09);
+  color: #f6e8c8;
+  font-size: .86rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+#popup > .translation-result:empty { display: none; }
