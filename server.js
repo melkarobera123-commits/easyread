@@ -3,11 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const { lookupWordnet } = require('./dictionary');
 const { lookupRemoteDictionary } = require('./dictionary-fallback');
-<<<<<<< HEAD
-const { handleExplain } = require('./gemini-explain');
-=======
 const { handleExplain, handleAsk, handleTranslate } = require('./gemini-explain');
->>>>>>> f71cf40e2a9f313a9f3b350caccc5d221e162eb6
 
 const root = __dirname;
 const port = Number(process.env.PORT || 8080);
@@ -18,25 +14,6 @@ function send(res, status, body, type = 'application/json') {
 }
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
-<<<<<<< HEAD
-  if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, JSON.stringify({ error: 'Method not allowed.' }));
-  if (url.pathname === '/api/explain') {
-    const query = Object.fromEntries(url.searchParams.entries());
-    const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown').split(',')[0].trim();
-    return handleExplain({ method: req.method, query, headers: req.headers, ip }).then(result => {
-      res.writeHead(result.status, {
-        'Content-Type': 'application/json; charset=utf-8',
-        'Cache-Control': 'no-store',
-        'X-Content-Type-Options': 'nosniff',
-        'Referrer-Policy': 'strict-origin-when-cross-origin',
-        ...result.headers
-      });
-      res.end(JSON.stringify(result.body));
-    }).catch(error => {
-      console.error('AI explanation failed:', error);
-      send(res, 500, JSON.stringify({ error: 'AI explanation is temporarily unavailable.' }));
-    });
-=======
   if (req.method === 'POST' && url.pathname === '/api/ask') {
     let raw = '';
     req.on('data', chunk => { raw += chunk; if (raw.length > 20000) req.destroy(); });
@@ -49,7 +26,6 @@ const server = http.createServer((req, res) => {
   }
   if (url.pathname === '/api/explain') {
     return handleExplain({ method: req.method, query: Object.fromEntries(url.searchParams), headers: req.headers, ip: req.socket.remoteAddress }).then(result => send(res, result.status, JSON.stringify(result.body)));
->>>>>>> f71cf40e2a9f313a9f3b350caccc5d221e162eb6
   }
   if (url.pathname === '/api/definition') {
     const word = (url.searchParams.get('word') || '').trim().toLowerCase().replace(/\s+/g, '_');
