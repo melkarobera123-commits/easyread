@@ -1309,7 +1309,7 @@ async function signInWithGoogle(){
 }
 async function uploadProfilePhoto(file,targetUser=user){
   if(!file)return null;
-  if(!file.type?.startsWith('image/'))throw new Error('Choose a valid image file.');
+  if(!['image/jpeg','image/png','image/webp','image/gif'].includes(file.type))throw new Error('Choose a PNG, JPG, WebP, or GIF image.');
   if(file.size>5*1024*1024)throw new Error('Profile pictures must be 5 MB or smaller.');
   await loadLibrary('firebaseStorage');
   if(!firebase.storage)throw new Error('Profile photo storage is not available.');
@@ -1327,7 +1327,7 @@ function previewAuthPhoto(){
   const file=byId('auth-photo')?.files?.[0],preview=byId('auth-photo-preview');
   if(!preview)return;
   if(!file){preview.hidden=true;preview.removeAttribute('src');return;}
-  if(!file.type?.startsWith('image/')){setAuthStatus('Choose a valid image file.','error');byId('auth-photo').value='';preview.hidden=true;return;}
+  if(!['image/jpeg','image/png','image/webp','image/gif'].includes(file.type)){setAuthStatus('Choose a PNG, JPG, WebP, or GIF image.','error');byId('auth-photo').value='';preview.hidden=true;return;}
   if(file.size>5*1024*1024){setAuthStatus('Profile pictures must be 5 MB or smaller.','error');byId('auth-photo').value='';preview.hidden=true;return;}
   const url=URL.createObjectURL(file);preview.src=url;preview.hidden=false;preview.onload=()=>URL.revokeObjectURL(url);
 }
@@ -1340,7 +1340,7 @@ async function handleProfilePhotoSelection(event){
 async function submitEmailAuth(event){
   event.preventDefault();const email=byId('auth-email')?.value.trim(),password=byId('auth-password')?.value,name=byId('auth-name')?.value.trim(),photoFile=byId('auth-photo')?.files?.[0];
   if(!email||!password)return setAuthStatus('Enter your email and password.','error');if(authMode==='signup'&&!name)return setAuthStatus('Enter your name to create your account.','error');
-  if(authMode==='signup'&&photoFile&&(!photoFile.type?.startsWith('image/')||photoFile.size>5*1024*1024))return setAuthStatus('Choose an image up to 5 MB.','error');
+  if(authMode==='signup'&&photoFile&&(!['image/jpeg','image/png','image/webp','image/gif'].includes(photoFile.type)||photoFile.size>5*1024*1024))return setAuthStatus('Choose an image up to 5 MB.','error');
   const submit=byId('email-auth-submit');submit?.classList.add('auth-loading');if(submit)submit.disabled=true;setAuthStatus(authMode==='signup'?'Creating your account…':'Signing you in…');
   try{
     await initFirebase();
