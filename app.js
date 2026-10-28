@@ -1272,10 +1272,10 @@ function loadReaderPreferences(){const settings=local.get('er-reader-settings',{
 let authMode='signin';
 function setAuthMode(mode){
   authMode=mode==='signup'?'signup':'signin';
-  const signup=authMode==='signup',tabSignIn=byId('auth-tab-signin'),tabSignUp=byId('auth-tab-signup'),nameField=byId('auth-name-field'),photoField=byId('auth-photo-field'),submit=byId('email-auth-submit'),password=byId('auth-password'),forgot=byId('forgot-password');
+  const signup=authMode==='signup',tabSignIn=byId('auth-tab-signin'),tabSignUp=byId('auth-tab-signup'),nameField=byId('auth-name-field'),submit=byId('email-auth-submit'),password=byId('auth-password'),forgot=byId('forgot-password');
   tabSignIn?.classList.toggle('active',!signup);tabSignUp?.classList.toggle('active',signup);
   tabSignIn?.setAttribute('aria-selected',String(!signup));tabSignUp?.setAttribute('aria-selected',String(signup));
-  if(nameField)nameField.hidden=!signup;if(photoField)photoField.hidden=!signup;if(!signup){const photoInput=byId('auth-photo'),preview=byId('auth-photo-preview');if(photoInput)photoInput.value='';if(preview){preview.hidden=true;preview.removeAttribute('src');}}if(submit)submit.textContent=signup?'Create account':'Sign in';if(password)password.autocomplete=signup?'new-password':'current-password';if(forgot)forgot.hidden=signup;
+  if(nameField)nameField.hidden=!signup;if(submit)submit.textContent=signup?'Create account':'Sign in';if(password)password.autocomplete=signup?'new-password':'current-password';if(forgot)forgot.hidden=signup;
   const status=byId('auth-status');if(status){status.textContent='';status.className='note';}
 }
 function setAuthStatus(message,type=''){
@@ -1307,51 +1307,17 @@ async function signInWithGoogle(){
   try{setAuthStatus('Opening Google sign-in…');await initFirebase();const provider=new firebase.auth.GoogleAuthProvider();provider.setCustomParameters({prompt:'select_account'});await auth.signInWithPopup(provider);const intro=byId('signin-modal');if(intro)intro.hidden=true;local.set('er-welcome-intro-dismissed',true);showPanel('account',false);toast('Signed in with Google.');}
   catch(error){setAuthStatus(friendlyAuthError(error),'error');if(error?.code==='auth/popup-blocked')try{await auth.signInWithRedirect(new firebase.auth.GoogleAuthProvider());}catch(redirectError){setAuthStatus(friendlyAuthError(redirectError),'error');}}
 }
-async function uploadProfilePhoto(file,targetUser=user){
-  if(!file)return null;
-  if(!['image/jpeg','image/png','image/webp','image/gif'].includes(file.type))throw new Error('Choose a PNG, JPG, WebP, or GIF image.');
-  if(file.size>5*1024*1024)throw new Error('Profile pictures must be 5 MB or smaller.');
-  await loadLibrary('firebaseStorage');
-  if(!firebase.storage)throw new Error('Profile photo storage is not available.');
-  if(!storage)storage=firebase.storage();
-  if(!targetUser)throw new Error('Sign in before adding a profile picture.');
-  const extension=(file.name.split('.').pop()||'jpg').toLowerCase().replace(/[^a-z0-9]/g,'')||'jpg';
-  const reference=storage.ref().child('profilePhotos/'+targetUser.uid+'/avatar-'+Date.now()+'.'+extension);
-  const uploaded=await reference.put(file,{contentType:file.type,cacheControl:'public,max-age=3600'});
-  const photoURL=await uploaded.ref.getDownloadURL();
-  await targetUser.updateProfile({photoURL});
-  user=auth?.currentUser||targetUser;updateProfile();
-  return photoURL;
-}
-function previewAuthPhoto(){
-  const file=byId('auth-photo')?.files?.[0],preview=byId('auth-photo-preview');
-  if(!preview)return;
-  if(!file){preview.hidden=true;preview.removeAttribute('src');return;}
-  if(!['image/jpeg','image/png','image/webp','image/gif'].includes(file.type)){setAuthStatus('Choose a PNG, JPG, WebP, or GIF image.','error');byId('auth-photo').value='';preview.hidden=true;return;}
-  if(file.size>5*1024*1024){setAuthStatus('Profile pictures must be 5 MB or smaller.','error');byId('auth-photo').value='';preview.hidden=true;return;}
-  const url=URL.createObjectURL(file);preview.src=url;preview.hidden=false;preview.onload=()=>URL.revokeObjectURL(url);
-}
-async function handleProfilePhotoSelection(event){
-  const input=event.currentTarget,file=input.files?.[0];if(!file)return;
-  try{await initFirebase();if(!user)throw new Error('Sign in before adding a profile picture.');await uploadProfilePhoto(file,user);toast('Profile picture updated.');}
-  catch(error){toast(error?.message||'Could not update the profile picture. Check Firebase Storage settings and try again.');}
-  finally{input.value='';}
-}
 async function submitEmailAuth(event){
-  event.preventDefault();const email=byId('auth-email')?.value.trim(),password=byId('auth-password')?.value,name=byId('auth-name')?.value.trim(),photoFile=byId('auth-photo')?.files?.[0];
+  event.preventDefault();const email=byId('auth-email')?.value.trim(),password=byId('auth-password')?.value,name=byId('auth-name')?.value.trim();
   if(!email||!password)return setAuthStatus('Enter your email and password.','error');if(authMode==='signup'&&!name)return setAuthStatus('Enter your name to create your account.','error');
-  if(authMode==='signup'&&photoFile&&(!['image/jpeg','image/png','image/webp','image/gif'].includes(photoFile.type)||photoFile.size>5*1024*1024))return setAuthStatus('Choose an image up to 5 MB.','error');
   const submit=byId('email-auth-submit');submit?.classList.add('auth-loading');if(submit)submit.disabled=true;setAuthStatus(authMode==='signup'?'Creating your account…':'Signing you in…');
   try{
     await initFirebase();
     if(authMode==='signup'){
       const credential=await auth.createUserWithEmailAndPassword(email,password);
       if(name&&credential.user)await credential.user.updateProfile({displayName:name});
-      let photoFailed=false;
-      if(photoFile){try{await uploadProfilePhoto(photoFile,credential.user);}catch(error){photoFailed=true;console.error('Profile photo upload failed:',error);}}
       user=auth.currentUser;updateProfile();showPanel('account',false);
-      toast(photoFailed?'Account created. Profile photo upload failed, so you can retry from Account.':'Your EasyRead account is ready.');
-      if(photoFailed)setAuthStatus('Your account was created, but the photo could not be uploaded. You can try again from Account.','error');
+      toast('Your EasyRead account is ready.');
     }else{await auth.signInWithEmailAndPassword(email,password);showPanel('account',false);toast('Welcome back to EasyRead.');}
   }catch(error){setAuthStatus(friendlyAuthError(error),'error');}
   finally{submit?.classList.remove('auth-loading');if(submit)submit.disabled=false;}
@@ -1481,7 +1447,7 @@ async function init() {
   byId('highlight-btn').addEventListener('click',()=>{const text=getSelection()?.toString().trim();if(!text)return;const values=local.get('er-highlights',[]);values.unshift({id:newSavedItemId(),text,book:activeBook?.key,bookName:activeBook?.title||activeBook?.name||'',created:Date.now()});local.set('er-highlights',values);queueCloudSync();renderMyNotes();renderSavedItems();toast('Highlight saved.');});
   byId('bookmark-btn').addEventListener('click',()=>{const values=local.get('er-bookmarks',[]);values.unshift({id:newSavedItemId(),name:activeBook?.title||activeBook?.name||'Bookmark',book:activeBook?.key,bookName:activeBook?.title||activeBook?.name||'',scroll:scrollY,page:activePage,created:Date.now()});local.set('er-bookmarks',values);queueCloudSync();toast('Bookmark saved.');});
   byId('export-btn').addEventListener('click',exportData);byId('export-all').addEventListener('click',exportData);byId('delete-all').addEventListener('click',deleteLocalData);
-  byId('google-signin').addEventListener('click',signInWithGoogle);byId('signin-modal-google').addEventListener('click',signInWithGoogle);byId('welcome-signin-btn')?.addEventListener('click',signInWithGoogle);byId('welcome-dismiss')?.addEventListener('click',()=>{local.set('er-signin-dismissed',true);local.set('er-welcome-intro-dismissed',true);const welcome=byId('welcome-signin');if(welcome)welcome.hidden=true;});byId('email-auth-form')?.addEventListener('submit',submitEmailAuth);byId('auth-photo')?.addEventListener('change',previewAuthPhoto);byId('profile-photo-upload')?.addEventListener('change',handleProfilePhotoSelection);byId('auth-tab-signin')?.addEventListener('click',()=>setAuthMode('signin'));byId('auth-tab-signup')?.addEventListener('click',()=>setAuthMode('signup'));byId('forgot-password')?.addEventListener('click',resetPassword);byId('auth-password-toggle')?.addEventListener('click',()=>{const input=byId('auth-password'),button=byId('auth-password-toggle');if(!input||!button)return;const visible=input.type==='text';input.type=visible?'password':'text';button.textContent=visible?'Show':'Hide';button.setAttribute('aria-label',visible?'Show password':'Hide password');});byId('sync-now').addEventListener('click',syncCloud);byId('signout').addEventListener('click',()=>auth?.signOut());
+  byId('google-signin').addEventListener('click',signInWithGoogle);byId('signin-modal-google').addEventListener('click',signInWithGoogle);byId('welcome-signin-btn')?.addEventListener('click',signInWithGoogle);byId('welcome-dismiss')?.addEventListener('click',()=>{local.set('er-signin-dismissed',true);local.set('er-welcome-intro-dismissed',true);const welcome=byId('welcome-signin');if(welcome)welcome.hidden=true;});byId('email-auth-form')?.addEventListener('submit',submitEmailAuth);byId('auth-tab-signin')?.addEventListener('click',()=>setAuthMode('signin'));byId('auth-tab-signup')?.addEventListener('click',()=>setAuthMode('signup'));byId('forgot-password')?.addEventListener('click',resetPassword);byId('auth-password-toggle')?.addEventListener('click',()=>{const input=byId('auth-password'),button=byId('auth-password-toggle');if(!input||!button)return;const visible=input.type==='text';input.type=visible?'password':'text';button.textContent=visible?'Show':'Hide';button.setAttribute('aria-label',visible?'Show password':'Hide password');});byId('sync-now').addEventListener('click',syncCloud);byId('signout').addEventListener('click',()=>auth?.signOut());
   byId('speak-page-btn').addEventListener('click',speakCurrent);byId('stop-speech-btn').addEventListener('click',()=>speechSynthesis.cancel());
   byId('autoscroll-btn').addEventListener('click',()=>{const button=byId('autoscroll-btn');if(button.dataset.running){clearInterval(Number(button.dataset.running));delete button.dataset.running;button.textContent='Auto-scroll';}else button.dataset.running=String(setInterval(()=>scrollBy(0,1),45));});
   byId('font-choice').addEventListener('change',event=>{const settings=local.get('er-reader-settings',{});settings.font=event.target.value;local.set('er-reader-settings',settings);document.documentElement.style.setProperty('--reader-font',event.target.value==='serif'?'Georgia,serif':event.target.value==='dyslexic'?'Arial,sans-serif':"'Literata',Georgia,serif");});byId('spacing').addEventListener('input',event=>{const settings=local.get('er-reader-settings',{});settings.spacing=Number(event.target.value);local.set('er-reader-settings',settings);document.documentElement.style.setProperty('--reader-leading',event.target.value);});byId('width').addEventListener('input',event=>{const settings=local.get('er-reader-settings',{});settings.width=Number(event.target.value);local.set('er-reader-settings',settings);document.documentElement.style.setProperty('--reader-width',event.target.value+'px');});
