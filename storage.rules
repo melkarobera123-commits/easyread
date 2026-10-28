@@ -8,5 +8,12 @@ service firebase.storage {
         && request.resource.size <= 50 * 1024 * 1024
         && request.resource.contentType.matches('application/pdf|application/vnd.openxmlformats-officedocument.wordprocessingml.document|application/vnd.openxmlformats-officedocument.presentationml.presentation|application/epub\\+zip|text/plain|image/(png|jpeg)');
     }
+    match /profilePhotos/{userId}/{fileName} {
+      allow read, delete: if request.auth != null && request.auth.uid == userId;
+      allow create, update: if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.size <= 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/(png|jpeg|webp|gif)');
+    }
   }
 }

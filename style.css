@@ -1630,3 +1630,110 @@ body.ask-ai-open #ai-passage-panel { z-index: 1001; }
     bottom: calc(82px + env(safe-area-inset-bottom)) !important;
   }
 }
+
+
+/* Clear, touch-friendly controls instead of squeezing every tool into one mobile row. */
+@media (max-width: 900px) {
+  .bar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 9px;
+    overflow: visible;
+    align-items: stretch;
+    padding: 9px;
+  }
+  .bar-primary {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+    width: 100%;
+    min-width: 0;
+  }
+  .bar-primary .btn {
+    width: 100%;
+    min-width: 0;
+    min-height: 42px;
+    padding: 8px 5px;
+    justify-content: center;
+    text-align: center;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    font-size: .78rem;
+    line-height: 1.25;
+  }
+  .bar-end {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 7px;
+    width: 100%;
+    min-width: 0;
+  }
+  .bar-end .toolbar-more { margin-left: auto; }
+  .page-jump-inline { flex: 0 0 auto; }
+  .toolbar-more summary { min-height: 42px; }
+  .reader-tools {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+    overflow: visible;
+    margin: 0 0 14px;
+    padding: 0;
+  }
+  .reader-tools label {
+    grid-column: 1 / -1;
+    width: 100%;
+    min-width: 0;
+    flex: initial;
+  }
+  .reader-tools #search-count {
+    grid-column: 1 / -1;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .reader-tools .btn {
+    width: 100%;
+    min-width: 0;
+    min-height: 42px;
+    padding: 8px 6px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    justify-content: center;
+    font-size: .8rem;
+  }
+}
+.auth-photo-field small {
+  color: var(--muted);
+  font-size: .76rem;
+  line-height: 1.4;
+}
+.auth-photo-preview {
+  width: 68px;
+  height: 68px;
+  border: 2px solid var(--line);
+  border-radius: 50%;
+  object-fit: cover;
+}
+.profile-photo-action {
+  display: flex;
+  position: relative;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  cursor: pointer;
+}
+.profile-photo-action input[type="file"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+@media (max-width: 420px) {
+  .bar-primary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .bar-primary .btn { font-size: .82rem; }
+}
