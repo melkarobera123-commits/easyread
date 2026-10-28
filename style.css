@@ -1737,3 +1737,77 @@ body.ask-ai-open #ai-passage-panel { z-index: 1001; }
   .bar-primary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .bar-primary .btn { font-size: .82rem; }
 }
+
+
+/* Mobile reader: keep the tool actions compact and let the document stay in view. */
+@media (max-width: 900px) {
+  .bar {
+    display: flex !important;
+    align-items: center;
+    flex-wrap: nowrap !important;
+    gap: 7px;
+    overflow-x: auto !important;
+    overflow-y: visible;
+    padding: 6px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .bar::-webkit-scrollbar { display: none; }
+  .bar-primary {
+    display: flex !important;
+    flex: 0 0 auto;
+    flex-wrap: nowrap !important;
+    width: max-content;
+    gap: 5px;
+  }
+  .bar-primary .btn {
+    flex: 0 0 auto;
+    width: auto;
+    min-width: 0;
+    min-height: 38px;
+    padding: 7px 10px;
+    white-space: nowrap;
+    overflow-wrap: normal;
+    font-size: .78rem;
+    line-height: 1.1;
+  }
+  .bar-end {
+    display: flex;
+    flex: 0 0 auto;
+    flex-wrap: nowrap !important;
+    align-items: center;
+    width: auto;
+    gap: 6px;
+    margin-left: auto;
+  }
+  .page-jump-inline {
+    flex: 0 0 auto;
+    gap: 5px;
+    padding: 5px 8px;
+    font-size: .78rem;
+  }
+  .page-jump-inline input {
+    width: 44px;
+    min-height: 36px;
+    padding: 4px;
+  }
+  .toolbar-more { flex: 0 0 auto; margin-left: 0; }
+  .toolbar-more summary { min-height: 38px; padding: 7px 10px; }
+}
+@media (max-width: 700px) {
+  /* The floating AI shortcut sits above, not on top of, the move controls. */
+  .ask-ai-float {
+    right: max(12px, env(safe-area-inset-right));
+    bottom: calc(170px + env(safe-area-inset-bottom)) !important;
+    min-height: 44px;
+    padding: 0 12px 0 9px;
+    gap: 7px;
+  }
+  .ask-ai-float-icon { width: 25px; height: 25px; }
+}
+@media (max-width: 380px) {
+  .ask-ai-float {
+    bottom: calc(170px + env(safe-area-inset-bottom)) !important;
+    right: max(10px, env(safe-area-inset-right));
+  }
+}
