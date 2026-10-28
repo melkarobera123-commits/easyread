@@ -1013,26 +1013,7 @@ function renderDefinition(result,asked){
     toast('Word saved to your vocabulary.');
   });
   button('Listen',()=>playWordAudio(result));
-  button('AI Translate',async event=>{const control=event.currentTarget;const originalLabel=control.textContent;control.disabled=true;control.textContent='Translating with AI…';try{const language=byId('translation-language').value;const response=await fetch('/api/explain?mode=translate&text='+encodeURIComponent(result.word)+'&targetLanguage='+encodeURIComponent(language),{signal:lookupController?.signal});const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||'AI translation is unavailable right now.');safeText(popup,'p',data.translation||data.explanation||'AI translation unavailable.','note');control.textContent='AI Translated';}catch(error){if(error.name==='AbortError')return;safeText(popup,'p',error.message||'AI translation is temporarily unavailable.','note');control.textContent='AI unavailable';}finally{control.disabled=false;setTimeout(()=>{if(control.isConnected)control.textContent=originalLabel;},2200);}});button('Translate',async event=>{
-    const control=event.currentTarget;
-    control.disabled=true;
-    control.textContent='Translating…';
-    translated.hidden=false;
-    translated.textContent='Translating…';
-    try{
-      const language=byId('translation-language').value;
-      const response=await fetch('https://api.mymemory.translated.net/get?q='+encodeURIComponent(result.word)+'&langpair=en|'+language,{signal:lookupController?.signal});
-      if(!response.ok)throw new Error();
-      const data=await response.json();
-      const value=plainDefinition(data.responseData?.translatedText);
-      translated.textContent=value?'Translation ('+language+'): '+value:'No translation was returned.';
-      control.textContent='Translate';
-    }catch{
-      translated.textContent='Translation is unavailable right now.';
-      control.textContent='Translate';
-    }finally{control.disabled=false;}
-  });
-  if(!aiExplainUnavailable){
+  button('AI Translate',async event=>{const control=event.currentTarget;const originalLabel=control.textContent;control.disabled=true;control.textContent='Translating with AI…';try{const language=byId('translation-language').value;const response=await fetch('/api/explain?mode=translate&text='+encodeURIComponent(result.word)+'&targetLanguage='+encodeURIComponent(language),{signal:lookupController?.signal});const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||'AI translation is unavailable right now.');safeText(popup,'p',data.translation||data.explanation||'AI translation unavailable.','note');control.textContent='AI Translated';}catch(error){if(error.name==='AbortError')return;safeText(popup,'p',error.message||'AI translation is temporarily unavailable.','note');control.textContent='AI unavailable';}finally{control.disabled=false;setTimeout(()=>{if(control.isConnected)control.textContent=originalLabel;},2200);}});  if(!aiExplainUnavailable){
     const aiButton=button('Explain simply',async event=>{
       const control=event.currentTarget;
       if(!navigator.onLine){explained.hidden=false;explained.textContent='Connect to the internet to use Explain simply.';return;}
