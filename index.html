@@ -327,7 +327,6 @@
     </div>
     <form id="email-auth-form" class="auth-form">
       <label id="auth-name-field" hidden>Name<input id="auth-name" type="text" autocomplete="name" maxlength="80" placeholder="Your name"></label>
-      <label id="auth-photo-field" class="auth-photo-field" hidden>Profile picture (optional)<input id="auth-photo" type="file" accept="image/png,image/jpeg,image/webp,image/gif" aria-describedby="auth-photo-help"><small id="auth-photo-help">Choose an image up to 5 MB.</small><img id="auth-photo-preview" class="auth-photo-preview" alt="Profile picture preview" hidden></label>
       <label>Email<input id="auth-email" type="email" autocomplete="email" required placeholder="you@example.com"></label>
       <label>Password<div class="password-field"><input id="auth-password" type="password" autocomplete="current-password" minlength="6" required placeholder="At least 6 characters"><button id="auth-password-toggle" class="password-toggle" type="button" aria-label="Show password">Show</button></div></label>
       <button id="email-auth-submit" class="btn account-action auth-submit" type="submit">Sign in</button>
@@ -339,7 +338,6 @@
   </div>
   <div id="account-signed-in" hidden>
     <div class="account-summary"><img id="account-photo" class="account-photo" alt="Profile photo"><div><strong id="account-name"></strong><small id="account-email"></small></div></div>
-    <label class="btn account-action profile-photo-action" for="profile-photo-upload">Add or change profile picture<input id="profile-photo-upload" type="file" accept="image/png,image/jpeg,image/webp,image/gif" aria-label="Choose a profile picture"></label>
     <p id="sync-status" class="sync-state"><span class="sync-dot"></span><span id="sync-label">Not synced yet</span></p>
     <p id="last-synced" class="note"></p>
     <p id="pending-sync" class="note"></p>
