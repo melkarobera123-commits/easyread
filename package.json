@@ -11,6 +11,7 @@
     "@playwright/test": "^1.63.0"
   },
   "dependencies": {
+    "@vercel/analytics": "^2.0.1",
     "pdfjs-dist": "^6.3.289",
     "wordnet-db": "^3.1.14"
   }
