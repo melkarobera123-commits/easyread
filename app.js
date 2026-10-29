@@ -199,6 +199,7 @@ document.addEventListener('pointerdown', event => {
   document.addEventListener('fullscreenchange', syncFullDocumentButton);
   syncFullDocumentButton();
   for (const [id, panel] of [['settings-btn','settings'],['vocab-btn','vocab'],['stats-btn','stats'],['flashcards-btn','learning'],['sidebar-flashcards','learning'],['contact-link','contact'],['privacy-link','privacy'],['shortcuts-link','shortcuts']]) byId(id)?.addEventListener('click', event => { if (id === 'contact-link') event.preventDefault(); showPanel(panel); });
+  byId('reading-progress-btn')?.addEventListener('click',()=>showPanel('stats'));
   byId('contents-btn')?.addEventListener('click',()=>{const panel=byId('contents'),open=!panel.classList.contains('open');if(open){closeOtherPanels('contents');markPanelOpened('contents');}panel.hidden=false;panel.classList.toggle('open',open);byId('contents-btn').setAttribute('aria-expanded',String(open));if(open){renderContents();renderSavedItems();}});
   document.querySelectorAll('[id$="-close"]').forEach(button => button.addEventListener('click', () => { const panel = button.closest('aside'); if (panel) showPanel(panel.id, false); if (panel?.id === 'contents') panel.classList.remove('open'); }));
   document.addEventListener('click',event=>{const panel=byId('dictionary-panel');if(panel&&!panel.hidden&&!event.target.closest('#dictionary-panel,#dictionary-btn'))closeDictionaryPanel();});
@@ -752,6 +753,52 @@ async function setPdfMode(visual) {
   }
   updateDocumentPageControls();
 }
+// Two-finger pinch zoom for touchscreens. PDF page mode scales the rendered PDF;
+// text and document mode adjust the reader's text size. Existing buttons remain available.
+(function installReaderPinchZoom(){
+  if (!readerWrap) return;
+  let startDistance = 0;
+  let lastDistance = 0;
+  let accumulated = 0;
+  let pinching = false;
+  const distance = touches => {
+    const dx = touches[0].clientX - touches[1].clientX;
+    const dy = touches[0].clientY - touches[1].clientY;
+    return Math.hypot(dx, dy);
+  };
+  readerWrap.addEventListener('touchstart', event => {
+    if (readerWrap.hidden || event.touches.length !== 2) {
+      if (event.touches.length < 2) { pinching = false; startDistance = 0; }
+      return;
+    }
+    pinching = true;
+    startDistance = lastDistance = distance(event.touches);
+    accumulated = 0;
+  }, { passive: true });
+  readerWrap.addEventListener('touchmove', event => {
+    if (!pinching || event.touches.length !== 2 || readerWrap.hidden) return;
+    event.preventDefault();
+    const currentDistance = distance(event.touches);
+    accumulated += currentDistance - lastDistance;
+    lastDistance = currentDistance;
+    // Require a small deliberate pinch movement before applying a zoom step.
+    while (Math.abs(accumulated) >= 36) {
+      const direction = accumulated > 0 ? 1 : -1;
+      if (activePdf && pdfMode) scalePdf(direction * .1);
+      else changeReaderTextSize(direction * .1);
+      accumulated -= direction * 36;
+    }
+  }, { passive: false });
+  const endPinch = event => {
+    if (event.touches.length < 2) {
+      pinching = false;
+      startDistance = lastDistance = accumulated = 0;
+    }
+  };
+  readerWrap.addEventListener('touchend', endPinch, { passive: true });
+  readerWrap.addEventListener('touchcancel', endPinch, { passive: true });
+})();
+
 function scalePdf(amount) {
   if (!activePdf || !pdfMode) return;
   zoom = Math.min(2.4, Math.max(.65, Math.round((zoom + amount) * 100) / 100));
