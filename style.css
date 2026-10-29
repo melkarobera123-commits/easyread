@@ -3179,3 +3179,37 @@ body .drop-title { font-size: 1.05rem; }
     animation-duration: .01ms !important;
   }
 }
+
+
+/* Full document mode controls: mode is a real on/off toggle; theme has its own control. */
+#full-document-btn.is-active {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+  background: color-mix(in srgb, var(--accent) 15%, var(--sheet));
+  color: var(--accent);
+}
+#full-document-btn[aria-pressed="true"] {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+#fullscreen-reader-controls #fullscreen-theme-toggle {
+  min-width: 76px;
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
+  background: color-mix(in srgb, var(--accent-soft) 75%, var(--sheet));
+  color: var(--ink);
+  font-weight: 700;
+}
+@media (max-width: 700px) {
+  #fullscreen-reader-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 7px;
+  }
+  #fullscreen-reader-controls .btn {
+    min-height: 42px;
+    border-radius: 13px;
+  }
+  #fullscreen-reader-controls #fullscreen-theme-toggle {
+    flex: 0 0 auto;
+    min-width: 82px;
+  }
+}
