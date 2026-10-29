@@ -1981,3 +1981,40 @@ body .drop-title { font-size: 1.05rem; }
   .reading-zoom-btn { transition: none; }
   .reading-zoom-btn:hover { transform: none; }
 }
+
+
+/* Mobile: keep Ask AI and zoom controls in the document flow so they never
+   float over or hide the text being read. Desktop keeps the floating dock. */
+@media (max-width: 700px) {
+  .reader-floating-controls {
+    position: relative;
+    inset: auto;
+    width: max-content;
+    max-width: 100%;
+    margin: 0 0 12px auto;
+    gap: 5px;
+    padding: 4px;
+    box-sizing: border-box;
+    box-shadow: 0 4px 14px rgba(24, 38, 31, .12);
+  }
+  .reader-floating-controls .ask-ai-float {
+    min-height: 42px;
+    padding: 0 10px;
+    gap: 5px;
+  }
+  .reader-floating-controls .ask-ai-float-icon {
+    width: 24px;
+    height: 24px;
+  }
+  .reading-zoom-btn {
+    width: 40px;
+    height: 40px;
+    flex-basis: 40px;
+  }
+}
+@media (max-width: 360px) {
+  .reader-floating-controls { gap: 3px; padding: 3px; }
+  .reader-floating-controls .ask-ai-float { padding-inline: 7px; }
+  .reader-floating-controls .ask-ai-float > span:last-child { font-size: .88rem; }
+  .reading-zoom-btn { width: 36px; height: 36px; flex-basis: 36px; }
+}
