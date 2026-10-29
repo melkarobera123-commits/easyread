@@ -2323,23 +2323,30 @@ async function restoreBooks() {
       }
       return text.slice(0, 900);
     };
+    let selectionOpenTimer = 0;
     document.addEventListener('selectionchange', () => {
       const selection = window.getSelection();
       const text = String(selection?.toString() || '').replace(/\s+/g, ' ').trim();
       const anchor = selection?.anchorNode;
       const reader = byId('reader-wrap');
-      if (text && reader && anchor && reader.contains(anchor)) rememberedSelection = text.slice(0, 900);
+      if (!text || !reader || !anchor || !reader.contains(anchor)) return;
+      rememberedSelection = text.slice(0, 900);
+      // Wait until the user finishes selecting, then show Ask AI with the selection filled in.
+      window.clearTimeout(selectionOpenTimer);
+      selectionOpenTimer = window.setTimeout(() => {
+        if (panel.hidden && rememberedSelection && !reader.hidden) openPanel(false);
+      }, 350);
     });
 
     const updateCount = () => { if (count) count.textContent = passage.value.length + ' / 900'; };
-    const openPanel = () => {
+    const openPanel = (focusInput = true) => {
       panel.hidden = false;
       toggles.forEach(button => button.setAttribute('aria-expanded', 'true'));
       document.body.classList.add('ask-ai-open');
       const selected = getSelectedPassage();
       if (selected) passage.value = selected;
       updateCount();
-      requestAnimationFrame(() => passage.focus({ preventScroll: true }));
+      if (focusInput) requestAnimationFrame(() => passage.focus({ preventScroll: true }));
     };
     const closePanel = (restoreFocus = true) => {
       if (panel.hidden) return;
