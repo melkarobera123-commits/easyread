@@ -162,7 +162,26 @@ document.addEventListener('pointerdown', event => {
   byId('notes-btn')?.addEventListener('click',()=>{showPanel('notes-panel');renderMyNotes();});
   byId('notes-search')?.addEventListener('input',renderMyNotes);
   for(const id of ['contents-notes-link','vocab-notes-link'])byId(id)?.addEventListener('click',()=>{showPanel('notes-panel');renderMyNotes();});
-  byId('full-document-btn')?.addEventListener('click',async()=>{try{readerWrap.hidden=false;if(activePdf){await setPdfMode(true);pdfPages.hidden=false;await pdfPages.requestFullscreen?.();}else{setDocumentPageMode(false);reader.hidden=false;await reader.requestFullscreen?.();}toast('Full-screen document view enabled.');}catch(error){console.error('Full-screen document view failed',error);toast('Could not open full-screen document view.');}});
+  const fullDocumentButton = byId('full-document-btn');
+  const readerIsFullscreen = () => Boolean(document.fullscreenElement && [readerWrap, pdfPages, reader].includes(document.fullscreenElement));
+  const syncFullDocumentButton = () => {
+    if (!fullDocumentButton) return;
+    const active = readerIsFullscreen();
+    fullDocumentButton.textContent = active ? '↙ Exit full document' : '⛶ Full document';
+    fullDocumentButton.setAttribute('aria-label', active ? 'Exit full document view' : 'Enter full document view');
+    fullDocumentButton.setAttribute('aria-pressed', String(active));
+  };
+  fullDocumentButton?.addEventListener('click',async()=>{
+    try {
+      if (readerIsFullscreen()) { await document.exitFullscreen?.(); return; }
+      readerWrap.hidden=false;
+      if(activePdf){await setPdfMode(true);pdfPages.hidden=false;await pdfPages.requestFullscreen?.();}
+      else{setDocumentPageMode(false);reader.hidden=false;await reader.requestFullscreen?.();}
+      syncFullDocumentButton();
+    } catch(error) { console.error('Full-screen document view failed',error); toast('Could not open full-screen document view.'); }
+  });
+  document.addEventListener('fullscreenchange', syncFullDocumentButton);
+  syncFullDocumentButton();
   for (const [id, panel] of [['settings-btn','settings'],['vocab-btn','vocab'],['stats-btn','stats'],['flashcards-btn','learning'],['sidebar-flashcards','learning'],['contact-link','contact'],['privacy-link','privacy'],['shortcuts-link','shortcuts']]) byId(id)?.addEventListener('click', event => { if (id === 'contact-link') event.preventDefault(); showPanel(panel); });
   byId('contents-btn')?.addEventListener('click',()=>{const panel=byId('contents'),open=!panel.classList.contains('open');if(open){closeOtherPanels('contents');markPanelOpened('contents');}panel.hidden=false;panel.classList.toggle('open',open);byId('contents-btn').setAttribute('aria-expanded',String(open));if(open){renderContents();renderSavedItems();}});
   document.querySelectorAll('[id$="-close"]').forEach(button => button.addEventListener('click', () => { const panel = button.closest('aside'); if (panel) showPanel(panel.id, false); if (panel?.id === 'contents') panel.classList.remove('open'); }));
@@ -2177,7 +2196,7 @@ async function restoreBooks() {
     const answer = byId('ai-passage-answer');
     const submit = byId('ai-passage-submit');
     const count = byId('ai-passage-count');
-    if (!toggles.length || !panel || !passage || !question || !answer || !submit) return;
+    if (!toggles.length || !panel || !passage || !answer || !submit) return;
 
     // Keep the panel in the active fullscreen subtree, otherwise browsers hide it
     // when Full document is opened on the PDF pages element.
@@ -2257,7 +2276,7 @@ async function restoreBooks() {
     panel.addEventListener('submit', async event => {
       event.preventDefault();
       const text = passage.value.replace(/\s+/g, ' ').trim().slice(0, 900);
-      const questionText = question.value.replace(/\s+/g, ' ').trim().slice(0, 300);
+      const questionText = question?.value?.replace(/\s+/g, ' ').trim().slice(0, 300) || '';
       if (!text) {
         passage.setCustomValidity('Select or enter a phrase or sentence first.');
         passage.reportValidity();
