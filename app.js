@@ -167,11 +167,28 @@ document.addEventListener('pointerdown', event => {
   const syncFullDocumentButton = () => {
     if (!fullDocumentButton) return;
     const active = readerIsFullscreen();
-    // Use a compact exit icon while active; the accessible label still explains the action.
+    // Keep the toolbar control compact while fullscreen is active.
     fullDocumentButton.textContent = active ? '↙' : '⛶ Full document';
     fullDocumentButton.setAttribute('aria-label', active ? 'Exit full document view' : 'Enter full document view');
     fullDocumentButton.setAttribute('title', active ? 'Exit full document view' : 'Enter full document view');
     fullDocumentButton.setAttribute('aria-pressed', String(active));
+
+    // The normal app header is outside the fullscreen element, so provide a theme
+    // toggle inside the actual fullscreen host (reader or PDF pages).
+    document.querySelectorAll('[data-easyread-theme-toggle].fullscreen-theme-toggle').forEach(button => {
+      if (!active || !document.fullscreenElement.contains(button)) button.remove();
+    });
+    if (active && !document.fullscreenElement.querySelector('[data-easyread-theme-toggle]')) {
+      const themeButton = document.createElement('button');
+      themeButton.type = 'button';
+      themeButton.className = 'fullscreen-theme-toggle';
+      themeButton.dataset.easyreadThemeToggle = 'true';
+      themeButton.textContent = document.documentElement.dataset.theme === 'sepia' ? '◒' : document.documentElement.dataset.theme === 'dark' ? '☾' : '◐';
+      themeButton.title = 'Switch reading theme';
+      themeButton.setAttribute('aria-label', 'Switch reading theme');
+      themeButton.addEventListener('click', () => window.cycleEasyReadTheme?.());
+      document.fullscreenElement.append(themeButton);
+    }
   };
   fullDocumentButton?.addEventListener('click',async()=>{
     try {
