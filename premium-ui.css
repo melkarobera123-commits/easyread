@@ -22,3 +22,41 @@ input:not([type="checkbox"]):not([type="radio"]),select,textarea{border:1px soli
 @media(max-width:900px){.app-sidebar{box-shadow:none}.top{min-height:60px;padding:8px 14px}.reader-wrap{padding-inline:12px}.bar{border-radius:14px}.panel{border-radius:18px 18px 0 0}.reader-floating-controls{position:relative;inset:auto;width:max-content;max-width:100%;margin:0 0 12px auto;padding:4px;gap:5px;box-sizing:border-box;box-shadow:0 4px 14px rgba(24,38,31,.1)}.reader-floating-controls .ask-ai-float{min-height:42px;padding:0 10px;gap:5px}.reader-floating-controls .ask-ai-float-icon{width:24px;height:24px}.reading-zoom-btn{width:40px;height:40px;flex-basis:40px}.library-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr))}.library-home{padding:18px}}
 @media(max-width:480px){body{font-size:.96rem}.hero,.welcome-card,.continue-card,.library-home{border-radius:18px}.reader-wrap{padding-inline:9px}.bar{padding:6px;gap:5px}.bar .btn,.toolbar-more summary{min-height:40px;padding-inline:10px}.reader-floating-controls{gap:3px;padding:3px}.reader-floating-controls .ask-ai-float{padding-inline:7px}.reader-floating-controls .ask-ai-float>span:last-child{font-size:.88rem}.reading-zoom-btn{width:36px;height:36px;flex-basis:36px}.panel{padding:18px 14px calc(24px + env(safe-area-inset-bottom))}.library-grid{gap:11px}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition-duration:.01ms!important;animation-duration:.01ms!important}}
+
+/* Sepia reading palette. Keep this selector after the premium defaults so it wins. */
+[data-theme="sepia"] {
+  --bg: #f1e4cc;
+  --sheet: #fbf0dc;
+  --ink: #433326;
+  --muted: #786650;
+  --line: #d8c4a5;
+  --accent: #795334;
+  --accent-soft: #ead8b8;
+  --marker: #d9b66d;
+  --shadow: 0 18px 50px rgba(75, 48, 20, .12);
+  --premium-shadow: 0 10px 28px rgba(75, 48, 20, .08);
+}
+[data-theme="sepia"] body { background: var(--bg); color: var(--ink); }
+[data-theme="sepia"] .pdf-page,
+[data-theme="sepia"] #reader,
+[data-theme="sepia"] .reader-content,
+[data-theme="sepia"] .pdf-text-view { color: var(--ink); }
+.fullscreen-theme-toggle {
+  position: fixed;
+  z-index: 2147483647;
+  top: max(14px, env(safe-area-inset-top));
+  right: max(16px, env(safe-area-inset-right));
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--sheet);
+  color: var(--ink);
+  box-shadow: 0 5px 22px rgba(0,0,0,.18);
+  font: 700 1.35rem/1 var(--ui, system-ui, sans-serif);
+  cursor: pointer;
+}
+.fullscreen-theme-toggle:hover { background: var(--accent-soft); }
+#full-document-btn[aria-pressed="true"] { min-width: 42px; width: 42px; padding-inline: 0; font-size: 1.35rem; }
