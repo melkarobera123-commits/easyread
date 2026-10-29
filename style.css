@@ -1921,3 +1921,63 @@ body .drop-title { font-size: 1.05rem; }
 .flashcard-manage-list{display:grid;gap:10px;margin-top:20px}.flashcard-manage-row{display:flex;gap:12px;align-items:flex-start;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--line)}.flashcard-manage-row>div{min-width:0;overflow-wrap:anywhere}.flashcard-manage-row p{margin:5px 0;color:var(--muted);font-size:.9rem}
 .ask-response-actions{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 2px}.ask-response-action{border:1px solid var(--line);border-radius:9px;padding:7px 11px;background:var(--surface,#fff);color:var(--text,#222);font:inherit;font-size:.82rem;cursor:pointer}.ask-response-action:hover,.ask-response-action:focus-visible{border-color:var(--accent);outline-offset:2px}.ask-retry-response{font-weight:650}
 @media(max-width:520px){.flashcard-face{min-height:190px;padding:18px}.flashcard-review-actions .btn{min-width:calc(50% - 8px)}}
+
+
+/* Persistent reading controls: zoom out, Ask AI, zoom in. */
+.reader-floating-controls {
+  position: fixed;
+  z-index: 46;
+  right: max(24px, env(safe-area-inset-right));
+  bottom: max(24px, env(safe-area-inset-bottom));
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--sheet) 92%, transparent);
+  box-shadow: 0 12px 32px rgba(24, 38, 31, .2);
+  backdrop-filter: blur(14px);
+}
+.reader-floating-controls .ask-ai-float {
+  position: static;
+  right: auto;
+  bottom: auto;
+  z-index: auto;
+  flex: 0 0 auto;
+}
+.reading-zoom-btn {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--sheet);
+  color: var(--ink);
+  font: 700 1.45rem/1 var(--ui, system-ui, sans-serif);
+  cursor: pointer;
+  transition: background .15s ease, transform .15s ease;
+}
+.reading-zoom-btn:hover { background: var(--accent-soft); transform: translateY(-1px); }
+.reading-zoom-btn:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+@media (max-width: 700px) {
+  .reader-floating-controls {
+    right: max(12px, env(safe-area-inset-right));
+    bottom: calc(104px + env(safe-area-inset-bottom));
+    gap: 5px;
+    padding: 5px;
+  }
+  .reader-floating-controls .ask-ai-float {
+    min-height: 46px;
+    padding: 0 12px 0 9px;
+    gap: 6px;
+  }
+  .reader-floating-controls .ask-ai-float-icon { width: 26px; height: 26px; }
+  .reading-zoom-btn { width: 40px; height: 40px; flex-basis: 40px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .reading-zoom-btn { transition: none; }
+  .reading-zoom-btn:hover { transform: none; }
+}
