@@ -2018,3 +2018,78 @@ body .drop-title { font-size: 1.05rem; }
   .reader-floating-controls .ask-ai-float > span:last-child { font-size: .88rem; }
   .reading-zoom-btn { width: 36px; height: 36px; flex-basis: 36px; }
 }
+
+
+/* Mobile reader layout fix: keep floating controls clear of the toolbar and bottom navigation. */
+@media (max-width: 700px) {
+  body #reader-wrap .scroll-nav {
+    top: auto !important;
+    right: max(10px, env(safe-area-inset-right)) !important;
+    bottom: calc(94px + env(safe-area-inset-bottom)) !important;
+    transform: none !important;
+    z-index: 70 !important;
+    gap: 6px;
+  }
+  body #reader-wrap .scroll-nav .icon-btn {
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
+    min-height: 38px;
+  }
+  body .reader-floating-controls {
+    position: relative !important;
+    inset: auto !important;
+    display: flex;
+    width: fit-content;
+    max-width: calc(100% - 8px);
+    margin: 8px 0 12px auto;
+    flex-wrap: nowrap;
+    align-items: center;
+  }
+  body #pdf-toolbar.pdf-toolbar,
+  body #text-view-controls.text-view-controls {
+    position: static;
+    top: auto;
+    width: 100%;
+    min-width: 0;
+    flex-wrap: wrap;
+    white-space: normal;
+    justify-content: flex-start;
+    gap: 7px;
+    box-sizing: border-box;
+  }
+  body #pdf-controls {
+    min-width: 0;
+    flex: 1 1 100%;
+    justify-content: flex-start;
+  }
+  body #reader-wrap,
+  body .reader-wrap,
+  body #pdf-pages,
+  body #text-viewer {
+    min-width: 0;
+    max-width: 100%;
+  }
+  body #pdf-pages img,
+  body #pdf-pages canvas,
+  body #pdf-pages .pdf-page {
+    max-width: 100%;
+  }
+}
+@media (max-width: 430px) {
+  body #reader-wrap .scroll-nav {
+    right: 7px !important;
+    bottom: calc(88px + env(safe-area-inset-bottom)) !important;
+  }
+  body #reader-wrap .scroll-nav .icon-btn {
+    width: 34px;
+    height: 34px;
+    min-width: 34px;
+    min-height: 34px;
+  }
+  body #text-view-controls .btn,
+  body #pdf-toolbar .btn {
+    min-height: 40px;
+    padding: 7px 10px;
+  }
+}
