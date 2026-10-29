@@ -2324,19 +2324,56 @@ async function restoreBooks() {
       return text.slice(0, 900);
     };
     let selectionOpenTimer = 0;
+    const selectionButton = document.createElement('button');
+    selectionButton.type = 'button';
+    selectionButton.id = 'ask-ai-selection-btn';
+    selectionButton.textContent = '✦ Ask AI';
+    selectionButton.setAttribute('aria-label', 'Ask AI about selected text');
+    selectionButton.hidden = true;
+    selectionButton.style.cssText = 'position:fixed;z-index:9999;display:none;padding:7px 11px;border:1px solid var(--line);border-radius:999px;background:var(--sheet);color:var(--ink);box-shadow:0 5px 18px rgba(0,0,0,.16);font:600 13px/1.2 inherit;cursor:pointer;';
+    const selectionButtonHost = () => {
+      const host = typeof fullscreenReaderHost === 'function' ? fullscreenReaderHost() : null;
+      return host || document.body;
+    };
+    selectionButtonHost().appendChild(selectionButton);
+    document.addEventListener('fullscreenchange', () => selectionButtonHost().appendChild(selectionButton));
+    const hideSelectionButton = () => { selectionButton.hidden = true; selectionButton.style.display = 'none'; };
+    selectionButton.addEventListener('pointerdown', event => event.preventDefault());
+    selectionButton.addEventListener('click', () => {
+      passage.value = rememberedSelection;
+      hideSelectionButton();
+      openPanel();
+    });
     document.addEventListener('selectionchange', () => {
       const selection = window.getSelection();
       const text = String(selection?.toString() || '').replace(/\s+/g, ' ').trim();
       const anchor = selection?.anchorNode;
       const reader = byId('reader-wrap');
-      if (!text || !reader || !anchor || !reader.contains(anchor)) return;
+      if (!text || !reader || !anchor || !reader.contains(anchor)) {
+        window.clearTimeout(selectionOpenTimer);
+        return;
+      }
       rememberedSelection = text.slice(0, 900);
-      // Wait until the user finishes selecting, then show Ask AI with the selection filled in.
       window.clearTimeout(selectionOpenTimer);
       selectionOpenTimer = window.setTimeout(() => {
-        if (panel.hidden && rememberedSelection && !reader.hidden) openPanel(false);
-      }, 350);
+        if (!rememberedSelection || reader.hidden || !panel.hidden) return;
+        const currentSelection = window.getSelection();
+        const range = currentSelection?.rangeCount ? currentSelection.getRangeAt(0) : null;
+        if (!range) return;
+        const rect = range.getBoundingClientRect();
+        if (!rect.width && !rect.height) return;
+        selectionButtonHost().appendChild(selectionButton);
+        selectionButton.style.display = 'block';
+        selectionButton.hidden = false;
+        selectionButton.style.left = Math.max(8, Math.min(window.innerWidth - 110, rect.left + rect.width / 2 - 45)) + 'px';
+        selectionButton.style.top = Math.max(8, rect.top > 55 ? rect.top - 42 : Math.min(window.innerHeight - 48, rect.bottom + 10)) + 'px';
+      }, 300);
     });
+    document.addEventListener('pointerdown', event => {
+      if (event.target !== selectionButton) hideSelectionButton();
+    }, true);
+    window.addEventListener('scroll', hideSelectionButton, { passive: true });
+    window.addEventListener('resize', hideSelectionButton);
 
     const updateCount = () => { if (count) count.textContent = passage.value.length + ' / 900'; };
     const openPanel = (focusInput = true) => {
