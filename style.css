@@ -3456,3 +3456,27 @@ body.dark, body[data-theme="dark"] {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; }
 }
+
+
+/* Layout correction: the desktop sidebar must sit beside, never over, the page content.
+   Keep the existing 232px sidebar and reserve that space once at the page level. */
+@media (min-width: 901px) {
+  body { padding-left: 232px !important; }
+  body .app-sidebar { left: 0 !important; width: 232px !important; }
+  body .top { margin-left: 0 !important; }
+  body main, body .site-footer { margin-left: 0 !important; }
+  body #top { width: 100% !important; max-width: none !important; margin-inline: 0 !important; }
+  body .hero { max-width: 1440px !important; margin-inline: auto !important; }
+}
+@media (max-width: 900px) {
+  body { padding-left: 0 !important; }
+  body .app-sidebar { display: none !important; }
+  body .top, body main, body .site-footer { margin-left: 0 !important; }
+  body #top { width: 100% !important; max-width: none !important; margin-inline: 0 !important; }
+}
+/* The sidebar belongs above the canvas only in its own reserved column. */
+@media (min-width: 901px) {
+  body .app-sidebar { z-index: 40 !important; }
+  body .top { position: sticky; }
+  body .hero { padding-left: clamp(24px, 4vw, 64px); padding-right: clamp(24px, 4vw, 64px); }
+}
