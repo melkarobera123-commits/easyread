@@ -752,7 +752,27 @@ async function setPdfMode(visual) {
   }
   updateDocumentPageControls();
 }
-function scalePdf(amount) { zoom=Math.min(2.4,Math.max(.65,zoom+amount)); pdfPages.querySelectorAll('.pdf-page[data-rendered="yes"]').forEach(releasePdfPage); pdfPages.querySelectorAll('.pdf-page').forEach(frame=>{ if(pageObserver) pageObserver.unobserve(frame); pageObserver?.observe(frame); }); }
+function scalePdf(amount) {
+  if (!activePdf || !pdfMode) return;
+  zoom = Math.min(2.4, Math.max(.65, Math.round((zoom + amount) * 100) / 100));
+  const frames = [...pdfPages.querySelectorAll('.pdf-page')];
+  const viewportTop = pdfPages.getBoundingClientRect().top;
+  const viewportBottom = pdfPages.getBoundingClientRect().bottom;
+  const toRender = frames.filter(frame => {
+    const rect = frame.getBoundingClientRect();
+    return rect.bottom >= viewportTop - window.innerHeight * .4 &&
+      rect.top <= viewportBottom + window.innerHeight * .4;
+  });
+  frames.forEach(frame => {
+    pageObserver?.unobserve(frame);
+    releasePdfPage(frame);
+    frame.style.minHeight = '';
+  });
+  frames.forEach(frame => pageObserver?.observe(frame));
+  // Explicitly redraw visible pages. Re-observing alone may not reliably fire
+  // for an already-visible frame in every browser.
+  toRender.forEach(frame => renderPdfPage(Number(frame.dataset.page)).catch(console.error));
+}
 
 // Re-render the original PDF pages when entering or leaving fullscreen. The page canvas
 // must be laid out at the new available width, rather than stretching a previously rendered
@@ -1643,8 +1663,8 @@ async function init() {
   byId('dictionary-btn')?.addEventListener('click',()=>{const panel=byId('dictionary-panel'),open=panel.hidden;panel.hidden=!open;byId('dictionary-btn')?.setAttribute('aria-expanded',String(open));if(open)byId('dictionary-query')?.focus();});
   byId('dictionary-panel')?.addEventListener('submit',submitDictionaryQuery);
   byId('text-smaller')?.addEventListener('click',()=>changeReaderTextSize(-.1));byId('text-larger')?.addEventListener('click',()=>changeReaderTextSize(.1));
-  byId('reading-zoom-out')?.addEventListener('click',()=>{if(activePdf)scalePdf(-.15);else changeReaderTextSize(-.1);});
-  byId('reading-zoom-in')?.addEventListener('click',()=>{if(activePdf)scalePdf(.15);else changeReaderTextSize(.1);});
+  byId('reading-zoom-out')?.addEventListener('click',event=>{event.preventDefault();if(activePdf&&pdfMode)scalePdf(-.15);else changeReaderTextSize(-.1);});
+  byId('reading-zoom-in')?.addEventListener('click',event=>{event.preventDefault();if(activePdf&&pdfMode)scalePdf(.15);else changeReaderTextSize(.1);});
   byId('text-spacing-down')?.addEventListener('click',()=>changeReaderSpacing(-.1));byId('text-spacing-up')?.addEventListener('click',()=>changeReaderSpacing(.1));
   byId('document-page-toggle')?.addEventListener('click',()=>setDocumentPageMode(!documentPageMode));
   byId('global-view-toggle')?.addEventListener('click',()=>{ if(activePdf) setPdfMode(!pdfMode); else setDocumentPageMode(!documentPageMode); });
