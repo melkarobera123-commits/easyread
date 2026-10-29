@@ -3213,3 +3213,95 @@ body .drop-title { font-size: 1.05rem; }
     min-width: 82px;
   }
 }
+
+
+/* Fullscreen control dock: explicit columns prevent the theme toggle colliding with zoom. */
+.fullscreen-reader-controls {
+  display: grid !important;
+  grid-template-columns: auto 42px 42px auto;
+  align-items: center;
+  justify-content: start;
+  gap: 8px;
+  width: max-content;
+  max-width: calc(100vw - 24px);
+  box-sizing: border-box;
+}
+.fullscreen-reader-controls .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 42px;
+  min-height: 42px;
+  margin: 0;
+  box-sizing: border-box;
+}
+.fullscreen-reader-controls #fullscreen-ask-ai {
+  min-width: 98px;
+}
+.fullscreen-reader-controls #fullscreen-zoom-out,
+.fullscreen-reader-controls #fullscreen-zoom-in {
+  width: 42px;
+  padding: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+.fullscreen-reader-controls #fullscreen-theme-toggle {
+  min-width: 88px;
+  padding-inline: 12px;
+  white-space: nowrap;
+}
+@media (max-width: 600px) {
+  .fullscreen-reader-controls {
+    position: fixed;
+    top: max(8px, env(safe-area-inset-top));
+    right: 8px;
+    left: 8px;
+    width: auto;
+    max-width: none;
+    grid-template-columns: minmax(0, 1.4fr) 42px 42px minmax(0, 1.15fr);
+    gap: 6px;
+    padding: 6px;
+    border-radius: 16px;
+  }
+  .fullscreen-reader-controls .btn {
+    width: 100%;
+    min-width: 0;
+    min-height: 44px;
+    padding: 7px 5px;
+    border-radius: 11px;
+    font-size: .82rem;
+    line-height: 1.1;
+  }
+  .fullscreen-reader-controls #fullscreen-ask-ai {
+    min-width: 0;
+    white-space: nowrap;
+  }
+  .fullscreen-reader-controls #fullscreen-zoom-out,
+  .fullscreen-reader-controls #fullscreen-zoom-in {
+    width: 42px;
+    min-width: 42px;
+    padding: 0;
+    font-size: 1.15rem;
+  }
+  .fullscreen-reader-controls #fullscreen-theme-toggle {
+    min-width: 0;
+    padding-inline: 4px;
+    white-space: nowrap;
+    font-size: .76rem;
+  }
+}
+@media (max-width: 360px) {
+  .fullscreen-reader-controls {
+    grid-template-columns: minmax(0, 1.25fr) 38px 38px minmax(0, 1fr);
+    gap: 4px;
+    padding: 5px;
+  }
+  .fullscreen-reader-controls #fullscreen-zoom-out,
+  .fullscreen-reader-controls #fullscreen-zoom-in {
+    width: 38px;
+    min-width: 38px;
+  }
+  .fullscreen-reader-controls .btn {
+    font-size: .74rem;
+  }
+}
