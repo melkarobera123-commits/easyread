@@ -1627,6 +1627,8 @@ async function init() {
   byId('dictionary-btn').addEventListener('click',()=>{const panel=byId('dictionary-panel'),open=panel.hidden;panel.hidden=!open;byId('dictionary-btn').setAttribute('aria-expanded',String(open));if(open)byId('dictionary-query').focus();});
   byId('dictionary-panel').addEventListener('submit',submitDictionaryQuery);
   byId('text-smaller')?.addEventListener('click',()=>changeReaderTextSize(-.1));byId('text-larger')?.addEventListener('click',()=>changeReaderTextSize(.1));
+  byId('reading-zoom-out')?.addEventListener('click',()=>{if(activePdf)scalePdf(-.15);else changeReaderTextSize(-.1);});
+  byId('reading-zoom-in')?.addEventListener('click',()=>{if(activePdf)scalePdf(.15);else changeReaderTextSize(.1);});
   byId('text-spacing-down')?.addEventListener('click',()=>changeReaderSpacing(-.1));byId('text-spacing-up')?.addEventListener('click',()=>changeReaderSpacing(.1));
   byId('document-page-toggle')?.addEventListener('click',()=>setDocumentPageMode(!documentPageMode));
   byId('global-view-toggle')?.addEventListener('click',()=>{ if(activePdf) setPdfMode(!pdfMode); else setDocumentPageMode(!documentPageMode); });
