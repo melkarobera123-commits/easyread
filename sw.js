@@ -1,4 +1,4 @@
-const CACHE = 'easyread-shell-v65';
+const CACHE = 'easyread-shell-v66';
 const RUNTIME = 'easyread-runtime-v1';
 const SHELL = ['./', './index.html', './style.css', './pdf-reader.css', './script.js', './app.js', './firebase-config.js', './manifest.webmanifest', './icon.svg', './pdfjs/pdf.mjs', './pdfjs/pdf.worker.mjs', './pdf-text-layer.js'];
 const NETWORK_WAIT_MS = 2500; // on a weak connection, show the saved copy instead of waiting
