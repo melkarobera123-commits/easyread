@@ -1,6 +1,6 @@
-const CACHE = 'easyread-shell-v71';
+const CACHE = 'easyread-shell-v72';
 const RUNTIME = 'easyread-runtime-v1';
-const SHELL = ['./', './index.html', './style.css', './pdf-reader.css', './script.js', './app.js', './firebase-config.js', './manifest.webmanifest', './icon.svg', './pdfjs/pdf.mjs', './pdfjs/pdf.worker.mjs', './pdf-text-layer.js'];
+const SHELL = ['./', './index.html', './style.css', './premium-ui.css', './pdf-reader.css', './script.js', './app.js', './firebase-config.js', './manifest.webmanifest', './icon.svg', './pdfjs/pdf.mjs', './pdfjs/pdf.worker.mjs', './pdf-text-layer.js'];
 const NETWORK_WAIT_MS = 2500; // on a weak connection, show the saved copy instead of waiting
 
 self.addEventListener('install', event => {
