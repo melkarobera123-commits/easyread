@@ -168,7 +168,7 @@ document.addEventListener('pointerdown', event => {
     if (!fullDocumentButton) return;
     const active = readerIsFullscreen();
     // Keep the toolbar control compact while fullscreen is active.
-    fullDocumentButton.textContent = active ? '↙' : '⛶ Full document';
+    fullDocumentButton.textContent = active ? '×' : '⛶ Full document';
     fullDocumentButton.setAttribute('aria-label', active ? 'Exit full document view' : 'Enter full document view');
     fullDocumentButton.setAttribute('title', active ? 'Exit full document view' : 'Enter full document view');
     fullDocumentButton.setAttribute('aria-pressed', String(active));
