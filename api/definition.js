@@ -12,13 +12,13 @@ module.exports = async function definition(req, res) {
     const localResult = await lookupWordnet(word);
     if (localResult) {
       localResult.source = 'WordNet';
-      res.setHeader('Cache-Control', 'public, s-maxage=86400, stale-while-revalidate=604800');
+      res.setHeader('Cache-Control', 'public, max-age=86400, s-maxage=604800, stale-while-revalidate=2592000');
       return res.status(200).json(localResult);
     }
 
     const remoteResult = await lookupRemoteDictionary(word);
     if (remoteResult) {
-      res.setHeader('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=86400');
+      res.setHeader('Cache-Control', 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800');
       return res.status(200).json(remoteResult);
     }
 

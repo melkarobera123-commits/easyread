@@ -1,5 +1,5 @@
 const MAX_MEANINGS = 6;
-const REQUEST_TIMEOUT_MS = 4500;
+const REQUEST_TIMEOUT_MS = 3500;
 
 function cleanText(value) {
   return String(value || '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/gi, ' ').replace(/\s+/g, ' ').trim();
@@ -80,13 +80,16 @@ function fromWiktionary(data, requestedWord) {
   return { word: requestedWord, phonetic, meanings: uniqueMeanings(meanings), source: 'Wiktionary' };
 }
 
+const remoteCache = new Map();
 async function lookupRemoteDictionary(word, signal) {
+  const key = String(word || '').toLowerCase();
+  if (remoteCache.has(key)) return remoteCache.get(key);
   const encoded = encodeURIComponent(word.replace(/_/g, ' '));
-  const dictionaryApi = await fetchJson('https://api.dictionaryapi.dev/api/v2/entries/en/' + encoded, signal).catch(() => null);
-  const first = fromDictionaryApi(dictionaryApi, word);
-  if (first) return first;
-  const wiktionary = await fetchJson('https://en.wiktionary.org/api/rest_v1/page/definition/' + encoded, signal).catch(() => null);
-  return fromWiktionary(wiktionary, word);
+  // Ask both sources at once; use the first good answer (Dictionary API preferred when both reply).
+  const primary = fetchJson('https://api.dictionaryapi.dev/api/v2/entries/en/' + encoded, signal).catch(() => null).then(data => fromDictionaryApi(data, word));
+  const secondary = fetchJson('https://en.wiktionary.org/api/rest_v1/page/definition/' + encoded, signal).catch(() => null).then(data => fromWiktionary(data, word));
+  const first = await primary;
+  const result = first || await secondary;
+  if (result) { remoteCache.set(key, result); if (remoteCache.size > 300) remoteCache.delete(remoteCache.keys().next().value); }
+  return result;
 }
-
-module.exports = { lookupRemoteDictionary };

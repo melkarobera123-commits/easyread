@@ -70,3 +70,6 @@
     });
   });
 })();
+
+// Load web fonts without blocking the first paint (important on slow connections).
+(() => { const css = document.getElementById('font-css'); if (css) { css.media = 'all'; } })();

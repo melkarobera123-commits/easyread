@@ -3,5 +3,19 @@
     "api/definition.js": {
       "includeFiles": "node_modules/wordnet-db/dict/**"
     }
-  }
+  },
+  "headers": [
+    {
+      "source": "/(pdfjs|vendor)/(.*)",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=604800, stale-while-revalidate=2592000" }]
+    },
+    {
+      "source": "/(.*)\\.(png|svg|ico|webmanifest)",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=86400, stale-while-revalidate=604800" }]
+    },
+    {
+      "source": "/sw.js",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }]
+    }
+  ]
 }
