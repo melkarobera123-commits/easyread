@@ -3305,3 +3305,44 @@ body .drop-title { font-size: 1.05rem; }
     font-size: .74rem;
   }
 }
+
+/* Repair fullscreen reader dock: reserve a separate, non-overlapping slot for every control. */
+#fullscreen-dictionary-layer #fullscreen-reader-controls {
+  position: fixed !important; top: max(12px, env(safe-area-inset-top)) !important;
+  right: max(12px, env(safe-area-inset-right)) !important; left: auto !important;
+  display: grid !important; grid-template-columns: max-content 44px 44px max-content !important;
+  grid-auto-flow: row !important; align-items: center !important; justify-content: start !important;
+  gap: 8px !important; width: max-content !important; max-width: calc(100vw - 24px) !important;
+  padding: 8px !important; box-sizing: border-box !important; overflow: visible !important;
+}
+#fullscreen-dictionary-layer #fullscreen-reader-controls > #fullscreen-ask-ai,
+#fullscreen-dictionary-layer #fullscreen-reader-controls > #fullscreen-zoom-out,
+#fullscreen-dictionary-layer #fullscreen-reader-controls > #fullscreen-zoom-in,
+#fullscreen-dictionary-layer #fullscreen-reader-controls > #fullscreen-theme-toggle {
+  position: static !important; display: inline-flex !important; visibility: visible !important;
+  opacity: 1 !important; transform: none !important; flex: none !important;
+  align-self: stretch !important; margin: 0 !important; box-sizing: border-box !important;
+  white-space: nowrap !important;
+}
+#fullscreen-dictionary-layer #fullscreen-reader-controls > #fullscreen-ask-ai { grid-column: 1 !important; min-width: 98px !important; }
+#fullscreen-dictionary-layer #fullscreen-reader-controls > #fullscreen-zoom-out { grid-column: 2 !important; width: 44px !important; min-width: 44px !important; padding: 0 !important; }
+#fullscreen-dictionary-layer #fullscreen-reader-controls > #fullscreen-zoom-in { grid-column: 3 !important; width: 44px !important; min-width: 44px !important; padding: 0 !important; }
+#fullscreen-dictionary-layer #fullscreen-reader-controls > #fullscreen-theme-toggle { grid-column: 4 !important; min-width: 88px !important; padding: 0 10px !important; }
+@media (max-width: 600px) {
+  #fullscreen-dictionary-layer #fullscreen-reader-controls {
+    left: 8px !important; right: 8px !important; width: auto !important; max-width: none !important;
+    grid-template-columns: minmax(0, 1fr) 42px 42px minmax(0, 1fr) !important;
+    gap: 6px !important; padding: 6px !important;
+  }
+  #fullscreen-dictionary-layer #fullscreen-reader-controls > #fullscreen-ask-ai,
+  #fullscreen-dictionary-layer #fullscreen-reader-controls > #fullscreen-theme-toggle {
+    width: 100% !important; min-width: 0 !important; padding: 0 4px !important; font-size: .8rem !important;
+  }
+  #fullscreen-dictionary-layer #fullscreen-reader-controls > #fullscreen-zoom-out,
+  #fullscreen-dictionary-layer #fullscreen-reader-controls > #fullscreen-zoom-in { width: 42px !important; min-width: 42px !important; }
+}
+@media (max-width: 360px) {
+  #fullscreen-dictionary-layer #fullscreen-reader-controls { grid-template-columns: minmax(0, 1fr) 38px 38px minmax(0, 1fr) !important; gap: 4px !important; }
+  #fullscreen-dictionary-layer #fullscreen-reader-controls > #fullscreen-zoom-out,
+  #fullscreen-dictionary-layer #fullscreen-reader-controls > #fullscreen-zoom-in { width: 38px !important; min-width: 38px !important; }
+}
