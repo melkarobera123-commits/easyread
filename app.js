@@ -2366,7 +2366,7 @@ function profilePhoto(){return user?(local.get('er-photo-'+user.uid,'')||user.ph
       nodes.forEach(node => grid.append(node));
     } else {
       closeSheet();
-      nodes.forEach(node => { const m = marks.get(node); if (node.id === 'full-document-btn') document.querySelector('.toolbar-menu')?.prepend(node); else if (m?.parentNode) m.parentNode.insertBefore(node, m.nextSibling); });
+      nodes.forEach(node => { const m = marks.get(node); if (m?.parentNode) m.parentNode.insertBefore(node, m.nextSibling); });
     }
   };
   toolsBtn.addEventListener('click', event => { event.stopPropagation(); if (sheet.hidden) openSheet(); else closeSheet(); });
