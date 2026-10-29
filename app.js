@@ -163,22 +163,38 @@ document.addEventListener('pointerdown', event => {
   byId('notes-search')?.addEventListener('input',renderMyNotes);
   for(const id of ['contents-notes-link','vocab-notes-link'])byId(id)?.addEventListener('click',()=>{showPanel('notes-panel');renderMyNotes();});
   const fullDocumentButton = byId('full-document-btn');
-  const readerIsFullscreen = () => Boolean(document.fullscreenElement && [readerWrap, pdfPages, reader].includes(document.fullscreenElement));
+  const readerIsFullscreen = () => Boolean(document.fullscreenElement && [readerWrap, pdfPages].includes(document.fullscreenElement));
   const syncFullDocumentButton = () => {
     if (!fullDocumentButton) return;
     const active = readerIsFullscreen();
-    fullDocumentButton.textContent = active ? '↙ Exit full document' : '⛶ Full document';
+    // Use a compact exit icon while active; the accessible label still explains the action.
+    fullDocumentButton.textContent = active ? '↙' : '⛶ Full document';
     fullDocumentButton.setAttribute('aria-label', active ? 'Exit full document view' : 'Enter full document view');
+    fullDocumentButton.setAttribute('title', active ? 'Exit full document view' : 'Enter full document view');
     fullDocumentButton.setAttribute('aria-pressed', String(active));
   };
   fullDocumentButton?.addEventListener('click',async()=>{
     try {
-      if (readerIsFullscreen()) { await document.exitFullscreen?.(); return; }
+      if (readerIsFullscreen()) {
+        await document.exitFullscreen();
+        return;
+      }
       readerWrap.hidden=false;
-      if(activePdf){await setPdfMode(true);pdfPages.hidden=false;await pdfPages.requestFullscreen?.();}
-      else{setDocumentPageMode(false);reader.hidden=false;await reader.requestFullscreen?.();}
-      syncFullDocumentButton();
-    } catch(error) { console.error('Full-screen document view failed',error); toast('Could not open full-screen document view.'); }
+      if(activePdf){
+        await setPdfMode(true);
+        pdfPages.hidden=false;
+        if(typeof pdfPages.requestFullscreen!=='function') throw new Error('Fullscreen API unavailable');
+        await pdfPages.requestFullscreen();
+      } else {
+        setDocumentPageMode(false);
+        reader.hidden=false;
+        if(typeof readerWrap.requestFullscreen!=='function') throw new Error('Fullscreen API unavailable');
+        await readerWrap.requestFullscreen();
+      }
+    } catch(error) {
+      console.error('Full-screen document view failed',error);
+      toast('Could not open full-screen document view. Try the browser’s fullscreen permission or press Esc to exit.');
+    } finally { syncFullDocumentButton(); }
   });
   document.addEventListener('fullscreenchange', syncFullDocumentButton);
   syncFullDocumentButton();
