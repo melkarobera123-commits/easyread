@@ -1901,3 +1901,23 @@ body .drop:hover, body .drop.over { transform: translateY(-1px); border-color: v
 body .drop:active { transform: scale(.99); }
 body .drop-title { font-size: 1.05rem; }
 @media (min-width: 901px) { body .hero { padding-top: clamp(24px, 5vh, 56px); min-height: 0; } body .hero-points { margin-block: 14px 16px; } }
+
+/* Restored flashcards, progress dashboard, and Ask AI response actions */
+.progress-summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(115px,1fr));gap:10px;margin:16px 0 24px}
+.progress-metric{display:grid;gap:4px;padding:14px;border:1px solid var(--line);border-radius:13px;background:var(--bg)}
+.progress-metric strong{font-size:1.45rem;color:var(--accent)}
+.progress-metric span,.progress-book-row small{font-size:.82rem;color:var(--muted)}
+.progress-list-heading,.flashcard-review-section h3,.flashcard-create-form h3{margin:18px 0 10px;font-size:1.08rem}
+.progress-book-list{display:grid;gap:12px}.progress-book-row{padding:13px;border:1px solid var(--line);border-radius:12px}
+.progress-book-top{display:flex;justify-content:space-between;gap:12px;align-items:baseline}.progress-book-top strong{overflow-wrap:anywhere}.progress-book-top span{color:var(--accent);font-weight:700}
+.progress-book-bar{display:block;width:100%;height:8px;margin:9px 0;border:0;border-radius:99px;overflow:hidden;accent-color:var(--accent)}
+.progress-open-book{margin-top:8px;border:0;background:transparent;color:var(--accent);font:inherit;font-weight:650;cursor:pointer}
+.flashcard-create-form{display:grid;gap:12px;padding:15px;border:1px solid var(--line);border-radius:15px;background:var(--bg)}
+.flashcard-create-form label{display:grid;gap:5px;font-size:.88rem;font-weight:600}
+.flashcard-create-form input,.flashcard-create-form textarea{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface,#fff);color:var(--text,#222)}
+.flashcard-review-section{margin-top:22px}.flashcard-face{display:grid;place-items:center;gap:16px;width:100%;min-height:215px;padding:24px;border:1px solid var(--line);border-radius:17px;background:var(--surface,#fff);color:var(--text,#222);text-align:center;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.06)}
+.flashcard-kicker{font-size:.72rem;letter-spacing:.14em;color:var(--accent);font-weight:800}.flashcard-face-text{font-size:clamp(1.1rem,3vw,1.65rem);line-height:1.45;overflow-wrap:anywhere}
+.flashcard-tap-hint,.flashcard-counter{font-size:.8rem;color:var(--muted)}.flashcard-review-actions{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.flashcard-review-actions .btn{flex:1;min-width:95px}
+.flashcard-manage-list{display:grid;gap:10px;margin-top:20px}.flashcard-manage-row{display:flex;gap:12px;align-items:flex-start;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--line)}.flashcard-manage-row>div{min-width:0;overflow-wrap:anywhere}.flashcard-manage-row p{margin:5px 0;color:var(--muted);font-size:.9rem}
+.ask-response-actions{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 2px}.ask-response-action{border:1px solid var(--line);border-radius:9px;padding:7px 11px;background:var(--surface,#fff);color:var(--text,#222);font:inherit;font-size:.82rem;cursor:pointer}.ask-response-action:hover,.ask-response-action:focus-visible{border-color:var(--accent);outline-offset:2px}.ask-retry-response{font-weight:650}
+@media(max-width:520px){.flashcard-face{min-height:190px;padding:18px}.flashcard-review-actions .btn{min-width:calc(50% - 8px)}}
