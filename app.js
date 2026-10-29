@@ -167,26 +167,16 @@ document.addEventListener('pointerdown', event => {
   const syncFullDocumentButton = () => {
     if (!fullDocumentButton) return;
     const active = readerIsFullscreen();
-    if (active) {
-      const theme = document.documentElement.dataset.theme || 'light';
-      fullDocumentButton.textContent = theme === 'sepia' ? '◒' : theme === 'dark' ? '☾' : '◐';
-      fullDocumentButton.setAttribute('aria-label', 'Switch reading theme. Press Escape to leave full document mode');
-      fullDocumentButton.setAttribute('title', 'Switch reading theme (Esc exits full document mode)');
-      fullDocumentButton.setAttribute('aria-pressed', 'true');
-      fullDocumentButton.dataset.action = 'theme';
-    } else {
-      fullDocumentButton.textContent = '⛶ Full document';
-      fullDocumentButton.setAttribute('aria-label', 'Enter full document view');
-      fullDocumentButton.setAttribute('title', 'Enter full document view');
-      fullDocumentButton.setAttribute('aria-pressed', 'false');
-      delete fullDocumentButton.dataset.action;
-    }
-    // The fullscreen button doubles as the theme toggle while reading fullscreen.
+    fullDocumentButton.textContent = active ? '✓ Full document' : '⛶ Full document';
+    fullDocumentButton.setAttribute('aria-label', active ? 'Exit full document view' : 'Enter full document view');
+    fullDocumentButton.setAttribute('title', active ? 'Turn off full document mode' : 'Turn on full document mode');
+    fullDocumentButton.setAttribute('aria-pressed', String(active));
+    fullDocumentButton.classList.toggle('is-active', active);
     document.querySelectorAll('[data-easyread-theme-toggle].fullscreen-theme-toggle').forEach(button => button.remove());
   };
   fullDocumentButton?.addEventListener('click',async()=>{
     if (readerIsFullscreen()) {
-      window.cycleEasyReadTheme?.();
+      try { await document.exitFullscreen(); } catch(error) { console.warn('Could not exit full document view', error); }
       syncFullDocumentButton();
       return;
     }
@@ -1775,6 +1765,16 @@ function getFullscreenDictionaryLayer(host){
   ensureFullscreenReaderControls(layer);
   return layer;
 }
+function syncFullscreenThemeToggle(){
+  const button=document.getElementById('fullscreen-theme-toggle');
+  if(!button)return;
+  const theme=document.documentElement.dataset.theme||'light';
+  const labels={light:'☀ Light',sepia:'◒ Sepia',dark:'☾ Dark'};
+  button.textContent=labels[theme]||'◐ Theme';
+  button.setAttribute('aria-label',`Reading theme: ${theme}. Switch theme`);
+  button.setAttribute('title','Switch reading theme');
+}
+document.addEventListener('easyread-theme-change',syncFullscreenThemeToggle);
 function ensureFullscreenReaderControls(layer){
   if(!layer || layer.querySelector('#fullscreen-reader-controls')) return;
   const controls=document.createElement('div');
@@ -1799,10 +1799,17 @@ function ensureFullscreenReaderControls(layer){
   makeButton('fullscreen-zoom-in','+','Zoom in',()=>{
     if(activePdf) scalePdf(.15); else changeReaderTextSize(.1);
   });
-  makeButton('fullscreen-exit','Exit fullscreen','Exit fullscreen document view',()=>{
-    if(document.fullscreenElement) document.exitFullscreen?.().catch(()=>{});
+  const themeToggle=document.createElement('button');
+  themeToggle.type='button';
+  themeToggle.id='fullscreen-theme-toggle';
+  themeToggle.className='btn fullscreen-theme-toggle';
+  themeToggle.addEventListener('click',()=>{
+    window.cycleEasyReadTheme?.();
+    syncFullscreenThemeToggle();
   });
+  controls.append(themeToggle);
   layer.append(controls);
+  syncFullscreenThemeToggle();
 }
 function movePopupToFullscreenHost(){
   const host=fullscreenReaderHost();
