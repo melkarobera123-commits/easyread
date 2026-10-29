@@ -167,35 +167,30 @@ document.addEventListener('pointerdown', event => {
   const syncFullDocumentButton = () => {
     if (!fullDocumentButton) return;
     const active = readerIsFullscreen();
-    // Keep the toolbar control compact while fullscreen is active.
-    fullDocumentButton.textContent = active ? '×' : '⛶ Full document';
-    fullDocumentButton.setAttribute('aria-label', active ? 'Exit full document view' : 'Enter full document view');
-    fullDocumentButton.setAttribute('title', active ? 'Exit full document view' : 'Enter full document view');
-    fullDocumentButton.setAttribute('aria-pressed', String(active));
-
-    // The normal app header is outside the fullscreen element, so provide a theme
-    // toggle inside the actual fullscreen host (reader or PDF pages).
-    document.querySelectorAll('[data-easyread-theme-toggle].fullscreen-theme-toggle').forEach(button => {
-      if (!active || !document.fullscreenElement.contains(button)) button.remove();
-    });
-    if (active && !document.fullscreenElement.querySelector('[data-easyread-theme-toggle]')) {
-      const themeButton = document.createElement('button');
-      themeButton.type = 'button';
-      themeButton.className = 'fullscreen-theme-toggle';
-      themeButton.dataset.easyreadThemeToggle = 'true';
-      themeButton.textContent = document.documentElement.dataset.theme === 'sepia' ? '◒' : document.documentElement.dataset.theme === 'dark' ? '☾' : '◐';
-      themeButton.title = 'Switch reading theme';
-      themeButton.setAttribute('aria-label', 'Switch reading theme');
-      themeButton.addEventListener('click', () => window.cycleEasyReadTheme?.());
-      document.fullscreenElement.append(themeButton);
+    if (active) {
+      const theme = document.documentElement.dataset.theme || 'light';
+      fullDocumentButton.textContent = theme === 'sepia' ? '◒' : theme === 'dark' ? '☾' : '◐';
+      fullDocumentButton.setAttribute('aria-label', 'Switch reading theme. Press Escape to leave full document mode');
+      fullDocumentButton.setAttribute('title', 'Switch reading theme (Esc exits full document mode)');
+      fullDocumentButton.setAttribute('aria-pressed', 'true');
+      fullDocumentButton.dataset.action = 'theme';
+    } else {
+      fullDocumentButton.textContent = '⛶ Full document';
+      fullDocumentButton.setAttribute('aria-label', 'Enter full document view');
+      fullDocumentButton.setAttribute('title', 'Enter full document view');
+      fullDocumentButton.setAttribute('aria-pressed', 'false');
+      delete fullDocumentButton.dataset.action;
     }
+    // The fullscreen button doubles as the theme toggle while reading fullscreen.
+    document.querySelectorAll('[data-easyread-theme-toggle].fullscreen-theme-toggle').forEach(button => button.remove());
   };
   fullDocumentButton?.addEventListener('click',async()=>{
+    if (readerIsFullscreen()) {
+      window.cycleEasyReadTheme?.();
+      syncFullDocumentButton();
+      return;
+    }
     try {
-      if (readerIsFullscreen()) {
-        await document.exitFullscreen();
-        return;
-      }
       readerWrap.hidden=false;
       if(activePdf){
         await setPdfMode(true);
@@ -1756,7 +1751,7 @@ async function init() {
   byId('font-choice').addEventListener('change',event=>{const settings=local.get('er-reader-settings',{});settings.font=event.target.value;local.set('er-reader-settings',settings);document.documentElement.style.setProperty('--reader-font',event.target.value==='serif'?'Georgia,serif':event.target.value==='dyslexic'?'Arial,sans-serif':"'Literata',Georgia,serif");});byId('spacing').addEventListener('input',event=>{const settings=local.get('er-reader-settings',{});settings.spacing=Number(event.target.value);local.set('er-reader-settings',settings);document.documentElement.style.setProperty('--reader-leading',event.target.value);});byId('width').addEventListener('input',event=>{const settings=local.get('er-reader-settings',{});settings.width=Number(event.target.value);local.set('er-reader-settings',settings);document.documentElement.style.setProperty('--reader-width',event.target.value+'px');});
   for(const id of ['signin-modal-close','signin-modal-later'])byId(id).addEventListener('click',()=>{byId('signin-modal').hidden=true;local.set('er-signin-dismissed',true);local.set('er-welcome-intro-dismissed',true);});
   addEventListener('scroll',()=>{if(!readerWrap.hidden)savePosition();},{passive:true});addEventListener('beforeunload',()=>{savePosition(true);pauseReadingTimer();});document.addEventListener('visibilitychange',()=>{if(document.hidden&&readerTimerRunning){timerResumeOnVisible=true;pauseReadingTimer();}else if(!document.hidden&&timerResumeOnVisible&&!readerWrap.hidden){timerResumeOnVisible=false;startReadingTimer();}});addEventListener('resize',()=>{if(activePdf)scalePdf(0);});
-  document.addEventListener('keydown',event=>{if(event.key==='Escape'){hidePopup();hidePanels();byId('contents').classList.remove('open');byId('signin-modal').hidden=true;}if((event.ctrlKey||event.altKey)&&event.key==='Enter'&&!event.target.matches('input,textarea,select')){const selection=getSelection();if(selection&&!selection.isCollapsed&&selection.rangeCount){const text=selection.toString().trim();if(/^[\p{L}\p{M}]+(?:[-'’][\p{L}\p{M}]+)*$/u.test(text)){event.preventDefault();showWord({word:text.toLowerCase(),range:selection.getRangeAt(0).cloneRange()},{focus:true});return;}}}if(event.target.matches('input,textarea,select'))return;if(event.key==='?'){event.preventDefault();showPanel('shortcuts',true);return;}if(event.key==='/ '||event.key==='/'){event.preventDefault();if(!readerWrap.hidden){byId('reader-tools').hidden=false;byId('search-input').focus();}}if(event.key.toLowerCase()==='f'&&!readerWrap.hidden)document.body.classList.toggle('focus-mode');if(event.key.toLowerCase()==='t')byId('theme').click();});
+  document.addEventListener('keydown',event=>{if(event.key==='Escape'){hidePopup();hidePanels();byId('contents').classList.remove('open');byId('signin-modal').hidden=true;}if((event.ctrlKey||event.altKey)&&event.key==='Enter'&&!event.target.matches('input,textarea,select')){const selection=getSelection();if(selection&&!selection.isCollapsed&&selection.rangeCount){const text=selection.toString().trim();if(/^[\p{L}\p{M}]+(?:[-'’][\p{L}\p{M}]+)*$/u.test(text)){event.preventDefault();showWord({word:text.toLowerCase(),range:selection.getRangeAt(0).cloneRange()},{focus:true});return;}}}if(event.target.matches('input,textarea,select'))return;if(event.key==='?'){event.preventDefault();showPanel('shortcuts',true);return;}if(event.key==='/ '||event.key==='/'){event.preventDefault();if(!readerWrap.hidden){byId('reader-tools').hidden=false;byId('search-input').focus();}}if(event.key.toLowerCase()==='f'&&!readerWrap.hidden)document.body.classList.toggle('focus-mode');if(event.key.toLowerCase()==='t'){if(readerIsFullscreen())window.cycleEasyReadTheme?.();else byId('theme')?.click();syncFullDocumentButton();}if((event.key==='+'||event.key==='=')&&!readerWrap.hidden){event.preventDefault();byId('reading-zoom-in')?.click();}if(event.key==='-'&&!readerWrap.hidden){event.preventDefault();byId('reading-zoom-out')?.click();}});
   await renderLibrary().catch(()=>{});updateStreakChip();addEventListener('online',()=>{if(user)syncCloud();});
   // Introduce EasyRead once for new visitors, without requiring an account.
   const welcomeModal=byId('welcome-intro-modal');
