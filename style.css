@@ -2093,3 +2093,250 @@ body .drop-title { font-size: 1.05rem; }
     padding: 7px 10px;
   }
 }
+
+
+/* ===== Mobile reader polish: deliberate spacing, clear hierarchy, no control collisions ===== */
+@media (max-width: 700px) {
+  body {
+    padding-bottom: calc(96px + env(safe-area-inset-bottom));
+  }
+
+  body #reader-wrap {
+    padding-inline: 12px;
+    padding-bottom: 24px;
+    overflow: clip;
+  }
+
+  body #reader-wrap .reader-floating-controls {
+    position: relative !important;
+    inset: auto !important;
+    display: inline-flex;
+    width: auto;
+    max-width: 100%;
+    margin: 10px 0 14px auto;
+    padding: 4px;
+    gap: 5px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: color-mix(in srgb, var(--sheet) 96%, transparent);
+    box-shadow: 0 5px 18px rgba(0, 0, 0, .12);
+    vertical-align: top;
+  }
+
+  body #reader-wrap .reader-floating-controls .ask-ai-float {
+    position: static !important;
+    inset: auto !important;
+    min-height: 40px;
+    padding: 0 11px 0 9px;
+    border-radius: 999px;
+    white-space: nowrap;
+    box-shadow: none;
+  }
+
+  body #reader-wrap .reader-floating-controls .ask-ai-float-icon {
+    width: 23px;
+    height: 23px;
+  }
+
+  body #reader-wrap .reading-zoom-btn {
+    width: 38px;
+    height: 38px;
+    flex: 0 0 38px;
+    font-size: 1.25rem;
+  }
+
+  /* Main reader toolbar: consistent card, two tidy rows, no clipped controls. */
+  body #reader-wrap .bar {
+    position: relative;
+    top: auto;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+    margin: 0 0 16px;
+    padding: 10px;
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    background: color-mix(in srgb, var(--sheet) 96%, transparent);
+    box-shadow: 0 5px 18px rgba(0, 0, 0, .07);
+    overflow: visible;
+  }
+
+  body #reader-wrap .bar-primary {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    overflow: visible;
+  }
+
+  body #reader-wrap .bar-primary .btn {
+    min-width: 0;
+    min-height: 42px;
+    padding: 8px 10px;
+    border-radius: 12px;
+    white-space: normal;
+    line-height: 1.2;
+  }
+
+  body #reader-wrap .bar-end {
+    position: relative;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100%;
+    padding-top: 8px;
+    border-top: 1px solid var(--line);
+    background: transparent;
+    box-shadow: none;
+  }
+
+  body #reader-wrap .page-jump-inline {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    min-height: 40px;
+    margin-left: auto;
+    padding: 4px 10px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--bg);
+    white-space: nowrap;
+  }
+
+  body #reader-wrap .page-jump-inline input {
+    width: 48px;
+    min-height: 30px;
+    padding: 3px 4px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--sheet);
+    color: var(--ink);
+    text-align: center;
+  }
+
+  body #reader-wrap .doc-head {
+    margin: 18px 2px 16px;
+  }
+
+  body #reader-wrap .doc-title {
+    margin: 0 0 8px;
+    font-size: clamp(1.9rem, 8vw, 2.45rem);
+    line-height: 1.08;
+    letter-spacing: -.035em;
+    overflow-wrap: anywhere;
+  }
+
+  body #reader-wrap #doc-meta {
+    margin: 0;
+    color: var(--muted);
+    font-size: .92rem;
+    line-height: 1.45;
+  }
+
+  body #reader-wrap #pdf-toolbar.pdf-toolbar,
+  body #reader-wrap #text-view-controls.text-view-controls {
+    position: relative;
+    top: auto;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 7px;
+    width: 100%;
+    min-width: 0;
+    margin: 0 0 12px;
+    padding: 9px;
+    border-radius: 15px;
+    white-space: normal;
+    box-sizing: border-box;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, .06);
+  }
+
+  body #reader-wrap #pdf-toolbar > .btn,
+  body #reader-wrap #text-view-controls > .btn,
+  body #reader-wrap #pdf-controls .btn,
+  body #reader-wrap #text-view-controls .icon-btn {
+    min-height: 40px;
+    border-radius: 11px;
+  }
+
+  body #reader-wrap #pdf-controls {
+    display: flex;
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  body #reader-wrap #pdf-page-label,
+  body #reader-wrap #document-page-label {
+    padding-inline: 3px;
+    font-size: .9rem;
+    white-space: nowrap;
+  }
+
+  body #reader-wrap #pdf-pages {
+    width: 100%;
+    min-width: 0;
+  }
+
+  body #reader-wrap .pdf-page,
+  body #reader-wrap #pdf-pages canvas,
+  body #reader-wrap #pdf-pages img {
+    max-width: 100%;
+    height: auto;
+  }
+
+  /* Keep up/down actions in one predictable lane above the bottom tab bar. */
+  body #reader-wrap .scroll-nav {
+    position: fixed !important;
+    top: auto !important;
+    right: max(10px, env(safe-area-inset-right)) !important;
+    bottom: calc(88px + env(safe-area-inset-bottom)) !important;
+    transform: none !important;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding: 4px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--sheet) 96%, transparent);
+    box-shadow: 0 5px 16px rgba(0, 0, 0, .14);
+    z-index: 75 !important;
+  }
+
+  body #reader-wrap .scroll-nav .icon-btn {
+    width: 34px;
+    height: 34px;
+    min-width: 34px;
+    min-height: 34px;
+    border-radius: 50%;
+    box-shadow: none;
+  }
+
+  body #reader-wrap #reader,
+  body #reader-wrap #pdf-pages {
+    margin-bottom: 18px;
+  }
+}
+
+@media (max-width: 380px) {
+  body #reader-wrap { padding-inline: 9px; }
+  body #reader-wrap .bar { padding: 8px; }
+  body #reader-wrap .bar-primary .btn { padding-inline: 7px; font-size: .9rem; }
+  body #reader-wrap .reader-floating-controls .ask-ai-float { padding-inline: 8px; }
+  body #reader-wrap .reading-zoom-btn { width: 34px; height: 34px; flex-basis: 34px; }
+  body #reader-wrap .scroll-nav { right: 6px !important; bottom: calc(84px + env(safe-area-inset-bottom)) !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body #reader-wrap .reader-floating-controls,
+  body #reader-wrap .scroll-nav,
+  body #reader-wrap .bar { scroll-behavior: auto; }
+}
