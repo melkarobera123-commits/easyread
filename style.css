@@ -3378,3 +3378,72 @@ body .drop-title { font-size: 1.05rem; }
 #reader-tools > #search-count { flex: 0 0 auto; font-size: .85rem; white-space: nowrap; }
 #reader-tools > button { display: none !important; }
 #sidebar-saved-words, #sidebar-flashcards { cursor: pointer; }
+
+
+/* Advanced compact reader search: one field, live result position, clear and navigation. */
+#reader-tools {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px;
+}
+#reader-tools[hidden] { display: none !important; }
+#reader-tools > .search-label {
+  display: flex;
+  flex: 1 1 260px;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 150px;
+  margin: 0;
+  font-size: .75rem;
+  font-weight: 650;
+  color: var(--muted, #66756d);
+}
+#reader-tools #search-input {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 10px 13px;
+  font-size: 1rem;
+  border: 1px solid var(--line, #dfe7e1);
+  border-radius: 12px;
+  box-sizing: border-box;
+}
+#reader-tools > #search-count {
+  flex: 0 0 auto;
+  min-width: 86px;
+  color: var(--muted, #66756d);
+  font-size: .82rem;
+  text-align: center;
+  white-space: nowrap;
+}
+#reader-tools > #search-clear,
+#reader-tools > #search-prev,
+#reader-tools > #search-next {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 40px;
+  width: 40px;
+  min-width: 40px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0;
+  border: 1px solid var(--line, #dfe7e1);
+  border-radius: 11px;
+  background: var(--surface, #fff);
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+#reader-tools > #search-clear { font-size: 1.3rem; }
+#reader-tools > button:not(#search-clear):not(#search-prev):not(#search-next) { display: none !important; }
+@media (max-width: 540px) {
+  #reader-tools { gap: 6px; padding: 8px; }
+  #reader-tools > .search-label { flex-basis: calc(100% - 1px); }
+  #reader-tools > #search-count { flex: 1 1 auto; text-align: left; }
+  #reader-tools > #search-clear,
+  #reader-tools > #search-prev,
+  #reader-tools > #search-next { flex-basis: 38px; width: 38px; min-width: 38px; height: 38px; min-height: 38px; }
+}
