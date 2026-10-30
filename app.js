@@ -167,7 +167,7 @@ document.addEventListener('pointerdown', event => {
   const syncFullDocumentButton = () => {
     if (!fullDocumentButton) return;
     const active = readerIsFullscreen();
-    fullDocumentButton.textContent = active ? '✓ Full document' : '⛶ Full document';
+    fullDocumentButton.textContent = 'Full document';
     fullDocumentButton.setAttribute('aria-label', active ? 'Exit full document view' : 'Enter full document view');
     fullDocumentButton.setAttribute('title', active ? 'Turn off full document mode' : 'Turn on full document mode');
     fullDocumentButton.setAttribute('aria-pressed', String(active));
