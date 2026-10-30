@@ -3346,3 +3346,35 @@ body .drop-title { font-size: 1.05rem; }
   #fullscreen-dictionary-layer #fullscreen-reader-controls > #fullscreen-zoom-out,
   #fullscreen-dictionary-layer #fullscreen-reader-controls > #fullscreen-zoom-in { width: 38px !important; min-width: 38px !important; }
 }
+
+
+/* Reader toolbar simplification requested: search opens as a focused search field only. */
+#reader-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  padding: 10px 12px;
+  margin: 8px 0 14px;
+  border: 1px solid var(--line, #dfe7e1);
+  border-radius: 14px;
+  background: var(--surface, #fff);
+}
+#reader-tools[hidden] { display: none !important; }
+#reader-tools > label {
+  display: block;
+  flex: 1 1 100%;
+  min-width: 0;
+  margin: 0;
+  font-size: 0;
+}
+#reader-tools #search-input {
+  display: block;
+  width: 100%;
+  min-height: 42px;
+  font-size: 1rem;
+  box-sizing: border-box;
+}
+#reader-tools > #search-count { flex: 0 0 auto; font-size: .85rem; white-space: nowrap; }
+#reader-tools > button { display: none !important; }
+#sidebar-saved-words, #sidebar-flashcards { cursor: pointer; }
