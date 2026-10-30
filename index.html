@@ -168,7 +168,7 @@
   <section id="reader-wrap" class="reader-wrap" hidden>
     <button id="ask-ai-float" class="ask-ai-float" type="button" aria-expanded="false" aria-controls="ai-passage-panel"><span class="ask-ai-float-icon" aria-hidden="true">✦</span><span>Ask AI</span></button>
     <div class="bar">
-      <div class="bar-primary"><button id="contents-btn" class="btn" type="button" aria-expanded="false" aria-controls="contents">Contents</button><button id="full-document-btn" class="btn" type="button">Full document</button><button id="search-btn" class="btn" type="button">Search</button><button id="ask-ai-toggle" class="btn ai-passage-toggle" type="button" aria-expanded="false" aria-controls="ai-passage-panel">Ask AI</button></div>
+      <div class="bar-primary"><button id="contents-btn" class="btn" type="button" aria-expanded="false" aria-controls="contents">Contents</button><button id="full-document-btn" class="btn" type="button">Full document</button><button id="search-btn" class="btn" type="button">Search</button></div>
       
       <div class="bar-end">
         <div class="reading-timer" role="group" aria-label="Reading timer"><output id="timer-display" aria-live="off" aria-label="Elapsed reading time">00:00</output><span id="timer-state" class="timer-state">Counting up</span><button id="timer-toggle" class="icon-btn" type="button" aria-label="Pause reading timer">Pause</button><button id="timer-reset" class="icon-btn" type="button" aria-label="Reset reading timer">Reset</button></div>
@@ -199,10 +199,11 @@
       <p id="doc-meta"></p>
     </header>
     <div id="reader-tools" class="reader-tools" hidden>
-      <label>Search <input id="search-input" type="search" placeholder="Find in this book"></label>
-      <span id="search-count"></span>
-      <button id="search-prev" class="btn" type="button" aria-label="Previous result">↑</button>
-      <button id="search-next" class="btn" type="button" aria-label="Next result">↓</button>
+      <label for="search-input" class="search-label"><span>Find in this book</span><input id="search-input" type="search" placeholder="Search words or phrases…" autocomplete="off" spellcheck="false"></label>
+      <button id="search-clear" class="btn search-clear" type="button" aria-label="Clear search" title="Clear search">×</button>
+      <span id="search-count" role="status" aria-live="polite"></span>
+      <button id="search-prev" class="btn search-step" type="button" aria-label="Previous result" title="Previous result (Shift+Enter)">↑</button>
+      <button id="search-next" class="btn search-step" type="button" aria-label="Next result" title="Next result (Enter)">↓</button>
       <button id="highlight-btn" class="btn" type="button">Highlight</button>
       <button id="vocab-btn" class="btn" type="button">Vocabulary</button>
       <button id="stats-btn" class="btn" type="button">Stats</button>
