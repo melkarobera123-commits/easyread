@@ -200,7 +200,7 @@ document.addEventListener('pointerdown', event => {
   });
   document.addEventListener('fullscreenchange', syncFullDocumentButton);
   syncFullDocumentButton();
-  for (const [id, panel] of [['settings-btn','settings'],['vocab-btn','vocab'],['stats-btn','stats'],['flashcards-btn','learning'],['sidebar-flashcards','learning'],['contact-link','contact'],['privacy-link','privacy'],['shortcuts-link','shortcuts']]) byId(id)?.addEventListener('click', event => { if (id === 'contact-link') event.preventDefault(); showPanel(panel); });
+  for (const [id, panel] of [['settings-btn','settings'],['vocab-btn','vocab'],['sidebar-saved-words','vocab'],['stats-btn','stats'],['flashcards-btn','learning'],['sidebar-flashcards','learning'],['contact-link','contact'],['privacy-link','privacy'],['shortcuts-link','shortcuts']]) byId(id)?.addEventListener('click', event => { if (id === 'contact-link') event.preventDefault(); showPanel(panel); });
   byId('reading-progress-btn')?.addEventListener('click',()=>showPanel('stats'));
   byId('contents-btn')?.addEventListener('click',()=>{const panel=byId('contents'),open=!panel.classList.contains('open');if(open){closeOtherPanels('contents');markPanelOpened('contents');}panel.hidden=false;panel.classList.toggle('open',open);byId('contents-btn').setAttribute('aria-expanded',String(open));if(open){renderContents();renderSavedItems();}});
   document.querySelectorAll('[id$="-close"]').forEach(button => button.addEventListener('click', () => { const panel = button.closest('aside'); if (panel) showPanel(panel.id, false); if (panel?.id === 'contents') panel.classList.remove('open'); }));
@@ -1726,7 +1726,7 @@ async function init() {
   byId('timer-toggle').addEventListener('click',()=>readerTimerRunning?pauseReadingTimer():startReadingTimer());byId('timer-reset').addEventListener('click',resetReadingTimer);byId('reading-goal').addEventListener('change',event=>{readerTimerGoal=Math.max(0,Number(event.target.value)||0);local.set('er-reading-goal',readerTimerGoal);updateReadingTimer();});
   byId('pdf-mode-btn').addEventListener('click',()=>setPdfMode(!pdfMode));byId('pdf-prev').addEventListener('click',()=>goPdfPage(activePage-1));byId('pdf-next').addEventListener('click',()=>goPdfPage(activePage+1));byId('pdf-zoom-in').addEventListener('click',()=>scalePdf(.15));byId('pdf-zoom-out').addEventListener('click',()=>scalePdf(-.15));byId('pdf-fullscreen').addEventListener('click',()=>pdfPages.requestFullscreen?.());byId('pdf-preview-toggle').addEventListener('click',()=>{pdfPreviewsVisible=!pdfPreviewsVisible;local.set('er-pdf-previews',pdfPreviewsVisible);pdfThumbs.hidden=!pdfMode||!pdfPreviewsVisible;byId('pdf-preview-toggle').textContent=pdfPreviewsVisible?'Hide previews':'Show previews';byId('pdf-preview-toggle').setAttribute('aria-pressed',String(pdfPreviewsVisible));});
   byId('fullscreen-btn').addEventListener('click',toggleReaderFullscreen);
-  byId('search-btn').addEventListener('click',()=>{closeDictionaryPanel();byId('reader-tools').hidden=!byId('reader-tools').hidden;byId('search-input').focus();});
+  byId('search-btn').addEventListener('click',()=>{closeDictionaryPanel();const tools=byId('reader-tools');tools.hidden=!tools.hidden;if(!tools.hidden){byId('search-input').focus();byId('search-input').select();}});
   byId('search-input').addEventListener('input',()=>{
     clearTimeout(searchDebounceTimer);
     searchDebounceTimer=setTimeout(()=>searchBook(),120);
