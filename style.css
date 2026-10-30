@@ -3507,3 +3507,17 @@ body .drop-title { font-size: 1.05rem; }
   .steps h2 { margin-bottom: 9px; font-size: 1.4rem; }
   .steps p { font-size: .94rem; line-height: 1.65; }
 }
+
+
+/* Let EasyRead handle two-finger zoom inside the reader on touch devices. */
+@media (pointer: coarse) {
+  #reader-wrap,
+  #reader-wrap .pdf-pages,
+  #reader-wrap .pdf-page,
+  #reader-wrap #reader {
+    touch-action: pan-x pan-y;
+  }
+  #reader-wrap .pdf-pages {
+    overscroll-behavior-x: contain;
+  }
+}
