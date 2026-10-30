@@ -786,11 +786,11 @@ async function setPdfMode(visual) {
     accumulated += currentDistance - lastDistance;
     lastDistance = currentDistance;
     // Require a small deliberate pinch movement before applying a zoom step.
-    while (Math.abs(accumulated) >= 36) {
+    while (Math.abs(accumulated) >= 24) {
       const direction = accumulated > 0 ? 1 : -1;
       if (activePdf && pdfMode) scalePdf(direction * .1);
       else changeReaderTextSize(direction * .1);
-      accumulated -= direction * 36;
+      accumulated -= direction * 24;
     }
   }, { passive: false });
   const endPinch = event => {
