@@ -12,7 +12,6 @@
 <noscript><link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@300;500&family=Literata:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet"></noscript>
 <link rel="stylesheet" href="style.css">
 <link rel="stylesheet" href="pdf-reader.css">
-<link rel="stylesheet" href="premium-ui.css">
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#2F3FE0">
 <meta name="description" content="EasyRead helps you understand books without losing your reading flow.">
@@ -20,6 +19,7 @@
 <meta property="og:description" content="Open a book, tap a word, and keep going.">
 <meta property="og:image" content="og-image.svg">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="premium.css">
 <script src="script.js" defer></script>
   <link rel="dns-prefetch" href="https://api.mymemory.translated.net">
 </head>
@@ -50,7 +50,6 @@
     <button id="sidebar-reader" class="shell-nav" type="button"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h11a3 3 0 0 1 3 3v15H8a3 3 0 0 0-3 3zM5 3v18a3 3 0 0 1 3-3h11"/><path d="M9 8h6M9 12h6"/></svg><span>Reader</span></button>
     <button id="sidebar-library" class="shell-nav" type="button"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v16H4zM8 3v18M12 7h5M12 11h5"/></svg><span>Library</span></button>
     <button id="sidebar-notes" class="shell-nav" type="button"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h14v18H5zM8 8h8M8 12h8M8 16h5"/></svg><span>My Notes</span></button>
-    <button id="sidebar-flashcards" class="shell-nav" type="button" aria-controls="learning"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H6.5A2.5 2.5 0 0 0 4 21z"/><path d="M4 5.5V21M8 7h8M8 11h6"/></svg><span>Flashcards</span></button>
   </nav>
   <div class="sidebar-bottom">
     <button id="sidebar-account" class="profile-entry" type="button"><span class="profile-avatar"><img id="sidebar-avatar" alt=""></span><span><strong id="sidebar-account-label">Sign in</strong><small id="sidebar-account-meta">Sync your reading</small></span></button>
@@ -166,9 +165,9 @@
   </section>
 
   <section id="reader-wrap" class="reader-wrap" hidden>
-    <div class="reader-floating-controls" role="group" aria-label="Reading tools"><button id="reading-zoom-out" class="reading-zoom-btn" type="button" aria-label="Zoom out" title="Zoom out">−</button><button id="ask-ai-float" class="ask-ai-float" type="button" aria-expanded="false" aria-controls="ai-passage-panel"><span class="ask-ai-float-icon" aria-hidden="true">✦</span><span>Ask AI</span></button><button id="reading-zoom-in" class="reading-zoom-btn" type="button" aria-label="Zoom in" title="Zoom in">+</button></div>
+    <button id="ask-ai-float" class="ask-ai-float" type="button" aria-expanded="false" aria-controls="ai-passage-panel"><span class="ask-ai-float-icon" aria-hidden="true">✦</span><span>Ask AI</span></button>
     <div class="bar">
-      <div class="bar-primary"><button id="contents-btn" class="btn" type="button" aria-expanded="false" aria-controls="contents">Contents</button><button id="saved-btn" class="btn" type="button">Saved words</button><button id="full-document-btn" class="btn" type="button" aria-pressed="false" aria-label="Enter full document view">⛶ Full document</button><button id="search-btn" class="btn" type="button">Search</button></div>
+      <div class="bar-primary"><button id="contents-btn" class="btn" type="button" aria-expanded="false" aria-controls="contents">Contents</button><button id="saved-btn" class="btn" type="button">Saved words</button><button id="notes-btn" class="btn" type="button">My notes</button><button id="full-document-btn" class="btn" type="button">Full document</button><button id="search-btn" class="btn" type="button">Search</button><button id="dictionary-btn" class="btn" type="button" aria-expanded="false" aria-controls="dictionary-panel">Dictionary</button><button id="ask-ai-toggle" class="btn ai-passage-toggle" type="button" aria-expanded="false" aria-controls="ai-passage-panel">Ask AI</button></div>
       
       <div class="bar-end">
         <div class="reading-timer" role="group" aria-label="Reading timer"><output id="timer-display" aria-live="off" aria-label="Elapsed reading time">00:00</output><span id="timer-state" class="timer-state">Counting up</span><button id="timer-toggle" class="icon-btn" type="button" aria-label="Pause reading timer">Pause</button><button id="timer-reset" class="icon-btn" type="button" aria-label="Reset reading timer">Reset</button></div>
@@ -176,7 +175,7 @@
       <span id="page-now"></span>
       <span id="progress"></span>
       <button id="tools-btn" class="btn tools-btn" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="tools-sheet"><span class="tools-label">Tools</span></button>
-      <details class="toolbar-more"><summary class="btn">More</summary><div class="toolbar-menu"><button id="focus-btn" class="btn" type="button">Focus</button><button id="fullscreen-btn" class="btn" type="button" aria-label="Enter fullscreen reading">Fullscreen</button><button id="settings-btn" class="btn" type="button" aria-expanded="false">Settings</button><button id="reading-progress-btn" class="btn" type="button">Reading progress</button><span class="text-size"><button id="smaller" class="btn" type="button" aria-label="Smaller text">A−</button><button id="larger" class="btn" type="button" aria-label="Larger text">A+</button></span><button id="again" class="btn" type="button">New file</button></div></details>
+      <details class="toolbar-more"><summary class="btn">More</summary><div class="toolbar-menu"><button id="focus-btn" class="btn" type="button">Focus</button><button id="fullscreen-btn" class="btn" type="button" aria-label="Enter fullscreen reading">Fullscreen</button><button id="settings-btn" class="btn" type="button" aria-expanded="false">Settings</button><span class="text-size"><button id="smaller" class="btn" type="button" aria-label="Smaller text">A−</button><button id="larger" class="btn" type="button" aria-label="Larger text">A+</button></span><button id="again" class="btn" type="button">New file</button></div></details>
       </div>
     </div>
     <form id="dictionary-panel" class="dictionary-panel" hidden>
@@ -185,9 +184,11 @@
       <button id="dictionary-submit" class="btn" type="submit">Look up</button>
     </form>
     <form id="ai-passage-panel" class="ai-passage-panel" hidden>
-      <div class="ai-passage-heading"><div><p class="eyebrow">READING COMPANION</p><h3>Ask AI about this passage</h3></div><button id="ai-passage-close" class="icon-btn" type="button" aria-label="Close AI explanation panel">×</button></div>
+      <div class="ai-passage-heading"><div><p class="eyebrow">READING COMPANION</p><h3>Ask AI about this passage</h3><p>Select a phrase or sentence in your book, then ask what it means.</p></div><button id="ai-passage-close" class="icon-btn" type="button" aria-label="Close AI explanation panel">×</button></div>
       <label for="ai-passage-text">Phrase or sentence</label>
       <textarea id="ai-passage-text" maxlength="900" rows="3" placeholder="Select text in your book, or type/paste a passage here…" required></textarea>
+      <label for="ai-passage-question">What would you like to understand? <span>(optional)</span></label>
+      <input id="ai-passage-question" type="text" maxlength="300" placeholder="e.g. What does the author imply here?">
       <div class="ai-passage-footer"><small id="ai-passage-count">0 / 900</small><button id="ai-passage-submit" class="btn" type="submit">Explain this passage</button></div>
       <div id="ai-passage-answer" class="ai-passage-answer" role="status" aria-live="polite" hidden></div>
       <p class="ai-passage-disclaimer">AI explanations can make mistakes. Use them as a guide alongside the book.</p>
@@ -323,7 +324,7 @@
 </aside>
 
 <aside id="learning" class="panel learning-panel" hidden role="dialog" aria-modal="true" aria-labelledby="learning-title">
-  <div class="contents-head"><h2 id="learning-title">Flashcards</h2><button id="learning-close" class="btn" type="button">Close</button></div>
+  <div class="contents-head"><h2 id="learning-title">Learning</h2><button id="learning-close" class="btn" type="button">Close</button></div>
   <div id="learning-content"></div>
 </aside>
 
@@ -416,13 +417,9 @@
   <div class="contents-head"><h2 id="shortcuts-title">Keyboard shortcuts</h2><button id="shortcuts-close" class="btn" type="button">Close</button></div>
   <div class="shortcut-row"><kbd>/</kbd><span>Search in the current book</span></div>
   <div class="shortcut-row"><kbd>F</kbd><span>Toggle focus mode</span></div>
-  <div class="shortcut-row"><kbd>T</kbd><span>Cycle Light, Sepia, and Dark themes</span></div>
-  <div class="shortcut-row"><kbd>+</kbd><span>Zoom in while reading</span></div>
-  <div class="shortcut-row"><kbd>−</kbd><span>Zoom out while reading</span></div>
-  <div class="shortcut-row"><kbd>Ctrl</kbd> / <kbd>Alt</kbd> + <kbd>Enter</kbd><span>Look up the selected word</span></div>
-  <div class="shortcut-row"><kbd>?</kbd><span>Open this shortcut list</span></div>
-  <div class="shortcut-row"><kbd>Esc</kbd><span>Exit Full Document mode or close panels and popups</span></div>
-  <p class="shortcut-note">In Full Document mode, the top toolbar button switches reading themes. Press Esc to exit fullscreen.</p>
+  <div class="shortcut-row"><kbd>T</kbd><span>Toggle light and dark mode</span></div>
+  <div class="shortcut-row"><kbd>?</kbd><span>Open this panel</span></div>
+  <div class="shortcut-row"><kbd>Esc</kbd><span>Close panels and popups</span></div>
 </aside>
 
 <aside id="onboarding" class="onboarding-panel" hidden>
