@@ -202,6 +202,8 @@ document.addEventListener('pointerdown', event => {
   syncFullDocumentButton();
   for (const [id, panel] of [['settings-btn','settings'],['vocab-btn','vocab'],['sidebar-saved-words','vocab'],['stats-btn','stats'],['flashcards-btn','learning'],['sidebar-flashcards','learning'],['contact-link','contact'],['privacy-link','privacy'],['shortcuts-link','shortcuts']]) byId(id)?.addEventListener('click', event => { if (id === 'contact-link') event.preventDefault(); showPanel(panel); });
   byId('reading-progress-btn')?.addEventListener('click',()=>showPanel('stats'));
+  byId('sidebar-reading-progress')?.addEventListener('click',()=>showPanel('stats'));
+  byId('mobile-reading-progress')?.addEventListener('click',()=>showPanel('stats'));
   byId('contents-btn')?.addEventListener('click',()=>{const panel=byId('contents'),open=!panel.classList.contains('open');if(open){closeOtherPanels('contents');markPanelOpened('contents');}panel.hidden=false;panel.classList.toggle('open',open);byId('contents-btn').setAttribute('aria-expanded',String(open));if(open){renderContents();renderSavedItems();}});
   document.querySelectorAll('[id$="-close"]').forEach(button => button.addEventListener('click', () => { const panel = button.closest('aside'); if (panel) showPanel(panel.id, false); if (panel?.id === 'contents') panel.classList.remove('open'); }));
   document.addEventListener('click',event=>{const panel=byId('dictionary-panel');if(panel&&!panel.hidden&&!event.target.closest('#dictionary-panel,#dictionary-btn'))closeDictionaryPanel();});
