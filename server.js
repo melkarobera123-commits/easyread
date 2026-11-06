@@ -15,6 +15,15 @@ function send(res, status, body, type = 'application/json') {
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, JSON.stringify({ error: 'Method not allowed.' }));
+  if (url.pathname === '/api/health') {
+    const payload = {
+      ok: true,
+      service: 'easyread',
+      timestamp: new Date().toISOString(),
+      routes: ['/', '/home', '/library', '/notes', '/reader', '/api/explain', '/api/definition', '/api/health']
+    };
+    return send(res, 200, JSON.stringify(payload), 'application/json; charset=utf-8');
+  }
   if (url.pathname === '/api/explain') {
     const query = Object.fromEntries(url.searchParams.entries());
     const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown').split(',')[0].trim();
