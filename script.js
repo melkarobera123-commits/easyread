@@ -23,15 +23,24 @@
     if (!THEMES.includes(root.dataset.theme)) root.dataset.theme = 'light';
     const updateThemeLabel = () => {
       const next = nextTheme();
-      $('theme-label').textContent = NAMES[next];
-      $('theme').setAttribute('aria-label', 'Switch to ' + NAMES[next].toLowerCase());
+      const label = $('theme-label');
+      if (label) label.textContent = NAMES[next];
+      const button = $('theme');
+      if (button) button.setAttribute('aria-label', 'Switch to ' + NAMES[next].toLowerCase());
+      document.querySelectorAll('[data-easyread-theme-toggle]').forEach(control => {
+        control.setAttribute('aria-label', 'Current theme: ' + NAMES[root.dataset.theme] + '. Switch to ' + NAMES[next].toLowerCase());
+        control.title = 'Switch to ' + NAMES[next].toLowerCase();
+        control.textContent = root.dataset.theme === 'sepia' ? '◒' : root.dataset.theme === 'dark' ? '☾' : '◐';
+      });
     };
-    $('theme').addEventListener('click', () => {
-      const next = nextTheme();
-      root.dataset.theme = next;
-      store.set('er-theme', next);
+    window.setEasyReadTheme = theme => {
+      if (!THEMES.includes(theme)) return;
+      root.dataset.theme = theme;
+      store.set('er-theme', theme);
       updateThemeLabel();
-    });
+    };
+    window.cycleEasyReadTheme = () => window.setEasyReadTheme(nextTheme());
+    $('theme')?.addEventListener('click', window.cycleEasyReadTheme);
     updateThemeLabel();
 
     // Reading text size

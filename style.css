@@ -1901,3 +1901,1623 @@ body .drop:hover, body .drop.over { transform: translateY(-1px); border-color: v
 body .drop:active { transform: scale(.99); }
 body .drop-title { font-size: 1.05rem; }
 @media (min-width: 901px) { body .hero { padding-top: clamp(24px, 5vh, 56px); min-height: 0; } body .hero-points { margin-block: 14px 16px; } }
+
+/* Restored flashcards, progress dashboard, and Ask AI response actions */
+.progress-summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(115px,1fr));gap:10px;margin:16px 0 24px}
+.progress-metric{display:grid;gap:4px;padding:14px;border:1px solid var(--line);border-radius:13px;background:var(--bg)}
+.progress-metric strong{font-size:1.45rem;color:var(--accent)}
+.progress-metric span,.progress-book-row small{font-size:.82rem;color:var(--muted)}
+.progress-list-heading,.flashcard-review-section h3,.flashcard-create-form h3{margin:18px 0 10px;font-size:1.08rem}
+.progress-book-list{display:grid;gap:12px}.progress-book-row{padding:13px;border:1px solid var(--line);border-radius:12px}
+.progress-book-top{display:flex;justify-content:space-between;gap:12px;align-items:baseline}.progress-book-top strong{overflow-wrap:anywhere}.progress-book-top span{color:var(--accent);font-weight:700}
+.progress-book-bar{display:block;width:100%;height:8px;margin:9px 0;border:0;border-radius:99px;overflow:hidden;accent-color:var(--accent)}
+.progress-open-book{margin-top:8px;border:0;background:transparent;color:var(--accent);font:inherit;font-weight:650;cursor:pointer}
+.flashcard-create-form{display:grid;gap:12px;padding:15px;border:1px solid var(--line);border-radius:15px;background:var(--bg)}
+.flashcard-create-form label{display:grid;gap:5px;font-size:.88rem;font-weight:600}
+.flashcard-create-form input,.flashcard-create-form textarea{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface,#fff);color:var(--text,#222)}
+.flashcard-review-section{margin-top:22px}.flashcard-face{display:grid;place-items:center;gap:16px;width:100%;min-height:215px;padding:24px;border:1px solid var(--line);border-radius:17px;background:var(--surface,#fff);color:var(--text,#222);text-align:center;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.06)}
+.flashcard-kicker{font-size:.72rem;letter-spacing:.14em;color:var(--accent);font-weight:800}.flashcard-face-text{font-size:clamp(1.1rem,3vw,1.65rem);line-height:1.45;overflow-wrap:anywhere}
+.flashcard-tap-hint,.flashcard-counter{font-size:.8rem;color:var(--muted)}.flashcard-review-actions{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.flashcard-review-actions .btn{flex:1;min-width:95px}
+.flashcard-manage-list{display:grid;gap:10px;margin-top:20px}.flashcard-manage-row{display:flex;gap:12px;align-items:flex-start;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--line)}.flashcard-manage-row>div{min-width:0;overflow-wrap:anywhere}.flashcard-manage-row p{margin:5px 0;color:var(--muted);font-size:.9rem}
+.ask-response-actions{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 2px}.ask-response-action{border:1px solid var(--line);border-radius:9px;padding:7px 11px;background:var(--surface,#fff);color:var(--text,#222);font:inherit;font-size:.82rem;cursor:pointer}.ask-response-action:hover,.ask-response-action:focus-visible{border-color:var(--accent);outline-offset:2px}.ask-retry-response{font-weight:650}
+@media(max-width:520px){.flashcard-face{min-height:190px;padding:18px}.flashcard-review-actions .btn{min-width:calc(50% - 8px)}}
+
+
+/* Persistent reading controls: zoom out, Ask AI, zoom in. */
+.reader-floating-controls {
+  position: fixed;
+  z-index: 46;
+  right: max(24px, env(safe-area-inset-right));
+  bottom: max(24px, env(safe-area-inset-bottom));
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--sheet) 92%, transparent);
+  box-shadow: 0 12px 32px rgba(24, 38, 31, .2);
+  backdrop-filter: blur(14px);
+}
+.reader-floating-controls .ask-ai-float {
+  position: static;
+  right: auto;
+  bottom: auto;
+  z-index: auto;
+  flex: 0 0 auto;
+}
+.reading-zoom-btn {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--sheet);
+  color: var(--ink);
+  font: 700 1.45rem/1 var(--ui, system-ui, sans-serif);
+  cursor: pointer;
+  transition: background .15s ease, transform .15s ease;
+}
+.reading-zoom-btn:hover { background: var(--accent-soft); transform: translateY(-1px); }
+.reading-zoom-btn:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+@media (max-width: 700px) {
+  .reader-floating-controls {
+    right: max(12px, env(safe-area-inset-right));
+    bottom: calc(104px + env(safe-area-inset-bottom));
+    gap: 5px;
+    padding: 5px;
+  }
+  .reader-floating-controls .ask-ai-float {
+    min-height: 46px;
+    padding: 0 12px 0 9px;
+    gap: 6px;
+  }
+  .reader-floating-controls .ask-ai-float-icon { width: 26px; height: 26px; }
+  .reading-zoom-btn { width: 40px; height: 40px; flex-basis: 40px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .reading-zoom-btn { transition: none; }
+  .reading-zoom-btn:hover { transform: none; }
+}
+
+
+/* Mobile: keep Ask AI and zoom controls in the document flow so they never
+   float over or hide the text being read. Desktop keeps the floating dock. */
+@media (max-width: 700px) {
+  .reader-floating-controls {
+    position: relative;
+    inset: auto;
+    width: max-content;
+    max-width: 100%;
+    margin: 0 0 12px auto;
+    gap: 5px;
+    padding: 4px;
+    box-sizing: border-box;
+    box-shadow: 0 4px 14px rgba(24, 38, 31, .12);
+  }
+  .reader-floating-controls .ask-ai-float {
+    min-height: 42px;
+    padding: 0 10px;
+    gap: 5px;
+  }
+  .reader-floating-controls .ask-ai-float-icon {
+    width: 24px;
+    height: 24px;
+  }
+  .reading-zoom-btn {
+    width: 40px;
+    height: 40px;
+    flex-basis: 40px;
+  }
+}
+@media (max-width: 360px) {
+  .reader-floating-controls { gap: 3px; padding: 3px; }
+  .reader-floating-controls .ask-ai-float { padding-inline: 7px; }
+  .reader-floating-controls .ask-ai-float > span:last-child { font-size: .88rem; }
+  .reading-zoom-btn { width: 36px; height: 36px; flex-basis: 36px; }
+}
+
+
+/* Mobile reader layout fix: keep floating controls clear of the toolbar and bottom navigation. */
+@media (max-width: 700px) {
+  body #reader-wrap .scroll-nav {
+    top: auto !important;
+    right: max(10px, env(safe-area-inset-right)) !important;
+    bottom: calc(94px + env(safe-area-inset-bottom)) !important;
+    transform: none !important;
+    z-index: 70 !important;
+    gap: 6px;
+  }
+  body #reader-wrap .scroll-nav .icon-btn {
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
+    min-height: 38px;
+  }
+  body .reader-floating-controls {
+    position: relative !important;
+    inset: auto !important;
+    display: flex;
+    width: fit-content;
+    max-width: calc(100% - 8px);
+    margin: 8px 0 12px auto;
+    flex-wrap: nowrap;
+    align-items: center;
+  }
+  body #pdf-toolbar.pdf-toolbar,
+  body #text-view-controls.text-view-controls {
+    position: static;
+    top: auto;
+    width: 100%;
+    min-width: 0;
+    flex-wrap: wrap;
+    white-space: normal;
+    justify-content: flex-start;
+    gap: 7px;
+    box-sizing: border-box;
+  }
+  body #pdf-controls {
+    min-width: 0;
+    flex: 1 1 100%;
+    justify-content: flex-start;
+  }
+  body #reader-wrap,
+  body .reader-wrap,
+  body #pdf-pages,
+  body #text-viewer {
+    min-width: 0;
+    max-width: 100%;
+  }
+  body #pdf-pages img,
+  body #pdf-pages canvas,
+  body #pdf-pages .pdf-page {
+    max-width: 100%;
+  }
+}
+@media (max-width: 430px) {
+  body #reader-wrap .scroll-nav {
+    right: 7px !important;
+    bottom: calc(88px + env(safe-area-inset-bottom)) !important;
+  }
+  body #reader-wrap .scroll-nav .icon-btn {
+    width: 34px;
+    height: 34px;
+    min-width: 34px;
+    min-height: 34px;
+  }
+  body #text-view-controls .btn,
+  body #pdf-toolbar .btn {
+    min-height: 40px;
+    padding: 7px 10px;
+  }
+}
+
+
+/* ===== Mobile reader polish: deliberate spacing, clear hierarchy, no control collisions ===== */
+@media (max-width: 700px) {
+  body {
+    padding-bottom: calc(96px + env(safe-area-inset-bottom));
+  }
+
+  body #reader-wrap {
+    padding-inline: 12px;
+    padding-bottom: 24px;
+    overflow: clip;
+  }
+
+  body #reader-wrap .reader-floating-controls {
+    position: relative !important;
+    inset: auto !important;
+    display: inline-flex;
+    width: auto;
+    max-width: 100%;
+    margin: 10px 0 14px auto;
+    padding: 4px;
+    gap: 5px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: color-mix(in srgb, var(--sheet) 96%, transparent);
+    box-shadow: 0 5px 18px rgba(0, 0, 0, .12);
+    vertical-align: top;
+  }
+
+  body #reader-wrap .reader-floating-controls .ask-ai-float {
+    position: static !important;
+    inset: auto !important;
+    min-height: 40px;
+    padding: 0 11px 0 9px;
+    border-radius: 999px;
+    white-space: nowrap;
+    box-shadow: none;
+  }
+
+  body #reader-wrap .reader-floating-controls .ask-ai-float-icon {
+    width: 23px;
+    height: 23px;
+  }
+
+  body #reader-wrap .reading-zoom-btn {
+    width: 38px;
+    height: 38px;
+    flex: 0 0 38px;
+    font-size: 1.25rem;
+  }
+
+  /* Main reader toolbar: consistent card, two tidy rows, no clipped controls. */
+  body #reader-wrap .bar {
+    position: relative;
+    top: auto;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+    margin: 0 0 16px;
+    padding: 10px;
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    background: color-mix(in srgb, var(--sheet) 96%, transparent);
+    box-shadow: 0 5px 18px rgba(0, 0, 0, .07);
+    overflow: visible;
+  }
+
+  body #reader-wrap .bar-primary {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    overflow: visible;
+  }
+
+  body #reader-wrap .bar-primary .btn {
+    min-width: 0;
+    min-height: 42px;
+    padding: 8px 10px;
+    border-radius: 12px;
+    white-space: normal;
+    line-height: 1.2;
+  }
+
+  body #reader-wrap .bar-end {
+    position: relative;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100%;
+    padding-top: 8px;
+    border-top: 1px solid var(--line);
+    background: transparent;
+    box-shadow: none;
+  }
+
+  body #reader-wrap .page-jump-inline {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    min-height: 40px;
+    margin-left: auto;
+    padding: 4px 10px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--bg);
+    white-space: nowrap;
+  }
+
+  body #reader-wrap .page-jump-inline input {
+    width: 48px;
+    min-height: 30px;
+    padding: 3px 4px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--sheet);
+    color: var(--ink);
+    text-align: center;
+  }
+
+  body #reader-wrap .doc-head {
+    margin: 18px 2px 16px;
+  }
+
+  body #reader-wrap .doc-title {
+    margin: 0 0 8px;
+    font-size: clamp(1.9rem, 8vw, 2.45rem);
+    line-height: 1.08;
+    letter-spacing: -.035em;
+    overflow-wrap: anywhere;
+  }
+
+  body #reader-wrap #doc-meta {
+    margin: 0;
+    color: var(--muted);
+    font-size: .92rem;
+    line-height: 1.45;
+  }
+
+  body #reader-wrap #pdf-toolbar.pdf-toolbar,
+  body #reader-wrap #text-view-controls.text-view-controls {
+    position: relative;
+    top: auto;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 7px;
+    width: 100%;
+    min-width: 0;
+    margin: 0 0 12px;
+    padding: 9px;
+    border-radius: 15px;
+    white-space: normal;
+    box-sizing: border-box;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, .06);
+  }
+
+  body #reader-wrap #pdf-toolbar > .btn,
+  body #reader-wrap #text-view-controls > .btn,
+  body #reader-wrap #pdf-controls .btn,
+  body #reader-wrap #text-view-controls .icon-btn {
+    min-height: 40px;
+    border-radius: 11px;
+  }
+
+  body #reader-wrap #pdf-controls {
+    display: flex;
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  body #reader-wrap #pdf-page-label,
+  body #reader-wrap #document-page-label {
+    padding-inline: 3px;
+    font-size: .9rem;
+    white-space: nowrap;
+  }
+
+  body #reader-wrap #pdf-pages {
+    width: 100%;
+    min-width: 0;
+  }
+
+  body #reader-wrap .pdf-page,
+  body #reader-wrap #pdf-pages canvas,
+  body #reader-wrap #pdf-pages img {
+    max-width: 100%;
+    height: auto;
+  }
+
+  /* Keep up/down actions in one predictable lane above the bottom tab bar. */
+  body #reader-wrap .scroll-nav {
+    position: fixed !important;
+    top: auto !important;
+    right: max(10px, env(safe-area-inset-right)) !important;
+    bottom: calc(88px + env(safe-area-inset-bottom)) !important;
+    transform: none !important;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding: 4px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--sheet) 96%, transparent);
+    box-shadow: 0 5px 16px rgba(0, 0, 0, .14);
+    z-index: 75 !important;
+  }
+
+  body #reader-wrap .scroll-nav .icon-btn {
+    width: 34px;
+    height: 34px;
+    min-width: 34px;
+    min-height: 34px;
+    border-radius: 50%;
+    box-shadow: none;
+  }
+
+  body #reader-wrap #reader,
+  body #reader-wrap #pdf-pages {
+    margin-bottom: 18px;
+  }
+}
+
+@media (max-width: 380px) {
+  body #reader-wrap { padding-inline: 9px; }
+  body #reader-wrap .bar { padding: 8px; }
+  body #reader-wrap .bar-primary .btn { padding-inline: 7px; font-size: .9rem; }
+  body #reader-wrap .reader-floating-controls .ask-ai-float { padding-inline: 8px; }
+  body #reader-wrap .reading-zoom-btn { width: 34px; height: 34px; flex-basis: 34px; }
+  body #reader-wrap .scroll-nav { right: 6px !important; bottom: calc(84px + env(safe-area-inset-bottom)) !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body #reader-wrap .reader-floating-controls,
+  body #reader-wrap .scroll-nav,
+  body #reader-wrap .bar { scroll-behavior: auto; }
+}
+
+
+/* =========================================================
+   EasyRead mobile-first refinement
+   Final responsive layer: unified spacing, safe areas, touch
+   targets, overflow protection and reader control hierarchy.
+   ========================================================= */
+@media (max-width: 900px) {
+  html {
+    width: 100%;
+    overflow-x: clip;
+    scroll-padding-top: 70px;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    width: 100%;
+    min-width: 0;
+    overflow-x: clip;
+    padding-bottom: calc(88px + env(safe-area-inset-bottom));
+  }
+
+  .top {
+    min-height: 58px;
+    padding: 8px 14px;
+    gap: 10px;
+  }
+
+  .brand {
+    min-width: 0;
+    font-size: 1.18rem;
+    white-space: nowrap;
+  }
+
+  .top > * {
+    min-width: 0;
+  }
+
+  .top .theme-toggle {
+    margin-left: auto;
+    min-width: 42px;
+    min-height: 42px;
+  }
+
+  main,
+  .site-footer {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    margin-left: 0;
+  }
+
+  main > section,
+  .hero,
+  .steps,
+  .library-home {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .hero {
+    padding: 30px 18px 28px;
+    gap: 22px;
+  }
+
+  .hero h1 {
+    max-width: 13ch;
+    margin: 8px 0 12px;
+    font-size: clamp(2.35rem, 9.5vw, 3.3rem);
+    line-height: 1.02;
+    letter-spacing: -.035em;
+    overflow-wrap: anywhere;
+  }
+
+  .hero .lead {
+    max-width: 38ch;
+    margin: 0 0 16px;
+    font-size: 1rem;
+    line-height: 1.6;
+  }
+
+  .drop {
+    min-height: 136px;
+    margin-top: 18px;
+    padding: 20px 14px;
+    border-radius: 16px;
+  }
+
+  .stack {
+    margin: 4px auto 12px;
+    transform: none;
+  }
+
+  .stack .sheet {
+    padding: 22px;
+  }
+
+  .steps,
+  .library-home {
+    padding: 0 18px 36px;
+  }
+
+  .steps ol {
+    gap: 18px;
+    padding-top: 20px;
+  }
+
+  .library-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .book-card {
+    padding: 12px;
+    gap: 9px;
+    border-radius: 13px;
+  }
+
+  .book-card .btn {
+    min-height: 42px;
+    padding-inline: 8px;
+  }
+
+  .mobile-nav {
+    position: fixed;
+    z-index: 80;
+    inset: auto 8px max(8px, env(safe-area-inset-bottom));
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 3px;
+    padding: 6px;
+    border: 1px solid color-mix(in srgb, var(--line) 90%, transparent);
+    border-radius: 19px;
+    background: color-mix(in srgb, var(--sheet) 94%, transparent);
+    box-shadow: 0 8px 28px rgba(0, 0, 0, .17);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+  }
+
+  .mobile-nav .shell-nav {
+    display: grid;
+    place-items: center;
+    align-content: center;
+    gap: 4px;
+    min-width: 0;
+    min-height: 58px;
+    padding: 5px 2px;
+    border-radius: 13px;
+    font-size: .69rem;
+    line-height: 1.15;
+    font-weight: 600;
+    text-align: center;
+  }
+
+  .mobile-nav .shell-nav.active {
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+
+  .mobile-nav .nav-icon {
+    width: 21px;
+    height: 21px;
+  }
+
+  .panel {
+    z-index: 90;
+    inset: max(8px, env(safe-area-inset-top)) 8px calc(82px + env(safe-area-inset-bottom));
+    width: auto;
+    max-width: none;
+    padding: 14px 16px calc(20px + env(safe-area-inset-bottom));
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    box-shadow: 0 18px 48px rgba(0, 0, 0, .22);
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .contents {
+    z-index: 91;
+    inset: max(8px, env(safe-area-inset-top)) auto calc(82px + env(safe-area-inset-bottom)) 8px;
+    width: min(360px, calc(100vw - 24px));
+    padding: 14px;
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    box-shadow: 0 18px 48px rgba(0, 0, 0, .22);
+    overscroll-behavior: contain;
+  }
+
+  .library-backdrop {
+    z-index: 85;
+    inset: 58px 0 calc(78px + env(safe-area-inset-bottom));
+  }
+
+  .library-panel {
+    z-index: 86;
+    inset: auto 8px calc(84px + env(safe-area-inset-bottom));
+    width: auto;
+    max-height: calc(100dvh - 150px - env(safe-area-inset-bottom));
+    border-radius: 18px;
+    padding: 14px 16px 22px;
+    overscroll-behavior: contain;
+  }
+
+  .signin-card,
+  .onboarding-panel {
+    width: min(440px, calc(100vw - 28px));
+    max-height: calc(100dvh - 32px - env(safe-area-inset-bottom));
+    padding: 24px 20px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  input,
+  select,
+  textarea {
+    max-width: 100%;
+    font-size: 16px;
+  }
+
+  .btn,
+  .icon-btn,
+  .theme-toggle {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .site-footer {
+    padding: 22px 18px calc(110px + env(safe-area-inset-bottom));
+    gap: 10px;
+    text-align: center;
+  }
+
+  .footer-links {
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 12px 16px;
+  }
+}
+
+/* Reader: one clear hierarchy instead of a dense, scrolling control strip. */
+@media (max-width: 700px) {
+  body #reader-wrap {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    margin: 0;
+    padding: 8px 12px calc(112px + env(safe-area-inset-bottom));
+    overflow: visible;
+    scroll-margin-top: 64px;
+  }
+
+  body #reader-wrap .reader-floating-controls {
+    position: relative !important;
+    inset: auto !important;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    width: 100%;
+    max-width: 100%;
+    margin: 2px 0 12px;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    gap: 7px;
+  }
+
+  body #reader-wrap .reader-floating-controls .ask-ai-float {
+    position: static !important;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+    min-height: 42px;
+    padding: 0 12px 0 9px;
+    border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--line));
+    border-radius: 14px;
+    background: var(--accent);
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, .12);
+    white-space: nowrap;
+  }
+
+  body #reader-wrap .reader-floating-controls .ask-ai-float-icon {
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 9px;
+    background: rgba(255, 255, 255, .14);
+  }
+
+  body #reader-wrap .reading-zoom-btn {
+    width: 42px;
+    height: 42px;
+    flex: 0 0 42px;
+    border-radius: 14px;
+    border: 1px solid var(--line);
+    background: var(--sheet);
+    box-shadow: none;
+    font-size: 1.25rem;
+  }
+
+  body #reader-wrap .bar {
+    position: relative;
+    top: auto;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 9px;
+    width: 100%;
+    min-width: 0;
+    margin: 0 0 18px;
+    padding: 10px;
+    border: 1px solid var(--line);
+    border-radius: 17px;
+    background: var(--sheet);
+    box-shadow: 0 5px 18px rgba(0, 0, 0, .06);
+    overflow: visible;
+    backdrop-filter: none;
+  }
+
+  body #reader-wrap .bar-primary {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    overflow: visible;
+  }
+
+  body #reader-wrap .bar-primary .btn {
+    display: inline-flex;
+    justify-content: center;
+    min-width: 0;
+    min-height: 44px;
+    padding: 8px 9px;
+    border-radius: 12px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-align: center;
+    line-height: 1.2;
+    font-size: .91rem;
+  }
+
+  body #reader-wrap .bar-end {
+    position: relative;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100%;
+    min-width: 0;
+    padding-top: 9px;
+    border-top: 1px solid var(--line);
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  body #reader-wrap .page-jump-inline {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    min-height: 42px;
+    margin-left: auto;
+    padding: 4px 9px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--bg);
+    white-space: nowrap;
+  }
+
+  body #reader-wrap .page-jump-inline input {
+    width: 50px;
+    min-width: 0;
+    min-height: 32px;
+    padding: 3px 5px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--sheet);
+    color: var(--ink);
+    text-align: center;
+  }
+
+  body #reader-wrap .toolbar-more {
+    margin-left: 0;
+  }
+
+  body #reader-wrap .toolbar-more summary {
+    min-height: 42px;
+    border-radius: 12px;
+  }
+
+  body #reader-wrap .toolbar-menu {
+    position: fixed !important;
+    top: auto !important;
+    right: 12px !important;
+    bottom: calc(90px + env(safe-area-inset-bottom)) !important;
+    left: 12px !important;
+    width: auto !important;
+    max-width: none;
+    max-height: min(58dvh, 480px);
+    padding: 12px;
+    border-radius: 16px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    z-index: 100 !important;
+    box-shadow: 0 14px 38px rgba(0, 0, 0, .2);
+  }
+
+  body #reader-wrap .toolbar-menu .btn {
+    justify-content: flex-start;
+    min-height: 44px;
+    border-radius: 11px;
+  }
+
+  body #reader-wrap .doc-head {
+    margin: 4px 2px 16px;
+  }
+
+  body #reader-wrap .doc-title {
+    margin: 0 0 8px;
+    font-size: clamp(1.85rem, 8vw, 2.55rem);
+    line-height: 1.08;
+    letter-spacing: -.035em;
+    overflow-wrap: anywhere;
+  }
+
+  body #reader-wrap #doc-meta {
+    margin: 0;
+    color: var(--muted);
+    font-size: .9rem;
+    line-height: 1.5;
+  }
+
+  body #reader-wrap #pdf-toolbar.pdf-toolbar,
+  body #reader-wrap #text-view-controls.text-view-controls {
+    position: relative;
+    top: auto;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 7px;
+    width: 100%;
+    min-width: 0;
+    margin: 0 0 12px;
+    padding: 9px;
+    border: 1px solid var(--line);
+    border-radius: 15px;
+    background: var(--sheet);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, .05);
+    white-space: normal;
+    box-sizing: border-box;
+  }
+
+  body #reader-wrap #pdf-toolbar > .btn,
+  body #reader-wrap #text-view-controls > .btn,
+  body #reader-wrap #pdf-controls .btn,
+  body #reader-wrap #text-view-controls .icon-btn {
+    min-height: 40px;
+    min-width: 40px;
+    padding: 7px 10px;
+    border-radius: 11px;
+  }
+
+  body #reader-wrap #pdf-controls {
+    display: flex;
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 6px;
+    min-width: 0;
+    margin: 0;
+  }
+
+  body #reader-wrap #pdf-page-label,
+  body #reader-wrap #document-page-label {
+    font-size: .88rem;
+    white-space: nowrap;
+  }
+
+  body #reader-wrap #pdf-pages,
+  body #reader-wrap #reader,
+  body #reader-wrap .document-page-reader {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  body #reader-wrap .pdf-page {
+    min-width: 0;
+    min-height: 0;
+    padding: 8px;
+    border-radius: 12px;
+  }
+
+  body #reader-wrap #pdf-pages canvas,
+  body #reader-wrap #pdf-pages img {
+    display: block;
+    width: auto;
+    max-width: 100%;
+    height: auto;
+  }
+
+  body #reader-wrap .document-page-reader .page {
+    min-height: calc(100dvh - 220px);
+    padding: 24px 18px 30px;
+    border-radius: 12px;
+    overflow-wrap: anywhere;
+  }
+
+  body #reader-wrap #reader {
+    font-size: var(--reader-fs);
+    overflow-wrap: anywhere;
+  }
+
+  body #reader-wrap .scroll-nav {
+    position: fixed !important;
+    top: auto !important;
+    right: max(10px, env(safe-area-inset-right)) !important;
+    bottom: calc(88px + env(safe-area-inset-bottom)) !important;
+    transform: none !important;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding: 4px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--sheet) 96%, transparent);
+    box-shadow: 0 5px 16px rgba(0, 0, 0, .13);
+    z-index: 76 !important;
+  }
+
+  body #reader-wrap .scroll-nav .icon-btn {
+    width: 35px;
+    height: 35px;
+    min-width: 35px;
+    min-height: 35px;
+    border-radius: 50%;
+    box-shadow: none;
+  }
+
+  body #reader-wrap #ai-passage-panel {
+    margin: 0 0 14px;
+    padding: 14px;
+    border-radius: 16px;
+  }
+
+  body #reader-wrap #ai-passage-panel textarea {
+    width: 100%;
+    min-height: 100px;
+    font-size: 16px;
+  }
+
+  body #reader-wrap #ai-passage-panel .ai-passage-footer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+
+  body #reader-wrap #ai-passage-submit {
+    width: 100%;
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 380px) {
+  .hero { padding-inline: 14px; }
+  .steps, .library-home { padding-inline: 14px; }
+  .library-grid { gap: 8px; }
+  .book-card { padding: 10px; }
+  .mobile-nav { inset-inline: 5px; padding: 4px; }
+  .mobile-nav .shell-nav { min-height: 55px; font-size: .65rem; }
+  body #reader-wrap { padding-inline: 9px; }
+  body #reader-wrap .bar { padding: 8px; }
+  body #reader-wrap .bar-primary .btn { padding-inline: 6px; font-size: .86rem; }
+  body #reader-wrap .reader-floating-controls { gap: 5px; }
+  body #reader-wrap .reader-floating-controls .ask-ai-float { padding-inline: 8px; }
+  body #reader-wrap .reading-zoom-btn { width: 38px; height: 38px; flex-basis: 38px; }
+  body #reader-wrap .scroll-nav { right: 5px !important; bottom: calc(82px + env(safe-area-inset-bottom)) !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mobile-nav,
+  .reader-floating-controls,
+  .scroll-nav,
+  .bar { scroll-behavior: auto !important; }
+}
+
+
+/* ===== Ask AI: focused, polished reading companion ===== */
+#reader-wrap .reader-floating-controls .ask-ai-float {
+  gap: 9px;
+  min-height: 44px;
+  padding: 0 15px 0 11px;
+  border: 1px solid color-mix(in srgb, var(--accent) 42%, var(--line));
+  border-radius: 15px;
+  background: linear-gradient(135deg,
+    color-mix(in srgb, var(--accent) 96%, #527b68),
+    color-mix(in srgb, var(--accent) 82%, #203c32));
+  color: #fff;
+  box-shadow: 0 5px 16px rgba(21, 48, 37, .19), inset 0 1px 0 rgba(255,255,255,.18);
+  font-size: .91rem;
+  font-weight: 750;
+  letter-spacing: -.015em;
+  transition: transform .18s ease, box-shadow .18s ease, filter .18s ease;
+}
+
+#reader-wrap .reader-floating-controls .ask-ai-float:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.05);
+  box-shadow: 0 8px 22px rgba(21, 48, 37, .23), inset 0 1px 0 rgba(255,255,255,.2);
+}
+
+#reader-wrap .reader-floating-controls .ask-ai-float:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  outline-offset: 3px;
+}
+
+#reader-wrap .reader-floating-controls .ask-ai-float[aria-expanded="true"] {
+  border-color: color-mix(in srgb, var(--accent) 65%, var(--line));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 13%, transparent), 0 5px 16px rgba(21,48,37,.16);
+}
+
+#reader-wrap .reader-floating-controls .ask-ai-float-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 27px;
+  height: 27px;
+  border: 1px solid rgba(255,255,255,.22);
+  border-radius: 9px;
+  background: rgba(255,255,255,.14);
+  color: #f7dca7;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+#ai-passage-panel.ai-passage-panel {
+  gap: 15px;
+  border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--line));
+  border-radius: 24px;
+  background:
+    radial-gradient(ellipse at 100% 0%, rgba(217,166,95,.12), transparent 40%),
+    linear-gradient(145deg, var(--sheet), color-mix(in srgb, var(--accent-soft) 20%, var(--sheet)));
+  box-shadow: 0 20px 55px rgba(12, 29, 22, .16), inset 0 1px 0 rgba(255,255,255,.13);
+  -webkit-backdrop-filter: blur(18px) saturate(135%);
+  backdrop-filter: blur(18px) saturate(135%);
+}
+
+#ai-passage-panel .ai-passage-heading .eyebrow {
+  letter-spacing: .105em;
+}
+
+#ai-passage-panel .ai-passage-heading h3 {
+  line-height: 1.14;
+  text-wrap: balance;
+}
+
+#ai-passage-panel textarea#ai-passage-text {
+  min-height: 116px;
+  border-radius: 15px;
+  font-family: var(--ui);
+  font-size: 1rem;
+  line-height: 1.65;
+}
+
+#ai-passage-panel textarea#ai-passage-text:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--accent) 72%, var(--line));
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+#ai-passage-panel .ai-passage-answer {
+  border-radius: 17px;
+  line-height: 1.8;
+}
+
+#ai-passage-panel .ai-passage-disclaimer {
+  padding-top: 2px;
+}
+
+@media (max-width: 700px) {
+  #reader-wrap .reader-floating-controls .ask-ai-float {
+    min-height: 44px;
+    padding: 0 13px 0 9px;
+    border-radius: 14px;
+    font-size: .9rem;
+  }
+
+  #reader-wrap .reader-floating-controls .ask-ai-float-icon {
+    width: 26px;
+    height: 26px;
+    border-radius: 9px;
+  }
+
+  #ai-passage-panel.ai-passage-panel {
+    position: fixed !important;
+    z-index: 1001 !important;
+    top: auto !important;
+    right: 10px !important;
+    bottom: calc(82px + env(safe-area-inset-bottom)) !important;
+    left: 10px !important;
+    width: auto !important;
+    max-width: none !important;
+    max-height: min(78dvh, 720px);
+    margin: 0 !important;
+    padding: 17px 16px calc(16px + env(safe-area-inset-bottom));
+    gap: 13px;
+    border-radius: 23px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    box-shadow: 0 22px 70px rgba(0,0,0,.3), 0 2px 10px rgba(0,0,0,.08);
+  }
+
+  #ai-passage-panel .ai-passage-heading {
+    align-items: flex-start;
+    gap: 10px;
+    padding-bottom: 13px;
+  }
+
+  #ai-passage-panel .ai-passage-heading .eyebrow {
+    margin-bottom: 8px;
+    padding: 6px 9px;
+    font-size: .62rem;
+  }
+
+  #ai-passage-panel .ai-passage-heading h3 {
+    margin-bottom: 6px;
+    font-size: clamp(1.25rem, 5.7vw, 1.55rem);
+    line-height: 1.15;
+  }
+
+  #ai-passage-panel .ai-passage-heading p:not(.eyebrow) {
+    font-size: .84rem;
+    line-height: 1.5;
+  }
+
+  #ai-passage-close.icon-btn {
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
+    min-height: 38px;
+    border-radius: 12px;
+  }
+
+  #ai-passage-panel > label {
+    margin: 0;
+    font-size: .8rem;
+  }
+
+  #ai-passage-panel textarea#ai-passage-text {
+    min-height: 96px;
+    max-height: 25dvh;
+    padding: 13px 14px;
+    border-radius: 14px;
+    font-size: 16px;
+    resize: vertical;
+  }
+
+  #ai-passage-panel .ai-passage-footer {
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+    padding-top: 0;
+  }
+
+  #ai-passage-count {
+    flex: 0 0 auto;
+    font-size: .73rem;
+  }
+
+  #ai-passage-submit.btn {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
+    min-height: 48px;
+    padding: 10px 13px;
+    border-radius: 13px;
+    font-size: .86rem;
+  }
+
+  #ai-passage-panel .ai-passage-answer {
+    padding: 14px;
+    border-radius: 15px;
+  }
+
+  #ai-passage-panel .ai-passage-response {
+    font-size: .92rem;
+    line-height: 1.75;
+  }
+
+  #ai-passage-panel .ai-passage-disclaimer {
+    margin: 0;
+    font-size: .71rem;
+    line-height: 1.45;
+  }
+
+  /* When the phone keyboard is open, keep the form usable and scrollable. */
+  body.ask-ai-open #ai-passage-panel.ai-passage-panel {
+    max-height: min(68dvh, 620px);
+  }
+}
+
+@media (max-width: 390px) {
+  #ai-passage-panel.ai-passage-panel {
+    right: 7px !important;
+    left: 7px !important;
+    padding: 14px 13px calc(14px + env(safe-area-inset-bottom));
+    border-radius: 20px;
+  }
+
+  #ai-passage-panel .ai-passage-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  #ai-passage-submit.btn {
+    width: 100%;
+    min-height: 46px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #reader-wrap .reader-floating-controls .ask-ai-float,
+  #ai-passage-panel * {
+    scroll-behavior: auto !important;
+    transition-duration: .01ms !important;
+    animation-duration: .01ms !important;
+  }
+}
+
+
+/* Full document mode controls: mode is a real on/off toggle; theme has its own control. */
+#full-document-btn.is-active {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+  background: color-mix(in srgb, var(--accent) 15%, var(--sheet));
+  color: var(--accent);
+}
+#full-document-btn[aria-pressed="true"] {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+#fullscreen-reader-controls #fullscreen-theme-toggle {
+  min-width: 76px;
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
+  background: color-mix(in srgb, var(--accent-soft) 75%, var(--sheet));
+  color: var(--ink);
+  font-weight: 700;
+}
+@media (max-width: 700px) {
+  #fullscreen-reader-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 7px;
+  }
+  #fullscreen-reader-controls .btn {
+    min-height: 42px;
+    border-radius: 13px;
+  }
+  #fullscreen-reader-controls #fullscreen-theme-toggle {
+    flex: 0 0 auto;
+    min-width: 82px;
+  }
+}
+
+
+/* Fullscreen control dock: explicit columns prevent the theme toggle colliding with zoom. */
+.fullscreen-reader-controls {
+  display: grid !important;
+  grid-template-columns: auto 42px 42px auto;
+  align-items: center;
+  justify-content: start;
+  gap: 8px;
+  width: max-content;
+  max-width: calc(100vw - 24px);
+  box-sizing: border-box;
+}
+.fullscreen-reader-controls .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 42px;
+  min-height: 42px;
+  margin: 0;
+  box-sizing: border-box;
+}
+.fullscreen-reader-controls #fullscreen-ask-ai {
+  min-width: 98px;
+}
+.fullscreen-reader-controls #fullscreen-zoom-out,
+.fullscreen-reader-controls #fullscreen-zoom-in {
+  width: 42px;
+  padding: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+.fullscreen-reader-controls #fullscreen-theme-toggle {
+  min-width: 88px;
+  padding-inline: 12px;
+  white-space: nowrap;
+}
+@media (max-width: 600px) {
+  .fullscreen-reader-controls {
+    position: fixed;
+    top: max(8px, env(safe-area-inset-top));
+    right: 8px;
+    left: 8px;
+    width: auto;
+    max-width: none;
+    grid-template-columns: minmax(0, 1.4fr) 42px 42px minmax(0, 1.15fr);
+    gap: 6px;
+    padding: 6px;
+    border-radius: 16px;
+  }
+  .fullscreen-reader-controls .btn {
+    width: 100%;
+    min-width: 0;
+    min-height: 44px;
+    padding: 7px 5px;
+    border-radius: 11px;
+    font-size: .82rem;
+    line-height: 1.1;
+  }
+  .fullscreen-reader-controls #fullscreen-ask-ai {
+    min-width: 0;
+    white-space: nowrap;
+  }
+  .fullscreen-reader-controls #fullscreen-zoom-out,
+  .fullscreen-reader-controls #fullscreen-zoom-in {
+    width: 42px;
+    min-width: 42px;
+    padding: 0;
+    font-size: 1.15rem;
+  }
+  .fullscreen-reader-controls #fullscreen-theme-toggle {
+    min-width: 0;
+    padding-inline: 4px;
+    white-space: nowrap;
+    font-size: .76rem;
+  }
+}
+@media (max-width: 360px) {
+  .fullscreen-reader-controls {
+    grid-template-columns: minmax(0, 1.25fr) 38px 38px minmax(0, 1fr);
+    gap: 4px;
+    padding: 5px;
+  }
+  .fullscreen-reader-controls #fullscreen-zoom-out,
+  .fullscreen-reader-controls #fullscreen-zoom-in {
+    width: 38px;
+    min-width: 38px;
+  }
+  .fullscreen-reader-controls .btn {
+    font-size: .74rem;
+  }
+}
+
+/* Repair fullscreen reader dock: reserve a separate, non-overlapping slot for every control. */
+#fullscreen-dictionary-layer #fullscreen-reader-controls {
+  position: fixed !important; top: max(12px, env(safe-area-inset-top)) !important;
+  right: max(12px, env(safe-area-inset-right)) !important; left: auto !important;
+  display: grid !important; grid-template-columns: max-content 44px 44px max-content !important;
+  grid-auto-flow: row !important; align-items: center !important; justify-content: start !important;
+  gap: 8px !important; width: max-content !important; max-width: calc(100vw - 24px) !important;
+  padding: 8px !important; box-sizing: border-box !important; overflow: visible !important;
+}
+#fullscreen-dictionary-layer #fullscreen-reader-controls > #fullscreen-ask-ai,
+#fullscreen-dictionary-layer #fullscreen-reader-controls > #fullscreen-zoom-out,
+#fullscreen-dictionary-layer #fullscreen-reader-controls > #fullscreen-zoom-in,
+#fullscreen-dictionary-layer #fullscreen-reader-controls > #fullscreen-theme-toggle {
+  position: static !important; display: inline-flex !important; visibility: visible !important;
+  opacity: 1 !important; transform: none !important; flex: none !important;
+  align-self: stretch !important; margin: 0 !important; box-sizing: border-box !important;
+  white-space: nowrap !important;
+}
+#fullscreen-dictionary-layer #fullscreen-reader-controls > #fullscreen-ask-ai { grid-column: 1 !important; min-width: 98px !important; }
+#fullscreen-dictionary-layer #fullscreen-reader-controls > #fullscreen-zoom-out { grid-column: 2 !important; width: 44px !important; min-width: 44px !important; padding: 0 !important; }
+#fullscreen-dictionary-layer #fullscreen-reader-controls > #fullscreen-zoom-in { grid-column: 3 !important; width: 44px !important; min-width: 44px !important; padding: 0 !important; }
+#fullscreen-dictionary-layer #fullscreen-reader-controls > #fullscreen-theme-toggle { grid-column: 4 !important; min-width: 88px !important; padding: 0 10px !important; }
+@media (max-width: 600px) {
+  #fullscreen-dictionary-layer #fullscreen-reader-controls {
+    left: 8px !important; right: 8px !important; width: auto !important; max-width: none !important;
+    grid-template-columns: minmax(0, 1fr) 42px 42px minmax(0, 1fr) !important;
+    gap: 6px !important; padding: 6px !important;
+  }
+  #fullscreen-dictionary-layer #fullscreen-reader-controls > #fullscreen-ask-ai,
+  #fullscreen-dictionary-layer #fullscreen-reader-controls > #fullscreen-theme-toggle {
+    width: 100% !important; min-width: 0 !important; padding: 0 4px !important; font-size: .8rem !important;
+  }
+  #fullscreen-dictionary-layer #fullscreen-reader-controls > #fullscreen-zoom-out,
+  #fullscreen-dictionary-layer #fullscreen-reader-controls > #fullscreen-zoom-in { width: 42px !important; min-width: 42px !important; }
+}
+@media (max-width: 360px) {
+  #fullscreen-dictionary-layer #fullscreen-reader-controls { grid-template-columns: minmax(0, 1fr) 38px 38px minmax(0, 1fr) !important; gap: 4px !important; }
+  #fullscreen-dictionary-layer #fullscreen-reader-controls > #fullscreen-zoom-out,
+  #fullscreen-dictionary-layer #fullscreen-reader-controls > #fullscreen-zoom-in { width: 38px !important; min-width: 38px !important; }
+}
+
+
+/* Reader toolbar simplification requested: search opens as a focused search field only. */
+#reader-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  padding: 10px 12px;
+  margin: 8px 0 14px;
+  border: 1px solid var(--line, #dfe7e1);
+  border-radius: 14px;
+  background: var(--surface, #fff);
+}
+#reader-tools[hidden] { display: none !important; }
+#reader-tools > label {
+  display: block;
+  flex: 1 1 100%;
+  min-width: 0;
+  margin: 0;
+  font-size: 0;
+}
+#reader-tools #search-input {
+  display: block;
+  width: 100%;
+  min-height: 42px;
+  font-size: 1rem;
+  box-sizing: border-box;
+}
+#reader-tools > #search-count { flex: 0 0 auto; font-size: .85rem; white-space: nowrap; }
+#reader-tools > button { display: none !important; }
+#sidebar-saved-words, #sidebar-flashcards { cursor: pointer; }
+
+
+/* Advanced compact reader search: one field, live result position, clear and navigation. */
+#reader-tools {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px;
+}
+#reader-tools[hidden] { display: none !important; }
+#reader-tools > .search-label {
+  display: flex;
+  flex: 1 1 260px;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 150px;
+  margin: 0;
+  font-size: .75rem;
+  font-weight: 650;
+  color: var(--muted, #66756d);
+}
+#reader-tools #search-input {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 10px 13px;
+  font-size: 1rem;
+  border: 1px solid var(--line, #dfe7e1);
+  border-radius: 12px;
+  box-sizing: border-box;
+}
+#reader-tools > #search-count {
+  flex: 0 0 auto;
+  min-width: 86px;
+  color: var(--muted, #66756d);
+  font-size: .82rem;
+  text-align: center;
+  white-space: nowrap;
+}
+#reader-tools > #search-clear,
+#reader-tools > #search-prev,
+#reader-tools > #search-next {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 40px;
+  width: 40px;
+  min-width: 40px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0;
+  border: 1px solid var(--line, #dfe7e1);
+  border-radius: 11px;
+  background: var(--surface, #fff);
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+#reader-tools > #search-clear { font-size: 1.3rem; }
+#reader-tools > button:not(#search-clear):not(#search-prev):not(#search-next) { display: none !important; }
+@media (max-width: 540px) {
+  #reader-tools { gap: 6px; padding: 8px; }
+  #reader-tools > .search-label { flex-basis: calc(100% - 1px); }
+  #reader-tools > #search-count { flex: 1 1 auto; text-align: left; }
+  #reader-tools > #search-clear,
+  #reader-tools > #search-prev,
+  #reader-tools > #search-next { flex-basis: 38px; width: 38px; min-width: 38px; height: 38px; min-height: 38px; }
+}
+
+
+/* How EasyRead works: refined, responsive feature cards. */
+.steps {
+  max-width: 1420px;
+  padding: 0 clamp(20px, 4.5vw, 64px) 76px;
+}
+.steps ol {
+  gap: clamp(14px, 1.8vw, 24px);
+  padding-top: clamp(24px, 3vw, 40px);
+  border-top-color: color-mix(in srgb, var(--marker) 42%, var(--line));
+}
+.steps li {
+  position: relative;
+  min-width: 0;
+  min-height: 220px;
+  padding: 24px 24px 26px;
+  border: 1px solid color-mix(in srgb, var(--marker) 23%, var(--line));
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--sheet) 84%, var(--marker) 6%);
+  transition: border-color .2s ease, transform .2s ease, box-shadow .2s ease;
+}
+.steps li::before {
+  display: block;
+  margin-bottom: 28px;
+  color: color-mix(in srgb, var(--accent) 78%, var(--marker));
+  font: 750 1rem/1 var(--ui);
+  letter-spacing: .035em;
+}
+.steps li:hover {
+  transform: translateY(-3px);
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--line));
+  box-shadow: 0 12px 28px color-mix(in srgb, var(--ink) 7%, transparent);
+}
+.steps h2 {
+  margin: 0 0 14px;
+  color: var(--ink);
+  font: 500 clamp(1.35rem, 2vw, 1.8rem)/1.2 var(--display);
+  letter-spacing: -.025em;
+  text-wrap: balance;
+}
+.steps p {
+  max-width: 38ch;
+  margin: 0;
+  color: var(--muted);
+  font-size: clamp(.95rem, 1.15vw, 1.08rem);
+  line-height: 1.75;
+}
+@media (max-width: 900px) {
+  .steps { padding-bottom: 54px; }
+  .steps li { min-height: 0; padding: 22px; }
+  .steps li::before { margin-bottom: 18px; }
+}
+@media (max-width: 540px) {
+  .steps { padding-inline: 16px; }
+  .steps ol { gap: 12px; padding-top: 18px; }
+  .steps li { padding: 20px; border-radius: 8px; }
+  .steps h2 { margin-bottom: 9px; font-size: 1.4rem; }
+  .steps p { font-size: .94rem; line-height: 1.65; }
+}
+
+
+/* Let EasyRead handle two-finger zoom inside the reader on touch devices. */
+@media (pointer: coarse) {
+  #reader-wrap,
+  #reader-wrap .pdf-pages,
+  #reader-wrap .pdf-page,
+  #reader-wrap #reader {
+    touch-action: pan-x pan-y;
+  }
+  #reader-wrap .pdf-pages {
+    overscroll-behavior-x: contain;
+  }
+}
