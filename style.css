@@ -59,7 +59,7 @@ main,.site-footer{margin-left:232px}.site-footer{display:flex;justify-content:ce
   .bar::-webkit-scrollbar{display:none}
   .bar-primary{flex:0 0 auto;flex-wrap:nowrap}
   .bar-primary .btn,.bar .btn{min-height:44px;white-space:nowrap}
-  .reading-timer{display:none}
+  .reading-timer{display:flex;align-items:center;gap:4px;margin-right:auto}
   .page-jump-inline{flex:0 0 auto;white-space:nowrap}
   .page-jump-inline input{width:58px;min-height:42px}
   .toolbar-more{flex:0 0 auto}
@@ -305,7 +305,7 @@ body.focus-mode .bar{position:sticky;top:8px;z-index:80;}
 
 
 /* Route foundation: page-like destinations reuse the existing DOM and data model. */
-body[data-route="home"] #reader-wrap,
+body[data-route="home"] #reader-wrap { display:block !important; }
 body[data-route="reader"] main > .hero,
 body[data-route="reader"] main > .steps,
 body[data-route="reader"] main > #library-home,

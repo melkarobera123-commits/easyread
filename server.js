@@ -47,7 +47,17 @@ const server = http.createServer((req, res) => {
   const pathname = decodeURIComponent(url.pathname === '/' ? '/index.html' : url.pathname);
   const file = path.resolve(root, '.' + pathname);
   if (!file.startsWith(root + path.sep)) return send(res, 403, JSON.stringify({ error: 'Forbidden.' }));
-  fs.readFile(file, (error, data) => error ? send(res, 404, JSON.stringify({ error: 'Not found.' })) : send(res, 200, data, types[path.extname(file)] || 'application/octet-stream'));
+
+  const isAppRoute = !path.extname(pathname) && !url.pathname.startsWith('/api/');
+  const targetFile = isAppRoute ? path.resolve(root, 'index.html') : file;
+
+  fs.readFile(targetFile, (error, data) => {
+    if (error) {
+      if (isAppRoute) return send(res, 404, JSON.stringify({ error: 'Not found.' }));
+      return send(res, 404, JSON.stringify({ error: 'Not found.' }));
+    }
+    return send(res, 200, data, types[path.extname(targetFile)] || 'application/octet-stream');
+  });
 });
 
 server.listen(port, () => console.log(`EasyRead running at http://localhost:${port}`));
