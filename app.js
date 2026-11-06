@@ -14,6 +14,7 @@ const sources = {
   firebaseAuth: 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js',
   firebaseStore: 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js',
   firebaseStorage: 'https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js',
+  firebaseFunctions: 'https://www.gstatic.com/firebasejs/10.12.2/firebase-functions-compat.js',
   purifier: './vendor/purify.min.js'
 };
 function loadScript(url) {
@@ -50,7 +51,7 @@ const putDefinition = value => dbRequest('definitions', 'readwrite', store => st
 const fileInput = byId('file'), drop = byId('drop'), reader = byId('reader'), readerWrap = byId('reader-wrap');
 const pdfPages = byId('pdf-pages'), pdfThumbs = byId('pdf-thumbs'), popup = byId('popup');
 const STORE_KEYS = { vocabulary: 'er-vocabulary', notes: 'er-notes', highlights: 'er-highlights', bookmarks: 'er-bookmarks', stats: 'er-stats' };
-let activeBook = null, activePdf = null, pdfMode = true, documentPageMode = false, zoom = 1, pageCount = 0, lookupController = null, toastTimer, saveTimer, auth = null, firestore = null, storage = null, user = null, installPromptEvent = null;
+let activeBook = null, activePdf = null, pdfMode = true, documentPageMode = false, zoom = 1, pageCount = 0, lookupController = null, toastTimer, saveTimer, auth = null, firestore = null, functions = null, storage = null, user = null, installPromptEvent = null;
 let pageObserver = null, thumbObserver = null, activePage = 1, pdfTextPromise = null, pdfSearchMatches = [], pdfSearchIndex = -1, searchToken = 0, firebaseInitPromise = null, cloudSyncTimer = null;
 let popupReturnFocus = null;
 let activeImageWords = [], activeImageElement = null, activeImageUrl = null;
@@ -62,6 +63,46 @@ let activeNoteWord = '';
 let pdfPreviewsVisible = local.get('er-pdf-previews', false) === true;
 let readerTimerInterval = null, readerTimerStart = 0, readerTimerSeconds = 0, readerTimerGoal = 0, readerTimerDay = '', readerTimerRunning = false, readerTimerRecordedSeconds = 0, readerTimerBookKey = null, timerResumeOnVisible = false;
 const pdfRenderPromises = new Map();
+
+function recordUserActivity(type, details = {}) {
+  const entry = {
+    type,
+    details,
+    timestamp: Date.now()
+  };
+  const current = Array.isArray(local.get('er-activity-log', [])) ? local.get('er-activity-log', []) : [];
+  current.unshift(entry);
+  local.set('er-activity-log', current.slice(0, 18));
+}
+
+function recordApiUsage(kind, outcome = 'success') {
+  const current = local.get('er-api-usage', { explain: 0, translate: 0, other: 0, errors: 0 });
+  if (kind === 'explain') current.explain = (Number(current.explain) || 0) + 1;
+  else if (kind === 'translate') current.translate = (Number(current.translate) || 0) + 1;
+  else current.other = (Number(current.other) || 0) + 1;
+  if (outcome === 'error') current.errors = (Number(current.errors) || 0) + 1;
+  local.set('er-api-usage', current);
+}
+
+function writeSupportLog(level, message, meta = {}) {
+  const payload = { level, message, meta, timestamp: new Date().toISOString() };
+  const current = Array.isArray(local.get('er-support-logs', [])) ? local.get('er-support-logs', []) : [];
+  current.unshift(payload);
+  local.set('er-support-logs', current.slice(0, 12));
+}
+
+window.addEventListener('error', event => {
+  writeSupportLog('error', event.message || 'Unexpected browser error', {
+    filename: event.filename,
+    lineno: event.lineno,
+    colno: event.colno,
+    stack: event.error?.stack || ''
+  });
+});
+window.addEventListener('unhandledrejection', event => {
+  const reason = event.reason && typeof event.reason === 'object' ? (event.reason.message || String(event.reason)) : String(event.reason || 'Unhandled promise rejection');
+  writeSupportLog('error', reason, { capture: 'unhandledrejection' });
+});
 
 function toast(message, options = {}) {
   const node = byId('toast');
@@ -89,7 +130,7 @@ function toast(message, options = {}) {
 function status(message, error = false) { const node = byId('status'); node.textContent = message; node.classList.toggle('err', error); }
 function safeText(parent, tag, text, className = '') { const node = document.createElement(tag); if (className) node.className = className; node.textContent = text; parent.append(node); return node; }
 function closeOverlayPanels(except='') {
-  for (const id of ['library','contents','settings','vocab','stats','privacy','shortcuts','notes-panel']) {
+  for (const id of ['library','contents','settings','vocab','stats','privacy','shortcuts','notes-panel','dashboard-panel']) {
     if (id === except) continue;
     const panel = byId(id);
     if (!panel) continue;
@@ -159,7 +200,7 @@ function renderRoute(route, replace = false) {
 }
 function goToUpload() { navigateToRoute('home'); status('Choose a book to open the Reader.'); requestAnimationFrame(() => { drop.scrollIntoView({ behavior: 'smooth', block: 'center' }); drop.focus({ preventScroll: true }); drop.classList.add('guide-focus'); setTimeout(() => drop.classList.remove('guide-focus'), 900); }); }
 function closeDictionaryPanel(){const panel=byId('dictionary-panel');if(panel)panel.hidden=true;byId('dictionary-btn')?.setAttribute('aria-expanded','false');}
-function showPanel(id, open) { const panel = byId(id); if (!panel) return; closeDictionaryPanel();panel.hidden = open === undefined ? !panel.hidden : !open; if (!panel.hidden) { closeOtherPanels(id); markPanelOpened(id); } if (id === 'library') { const backdrop=byId('library-backdrop'); if(backdrop) backdrop.hidden=panel.hidden; } if (id === 'library' && !panel.hidden) renderLibraryPanel(); if (id === 'vocab' && !panel.hidden) renderVocabulary(); if (id === 'stats' && !panel.hidden) renderStats(); if (id === 'learning' && !panel.hidden) renderLearning(); if (id === 'notes-panel' && !panel.hidden) renderMyNotes(); if (id === 'privacy' && !panel.hidden) renderPrivacyState(); }
+function showPanel(id, open) { const panel = byId(id); if (!panel) return; closeDictionaryPanel();panel.hidden = open === undefined ? !panel.hidden : !open; if (!panel.hidden) { closeOtherPanels(id); markPanelOpened(id); } if (id === 'library') { const backdrop=byId('library-backdrop'); if(backdrop) backdrop.hidden=panel.hidden; } if (id === 'library' && !panel.hidden) renderLibraryPanel(); if (id === 'vocab' && !panel.hidden) renderVocabulary(); if (id === 'stats' && !panel.hidden) renderStats(); if (id === 'learning' && !panel.hidden) renderLearning(); if (id === 'notes-panel' && !panel.hidden) renderMyNotes(); if (id === 'dashboard-panel' && !panel.hidden) renderDashboard(); if (id === 'privacy' && !panel.hidden) renderPrivacyState(); }
 function hidePanels() { document.querySelectorAll('.panel, .contents').forEach(panel => { panel.hidden = true; panel.classList.remove('open'); }); const toolsSheet = byId('tools-sheet'); if (toolsSheet) toolsSheet.hidden = true; }
 
 function initNavigation() {
@@ -170,6 +211,7 @@ function initNavigation() {
     event.stopPropagation();
     navigateToRoute('library');
   });
+  for (const id of ['dashboard-btn','sidebar-dashboard']) byId(id)?.addEventListener('click', () => showPanel('dashboard-panel', true));
   for (const id of ['sidebar-notes','mobile-notes']) byId(id)?.addEventListener('click', () => navigateToRoute('notes'));
   window.addEventListener('popstate', () => renderRoute(routeFromLocation(), true));
   navigateToRoute(routeFromLocation(), true);
@@ -351,7 +393,7 @@ async function openFile(file) {
     else await parseImage(file);
     if (!reader.textContent.trim() && ext !== 'pdf') throw new Error('No readable text was found in this file.');
     activeBook.words = wordCount(reader.textContent); await putBook(activeBook); byId('file-name').textContent = activeBook.title; updateDocMeta(); renderLibrary();
-    byId('loading-skeleton').hidden = true; status(''); if (activeBook.position) restorePosition(); byId('reader-page-jump').max=String(Math.max(1,pageCount)); byId('reader-page-jump').value=String(activeBook.position?.page||1); syncPageCounter(Number(activeBook.position?.page)||1); byId('text-view-controls').hidden=Boolean(activePdf&&pdfMode); updateDocumentPageControls(); readerTimerBookKey=activeBook.key;readerTimerRecordedSeconds=elapsedReadingSeconds();startReadingTimer(); toast('Book opened. Your reading position will be saved here.');
+    byId('loading-skeleton').hidden = true; status(''); if (activeBook.position) restorePosition(); byId('reader-page-jump').max=String(Math.max(1,pageCount)); byId('reader-page-jump').value=String(activeBook.position?.page||1); syncPageCounter(Number(activeBook.position?.page)||1); byId('text-view-controls').hidden=Boolean(activePdf&&pdfMode); updateDocumentPageControls(); readerTimerBookKey=activeBook.key;readerTimerRecordedSeconds=elapsedReadingSeconds();startReadingTimer(); recordUserActivity('book_opened', { title: activeBook.title || activeBook.name || 'Book' }); toast('Book opened. Your reading position will be saved here.');
   } catch (error) { console.error(error); byId('loading-skeleton').hidden = true; status(error.message || 'Could not open this file. It may be damaged or password-protected.', true); }
 }
 function wordCount(text) { return (text.match(/\S+/g) || []).length; }
@@ -1151,6 +1193,7 @@ const definitionMemory = new Map();
 const translationMemory = new Map();
 async function define(word,signal){
   const stem=String(word||'').trim().toLowerCase().replace(/\s+/g,'_');
+  recordUserActivity('word_lookup', { word: stem });
   if(definitionMemory.has(stem))return {...definitionMemory.get(stem),cached:true};
   const cached=await getDefinition(stem).catch(()=>null);
   const cachedResult=cached?.result||cached;
@@ -1209,9 +1252,13 @@ async function fetchAiExplanation(word, context, signal) {
     error.notConfigured = Boolean(data.notConfigured);
     error.serviceUnavailable = [429, 502, 503].includes(response.status) || response.status >= 500;
     if (error.notConfigured || error.serviceUnavailable) aiExplainUnavailable = true;
+    recordApiUsage('explain', 'error');
+    writeSupportLog('warning', error.message || 'AI explanation request failed', { word, status: response.status });
     throw error;
   }
   aiExplainCache.set(key, data.explanation);
+  recordApiUsage('explain', 'success');
+  recordUserActivity('ai_explain', { word, contextLength: String(context || '').length });
   return data.explanation;
 }
 function renderDefinition(result,asked){
@@ -1283,9 +1330,11 @@ function renderDefinition(result,asked){
         if(!value)throw new Error('No translation was returned.');
         translationMemory.set(cacheKey,value);
         const store=local.get('er-translations',{});store[cacheKey]=value;const keys=Object.keys(store);if(keys.length>300)delete store[keys[0]];local.set('er-translations',store);
-      }
-      translationResult.textContent=value;
-      control.textContent='Translate again';
+          recordApiUsage('translate', 'success');
+          recordUserActivity('translation', { word, language });
+        }
+        translationResult.textContent=value;
+        control.textContent='Translate again';
     }catch(error){
       if(error.name==='AbortError')return;
       translationResult.textContent=error.message||'AI translation is temporarily unavailable.';
@@ -1366,7 +1415,7 @@ function openNoteEditor(word){activeNoteWord=word;byId('note-word').textContent=
 function newSavedItemId(){return Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,10);}
 function savedItemLegacyKey(item,kind){return 'legacy:'+JSON.stringify([kind,Number(item.created)||0,String(item.book||''),String(item.word||''),String(item.text||'')]);}
 function savedItemTombstoneKeys(item,kind){const keys=[savedItemLegacyKey(item,kind)];if(item.id)keys.push('id:'+kind+':'+item.id);return keys;}
-function saveNote(event){event.preventDefault();const text=byId('note-editor-text').value.trim();if(!text)return;const notes=local.get('er-notes',[]);notes.unshift({id:newSavedItemId(),word:activeNoteWord,text,tags:normalizeTags(byId('note-tags').value),book:activeBook?.key,bookName:activeBook?.title||activeBook?.name||'',created:Date.now()});local.set('er-notes',notes);queueCloudSync();byId('note-dialog').close();renderMyNotes();renderSavedItems();toast('Note saved.');}
+function saveNote(event){event.preventDefault();const text=byId('note-editor-text').value.trim();if(!text)return;const notes=local.get('er-notes',[]);notes.unshift({id:newSavedItemId(),word:activeNoteWord,text,tags:normalizeTags(byId('note-tags').value),book:activeBook?.key,bookName:activeBook?.title||activeBook?.name||'',created:Date.now()});local.set('er-notes',notes);recordUserActivity('note_saved', { word: activeNoteWord || 'note', book: activeBook?.title || activeBook?.name || 'library' });queueCloudSync();byId('note-dialog').close();renderMyNotes();renderSavedItems();toast('Note saved.');}
 function normalizeCollections(value) {
   return [...new Set(String(value || '').split(',').map(part => part.trim().replace(/^#/, '').toLowerCase()).filter(Boolean))].slice(0, 6);
 }
@@ -1668,6 +1717,248 @@ async function renderContents(){const outline=byId('outline'),empty=byId('outlin
   if(!found){const sections=activePdf?Array.from({length:pageCount},(_,index)=>({page:index+1,title:`Page ${index+1}`})):Array.from(reader.querySelectorAll('.page'),(section,index)=>({page:Number(section.dataset.page)||index+1,title:section.querySelector('.page-mark')?.textContent||`Page ${index+1}`}));for(const section of sections){const item=document.createElement('li'),button=safeText(item,'button',section.title,'saved-item');button.type='button';button.addEventListener('click',()=>goToReaderPage(section.page));outline.append(item);}empty.textContent=activePdf?'No chapter outline was found. Choose a page:':'Sections in this book';}
   empty.hidden=found;
 }
+function isAdminUser() {
+  const adminEmail = String(window.EASYREAD_DEVELOPER_EMAIL || '').trim().toLowerCase();
+  return Boolean(user?.email && user.email.toLowerCase() === adminEmail && adminEmail);
+}
+
+async function getDashboardHealth() {
+  const state = { status: 'healthy', label: 'Healthy', detail: 'Services are responsive.' };
+  try {
+    const response = await fetchWithTimeout('/api/health', { headers: { accept: 'application/json' } }, 5000);
+    if (!response.ok) {
+      state.status = 'warning';
+      state.label = 'Degraded';
+      state.detail = 'The health endpoint is responding with a warning.';
+      return state;
+    }
+    const data = await response.json().catch(() => ({}));
+    if (data?.ok === false || data?.status === 'degraded') {
+      state.status = 'warning';
+      state.label = 'Warning';
+      state.detail = data.message || 'One or more services need attention.';
+      return state;
+    }
+    state.detail = data.message || 'All core checks are passing.';
+    return state;
+  } catch (error) {
+    state.status = 'offline';
+    state.label = 'Offline';
+    state.detail = 'The app cannot reach the service health endpoint right now.';
+    return state;
+  }
+}
+
+async function loadAdminMetrics() {
+  if (!isAdminUser()) return null;
+  try {
+    await initFirebase();
+    if (!functions) functions = firebase.functions();
+    const call = functions.httpsCallable('getAdminMetrics');
+    const result = await call({});
+    return result?.data || null;
+  } catch (error) {
+    console.warn('Admin dashboard load failed', error);
+    return null;
+  }
+}
+
+async function estimateStorageUsage() {
+  if (!navigator.storage?.estimate) return { used: 0, quota: 0, percent: 0 };
+  const estimate = await navigator.storage.estimate().catch(() => ({ usage: 0, quota: 0 }));
+  const used = Number(estimate.usage || 0);
+  const quota = Number(estimate.quota || 0);
+  return { used, quota, percent: quota ? Math.min(100, (used / quota) * 100) : 0 };
+}
+
+async function renderDashboard() {
+  const node = byId('dashboard-content');
+  if (!node) return;
+  node.replaceChildren();
+
+  if (!user) {
+    const message = document.createElement('div');
+    message.className = 'dashboard-block';
+    safeText(message, 'h3', 'Admin access required');
+    const note = document.createElement('p');
+    note.className = 'dashboard-note';
+    note.textContent = 'Sign in with the admin account to access the service dashboard.';
+    message.append(note);
+    node.append(message);
+    return;
+  }
+
+  if (!isAdminUser()) {
+    const message = document.createElement('div');
+    message.className = 'dashboard-block';
+    safeText(message, 'h3', 'Access denied');
+    const note = document.createElement('p');
+    note.className = 'dashboard-note';
+    note.textContent = 'This dashboard is restricted to the EasyRead administrator account.';
+    message.append(note);
+    node.append(message);
+    return;
+  }
+
+  const [books, usage, health, storage, metrics] = await Promise.all([
+    getBooks().catch(() => []),
+    Promise.resolve(local.get('er-api-usage', { explain: 0, translate: 0, other: 0, errors: 0 })),
+    getDashboardHealth(),
+    estimateStorageUsage(),
+    loadAdminMetrics()
+  ]);
+
+  const addMetricCard = (label, value, detail, tone = '') => {
+    const card = document.createElement('div');
+    card.className = `dashboard-metric ${tone}`.trim();
+    safeText(card, 'span', label, 'dashboard-metric-label');
+    safeText(card, 'strong', value, 'dashboard-metric-value');
+    safeText(card, 'small', detail, 'dashboard-metric-detail');
+    return card;
+  };
+
+  const readMinutes = Object.values(local.get('er-stats', {})).reduce((sum, item) => sum + (Number(item.seconds) || 0), 0) / 60;
+  const notes = local.get('er-notes', []).length;
+  const vocabWords = local.get('er-vocabulary', []).length;
+  const supportLogs = local.get('er-support-logs', []);
+  const activity = local.get('er-activity-log', []);
+
+  const metricsGrid = document.createElement('div');
+  metricsGrid.className = 'dashboard-grid';
+  metricsGrid.append(
+    addMetricCard('Books in library', String(books.length), 'Saved in this browser', 'blue'),
+    addMetricCard('Read time', `${Math.round(readMinutes)} min`, 'Across all sessions', 'green'),
+    addMetricCard('Saved notes', String(notes), 'Notes and highlights', 'violet'),
+    addMetricCard('Vocabulary', String(vocabWords), 'Words saved for review', 'amber')
+  );
+  node.append(metricsGrid);
+
+  const summary = document.createElement('div');
+  summary.className = 'dashboard-layout';
+
+  const healthColumn = document.createElement('section');
+  healthColumn.className = 'dashboard-block';
+  safeText(healthColumn, 'h3', 'Service health');
+  const status = document.createElement('div');
+  status.className = `service-status service-status-${health.status}`;
+  status.textContent = health.label;
+  const healthMessage = document.createElement('p');
+  healthMessage.className = 'dashboard-note';
+  healthMessage.textContent = health.detail;
+  healthColumn.append(status, healthMessage);
+  const healthList = document.createElement('ul');
+  healthList.className = 'dashboard-list';
+  const browserOnline = navigator.onLine ? 'Online' : 'Offline';
+  const quotaText = storage.quota ? `${Math.round(storage.percent)}% of storage used` : 'Storage estimate unavailable';
+  const adminSummary = metrics || {};
+  healthList.append(
+    createMetricRow('Connection', browserOnline),
+    createMetricRow('API health', health.label),
+    createMetricRow('Browser storage', quotaText),
+    createMetricRow('Registered users', String(Number(adminSummary.registeredUsers || 0))),
+    createMetricRow('30d visitors', String(Number(adminSummary.visitors30d || 0)))
+  );
+  healthColumn.append(healthList);
+
+  const usageColumn = document.createElement('section');
+  usageColumn.className = 'dashboard-block';
+  safeText(usageColumn, 'h3', 'API usage & quota monitor');
+  const usageList = document.createElement('ul');
+  usageList.className = 'dashboard-list';
+  usageList.append(
+    createMetricRow('Explanations', String(Number(usage.explain || 0))),
+    createMetricRow('Translations', String(Number(usage.translate || 0))),
+    createMetricRow('Errors', String(Number(usage.errors || 0))),
+    createMetricRow('Local quota', quotaText),
+    createMetricRow('Active reader days', String(Number(adminSummary.activeReaderDays30d || 0)))
+  );
+  usageColumn.append(usageList);
+
+  summary.append(healthColumn, usageColumn);
+  node.append(summary);
+
+  const lowerGrid = document.createElement('div');
+  lowerGrid.className = 'dashboard-layout dashboard-layout-bottom';
+
+  const logBlock = document.createElement('section');
+  logBlock.className = 'dashboard-block';
+  safeText(logBlock, 'h3', 'Error logs for support');
+  const logList = document.createElement('div');
+  logList.className = 'dashboard-log-list';
+  const logs = Array.isArray(supportLogs) ? supportLogs.slice(0, 5) : [];
+  if (!logs.length) {
+    safeText(logList, 'p', 'No support errors recorded yet. Your app is currently stable.', 'dashboard-note');
+  } else {
+    logs.forEach(entry => {
+      const row = document.createElement('div');
+      row.className = 'dashboard-log-row';
+      safeText(row, 'strong', entry.level ? entry.level.toUpperCase() : 'INFO');
+      const message = document.createElement('div');
+      message.className = 'dashboard-log-message';
+      message.textContent = entry.message;
+      const time = document.createElement('small');
+      time.textContent = new Date(entry.timestamp || Date.now()).toLocaleString();
+      row.append(message, time);
+      logList.append(row);
+    });
+  }
+  logBlock.append(logList);
+
+  const activityBlock = document.createElement('section');
+  activityBlock.className = 'dashboard-block';
+  safeText(activityBlock, 'h3', 'User activity summary');
+  const activityList = document.createElement('ul');
+  activityList.className = 'dashboard-list';
+  const recentActivity = Array.isArray(activity) ? activity.slice(0, 5) : [];
+  if (!recentActivity.length) {
+    activityList.append(Object.assign(document.createElement('li'), { textContent: 'No activity has been recorded yet.' }));
+  } else {
+    recentActivity.forEach(item => {
+      const detail = item.details && typeof item.details === 'object' ? Object.entries(item.details).map(([key, value]) => `${key}: ${String(value)}`).join(' · ') : 'Recent activity';
+      const row = document.createElement('li');
+      row.textContent = `${item.type} · ${new Date(item.timestamp).toLocaleTimeString()} · ${detail}`;
+      activityList.append(row);
+    });
+  }
+  activityBlock.append(activityList);
+
+  lowerGrid.append(logBlock, activityBlock);
+  node.append(lowerGrid);
+
+  if (Array.isArray(adminSummary.daily) && adminSummary.daily.length) {
+    const chartBlock = document.createElement('section');
+    chartBlock.className = 'dashboard-block';
+    safeText(chartBlock, 'h3', 'Recent 30-day activity');
+    const chart = document.createElement('div');
+    chart.className = 'dashboard-chart';
+    const maxVisitors = Math.max(1, ...adminSummary.daily.map(day => Number(day.visitors || 0)));
+    adminSummary.daily.slice(-7).forEach(day => {
+      const bar = document.createElement('div');
+      bar.className = 'dashboard-bar';
+      const value = Number(day.visitors || 0);
+      const height = Math.max(12, (value / maxVisitors) * 100);
+      bar.style.height = `${height}%`;
+      bar.title = `${day.date}: ${value} visitors`;
+      const label = document.createElement('span');
+      label.textContent = new Date(`${day.date}T00:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+      bar.append(label);
+      chart.append(bar);
+    });
+    chartBlock.append(chart);
+    node.append(chartBlock);
+  }
+}
+
+function createMetricRow(label, value) {
+  const item = document.createElement('li');
+  const strong = document.createElement('strong');
+  strong.textContent = label;
+  const small = document.createElement('span');
+  small.textContent = value;
+  item.append(strong, small);
+  return item;
+}
+
 function renderStats(){
   const stats=local.get('er-stats',{}),seconds=Object.values(stats).reduce((sum,item)=>sum+(Number(item.seconds)||0),0);
   const node=byId('stats-content');if(!node)return;node.replaceChildren();
@@ -1778,7 +2069,7 @@ function friendlyAuthError(error){
 }
 async function initFirebase(){
   if(auth)return auth;if(firebaseInitPromise)return firebaseInitPromise;if(!window.EASYREAD_FIREBASE_CONFIG?.apiKey)throw new Error('Firebase sign-in has not been configured.');
-  firebaseInitPromise=(async()=>{await Promise.all(['firebaseApp','firebaseAuth','firebaseStore'].map(loadLibrary));if(!firebase.apps.length)firebase.initializeApp(window.EASYREAD_FIREBASE_CONFIG);auth=firebase.auth();firestore=firebase.firestore();
+  firebaseInitPromise=(async()=>{await Promise.all(['firebaseApp','firebaseAuth','firebaseStore','firebaseFunctions'].map(loadLibrary));if(!firebase.apps.length)firebase.initializeApp(window.EASYREAD_FIREBASE_CONFIG);auth=firebase.auth();firestore=firebase.firestore();functions=firebase.functions();
     try { await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL); } catch (error) { console.warn('Firebase persistence setup failed:', error); }
     auth.onAuthStateChanged(next=>{user=next;if(next?.displayName)local.set('er-display-name',next.displayName);updateProfile();if(user)syncCloud();});
     try{await auth.getRedirectResult();}catch(error){if(error?.code!=='auth/no-auth-event')setAuthStatus(friendlyAuthError(error),'error');}return auth;})();
@@ -1798,6 +2089,18 @@ async function saveProfileName() {
     toast(error?.message || 'Profile name update failed.');
   }
 }
+async function recordVisitorSession() {
+  try {
+    if (!window.firebase?.functions || !navigator.onLine) return;
+    const id = local.get('er-visitor-id', null) || (() => { const next = crypto.randomUUID ? crypto.randomUUID().replace(/-/g, '') : Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join(''); local.set('er-visitor-id', next); return next; })();
+    if (typeof id !== 'string' || id.length < 32) return;
+    const callable = firebase.functions().httpsCallable('recordVisitor');
+    await callable({ visitorId: id });
+  } catch (error) {
+    console.warn('Visitor logging skipped', error);
+  }
+}
+
 async function openAccount(){showPanel('account');try{await initFirebase();setAuthMode('signin');}catch(error){setAuthStatus('Sign-in is temporarily unavailable. '+error.message,'error');}}
 function updateWelcomeSignin(){
   const welcome=byId('welcome-signin');
@@ -1973,7 +2276,7 @@ async function init() {
   byId('search-prev').addEventListener('click',()=>moveMatch(-1));byId('search-next').addEventListener('click',()=>moveMatch(1));
   byId('search-clear')?.addEventListener('click',()=>{byId('search-input').value='';searchBook();byId('search-input').focus();});
   byId('search-input')?.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();moveMatch(event.shiftKey?-1:1);}else if(event.key==='Escape'){byId('reader-tools').hidden=true;byId('search-btn').focus();}});
-  byId('highlight-btn').addEventListener('click',()=>{const text=getSelection()?.toString().trim();if(!text)return;const values=local.get('er-highlights',[]);values.unshift({id:newSavedItemId(),text,book:activeBook?.key,bookName:activeBook?.title||activeBook?.name||'',created:Date.now()});local.set('er-highlights',values);queueCloudSync();renderMyNotes();renderSavedItems();toast('Highlight saved.');});
+  byId('highlight-btn').addEventListener('click',()=>{const text=getSelection()?.toString().trim();if(!text)return;const values=local.get('er-highlights',[]);values.unshift({id:newSavedItemId(),text,book:activeBook?.key,bookName:activeBook?.title||activeBook?.name||'',created:Date.now()});local.set('er-highlights',values);recordUserActivity('highlight_saved',{book: activeBook?.title || activeBook?.name || 'library'});queueCloudSync();renderMyNotes();renderSavedItems();toast('Highlight saved.');});
   byId('bookmark-btn').addEventListener('click',()=>{const values=local.get('er-bookmarks',[]);values.unshift({id:newSavedItemId(),name:activeBook?.title||activeBook?.name||'Bookmark',book:activeBook?.key,bookName:activeBook?.title||activeBook?.name||'',scroll:scrollY,page:activePage,created:Date.now()});local.set('er-bookmarks',values);queueCloudSync();toast('Bookmark saved.');});
   byId('export-btn').addEventListener('click',exportData);byId('export-all').addEventListener('click',exportData);byId('delete-all').addEventListener('click',deleteLocalData);
   byId('google-signin').addEventListener('click',signInWithGoogle);byId('signin-modal-google').addEventListener('click',signInWithGoogle);byId('welcome-signin-btn')?.addEventListener('click',signInWithGoogle);byId('welcome-dismiss')?.addEventListener('click',()=>{local.set('er-signin-dismissed',true);local.set('er-welcome-intro-dismissed',true);const welcome=byId('welcome-signin');if(welcome)welcome.hidden=true;});byId('email-auth-form')?.addEventListener('submit',submitEmailAuth);byId('auth-tab-signin')?.addEventListener('click',()=>setAuthMode('signin'));byId('auth-tab-signup')?.addEventListener('click',()=>setAuthMode('signup'));byId('forgot-password')?.addEventListener('click',resetPassword);byId('auth-password-toggle')?.addEventListener('click',()=>{const input=byId('auth-password'),button=byId('auth-password-toggle');if(!input||!button)return;const visible=input.type==='text';input.type=visible?'password':'text';button.textContent=visible?'Show':'Hide';button.setAttribute('aria-label',visible?'Show password':'Hide password');});    byId('sync-now').addEventListener('click',syncCloud);byId('signout').addEventListener('click',signOutUser);byId('profile-name-save').addEventListener('click',saveProfileName);byId('download-backup').addEventListener('click',exportReadingBackup);byId('import-backup').addEventListener('click',()=>byId('backup-import-input')?.click());byId('backup-import-input')?.addEventListener('change', event => { const file = event.target.files?.[0]; if (file) importReadingBackup(file); event.target.value = ''; });  byId('speak-page-btn').addEventListener('click',speakCurrent);byId('stop-speech-btn').addEventListener('click',()=>speechSynthesis.cancel());  byId('autoscroll-btn').addEventListener('click',()=>{const button=byId('autoscroll-btn');if(button.dataset.running){clearInterval(Number(button.dataset.running));delete button.dataset.running;button.textContent='Auto-scroll';}else button.dataset.running=String(setInterval(()=>scrollBy(0,1),45));});
