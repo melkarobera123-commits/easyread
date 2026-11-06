@@ -61,7 +61,7 @@ let aiExplainUnavailable = false;
 let resumePromptShown = false;
 let activeNoteWord = '';
 let pdfPreviewsVisible = local.get('er-pdf-previews', false) === true;
-let readerTimerInterval = null, readerTimerStart = 0, readerTimerSeconds = 0, readerTimerGoal = 0, readerTimerDay = '', readerTimerRunning = false, readerTimerRecordedSeconds = 0, readerTimerBookKey = null, timerResumeOnVisible = false;
+let readerTimerInterval = null, readerTimerStart = 0, readerTimerSeconds = 0, readerTimerGoal = 0, readerTimerDay = '', readerTimerRunning = false, readerTimerRecordedSeconds = 0, readerTimerBookKey = null, timerResumeOnVisible = false, lastProgressCloudSyncAt = 0;
 const pdfRenderPromises = new Map();
 
 function recordUserActivity(type, details = {}) {
@@ -1448,8 +1448,11 @@ async function renderLibraryPanel(){
   byId('library-view-fav')?.setAttribute('aria-pressed',String(favOnly));
   const count=byId('library-fav-count');if(count)count.textContent=String(totalFavorites);
   const selectedCollection=(collectionSelect?.value||local.get('er-library-collection','all')) || 'all';
-  const books=all.filter(book=>{const ext=String(book.type||book.name?.split('.').pop()||'').toLowerCase(),matchesType=filter==='all'||(filter==='image'?IMAGE_EXTS.includes(ext):ext===filter),matchesFavorite=!favOnly||book.favorite,matchesText=`${book.title||''} ${book.name||''}`.toLowerCase().includes(search),matchesCollection=selectedCollection==='all'||getBookCollections(book).includes(selectedCollection);return matchesType&&matchesFavorite&&matchesText&&matchesCollection;});
-  books.sort((a,b)=>sort==='title'?(a.title||a.name).localeCompare(b.title||b.name):sort==='progress'?(b.progress||0)-(a.progress||0):(b.opened||0)-(a.opened||0));
+  const typeGroups={documents:['docx','doc','odt'],presentations:['pptx','ppt','odp'],spreadsheets:['xls'],text:TEXT_EXTS,web:['html'],'rich-text':['rtf'],image:IMAGE_EXTS};
+  const books=all.filter(book=>{const ext=String(book.type||book.name?.split('.').pop()||'').toLowerCase(),matchesType=filter==='all'||(typeGroups[filter]?.includes(ext)??ext===filter),searchable=`${book.title||''} ${book.name||''} ${getBookCollections(book).join(' ')}`.toLowerCase(),matchesFavorite=!favOnly||book.favorite,matchesText=searchable.includes(search),matchesCollection=selectedCollection==='all'||getBookCollections(book).includes(selectedCollection);return matchesType&&matchesFavorite&&matchesText&&matchesCollection;});
+  books.sort((a,b)=>sort==='title'?(a.title||a.name||'').localeCompare(b.title||b.name||''):sort==='progress'?(b.progress||0)-(a.progress||0):(b.opened||0)-(a.opened||0));
+  const resultCount=byId('library-result-count');
+  if(resultCount)resultCount.textContent=`Showing ${books.length} of ${all.length} books${favOnly?' · favorites only':''}.`;
   const favoriteBooks=books.filter(book=>book.favorite),otherBooks=favOnly?[]:books.filter(book=>!book.favorite);
   const favoriteTitle=byId('library-fav-title'),recentTitle=byId('library-recent-title'),hint=byId('library-fav-hint');
   if(favoriteTitle)favoriteTitle.hidden=!favoriteBooks.length;
@@ -1465,7 +1468,7 @@ async function renderLibraryPanel(){
     safeText(details,'small',`${String(book.type||'').toUpperCase()} \u00b7 ${Math.round(book.progress||0)}% read`,'note');
     const progress=document.createElement('progress');progress.className='library-progress';progress.max=100;progress.value=book.progress||0;progress.setAttribute('aria-label','Reading progress');
     const actions=document.createElement('div');actions.className='library-book-actions';
-    const open=safeText(actions,'button','Continue','btn library-continue');open.type='button';open.onclick=()=>openFile(book.file);
+    const open=safeText(actions,'button',book.file?'Continue':'File unavailable','btn library-continue');open.type='button';open.disabled=!book.file;if(!book.file)open.title='Original book files are not included in JSON backups.';open.onclick=()=>book.file&&openFile(book.file);
     const rename=safeText(actions,'button','Rename','btn');rename.type='button';rename.setAttribute('aria-label',`Rename ${title}`);
     rename.onclick=async()=>{const value=prompt('Book title',title);if(value?.trim()){book.title=value.trim();await putBook(book);renderLibraryPanel();renderLibrary();}};
     const collectionBtn=safeText(actions,'button','Collection','btn');collectionBtn.type='button';collectionBtn.onclick=async()=>{const current=getBookCollections(book).join(', ');const names=prompt('Collection name(s), comma separated',current);if(names===null)return;book.collections=normalizeCollections(names);await putBook(book);renderLibraryPanel();};
@@ -1519,6 +1522,8 @@ async function exportReadingBackup() {
   const books = await getBooks().catch(() => []);
   const serializableBooks = books.map(({ file, ...book }) => ({ ...book }));
   const payload = {
+    format: 'easyread-reading-backup',
+    version: 1,
     exportedAt: new Date().toISOString(),
     books: serializableBooks,
     vocabulary: local.get('er-vocabulary', []),
@@ -1526,21 +1531,45 @@ async function exportReadingBackup() {
     highlights: local.get('er-highlights', []),
     bookmarks: local.get('er-bookmarks', []),
     stats: local.get('er-stats', {}),
+    readingDays: local.get('er-reading-days', {}),
+    readingGoal: local.get('er-reading-goal', 0),
     flashcards: local.get('er-flashcards', []),
     readingTimer: local.get('er-reading-timer', {}),
-    preferences: local.get('er-reader-settings', {})
+    preferences: local.get('er-reader-settings', {}),
+    viewPreferences: local.get('er-view-prefs', {}),
+    sourceLanguage: local.get('er-source-language', 'en'),
+    speechVoice: local.get('er-speech-voice', ''),
+    vocabularyDeleted: local.get('er-vocabulary-deleted', {}),
+    deletedSavedItems: local.get('er-deleted-saved-items', {}),
+    deletedBookmarks: local.get('er-deleted-bookmarks', {})
   };
   downloadTextExport(`easyread-backup-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(payload, null, 2), 'application/json;charset=utf-8');
-  toast('Reading backup downloaded.');
+  toast('Reading backup downloaded. Original book files are not included.');
 }
 async function importReadingBackup(file) {
   if (!file) return;
+  const status = byId('backup-import-status');
+  const setStatus = (message, kind = '') => {
+    if (status) {
+      status.textContent = message;
+      status.className = 'note' + (kind ? ` auth-${kind}` : '');
+    }
+  };
   try {
     const data = JSON.parse(await file.text());
-    if (!data || typeof data !== 'object') throw new Error('This file does not look like an EasyRead backup.');
-    const mergeArray = (key, fallback = []) => {
-      const value = Array.isArray(data[key]) ? data[key] : fallback;
-      const current = Array.isArray(local.get(key, fallback)) ? local.get(key, fallback) : fallback;
+    const arrayKeys = ['books', 'vocabulary', 'notes', 'highlights', 'bookmarks', 'flashcards'];
+    const objectKeys = ['stats', 'readingDays', 'readingTimer', 'preferences', 'viewPreferences', 'vocabularyDeleted', 'deletedSavedItems', 'deletedBookmarks'];
+    const hasBackupData = arrayKeys.some(key => Array.isArray(data?.[key])) ||
+      objectKeys.some(key => data?.[key] && typeof data[key] === 'object' && !Array.isArray(data[key])) ||
+      Number.isFinite(Number(data?.readingGoal));
+    if (!data || typeof data !== 'object' || Array.isArray(data) ||
+        (data.format && (data.format !== 'easyread-reading-backup' || data.version !== 1)) ||
+        !hasBackupData) {
+      throw new Error('This file does not look like a supported EasyRead reading backup.');
+    }
+    const mergeArray = (backupKey, storageKey, fallback = []) => {
+      const value = Array.isArray(data[backupKey]) ? data[backupKey] : fallback;
+      const current = Array.isArray(local.get(storageKey, fallback)) ? local.get(storageKey, fallback) : fallback;
       const byId = new Map();
       for (const item of [...current, ...value]) {
         const id = item?.id || (typeof item?.word === 'string' ? `word:${item.word.toLowerCase()}` : JSON.stringify(item));
@@ -1548,28 +1577,96 @@ async function importReadingBackup(file) {
       }
       return [...byId.values()];
     };
-    if (Array.isArray(data.vocabulary)) local.set('er-vocabulary', mergeArray('er-vocabulary', []));
-    if (Array.isArray(data.notes)) local.set('er-notes', mergeArray('er-notes', []));
-    if (Array.isArray(data.highlights)) local.set('er-highlights', mergeArray('er-highlights', []));
-    if (Array.isArray(data.bookmarks)) local.set('er-bookmarks', mergeArray('er-bookmarks', []));
-    if (Array.isArray(data.flashcards)) local.set('er-flashcards', mergeArray('er-flashcards', []));
-    if (data.stats && typeof data.stats === 'object') local.set('er-stats', { ...local.get('er-stats', {}), ...data.stats });
+    if (Array.isArray(data.vocabulary)) local.set('er-vocabulary', mergeArray('vocabulary', 'er-vocabulary'));
+    if (Array.isArray(data.notes)) local.set('er-notes', mergeArray('notes', 'er-notes'));
+    if (Array.isArray(data.highlights)) local.set('er-highlights', mergeArray('highlights', 'er-highlights'));
+    if (Array.isArray(data.bookmarks)) local.set('er-bookmarks', mergeArray('bookmarks', 'er-bookmarks'));
+    if (Array.isArray(data.flashcards)) local.set('er-flashcards', mergeArray('flashcards', 'er-flashcards'));
+    if (data.stats && typeof data.stats === 'object' && !Array.isArray(data.stats)) {
+      const mergedStats = { ...local.get('er-stats', {}) };
+      for (const [key, imported] of Object.entries(data.stats)) {
+        if (!imported || typeof imported !== 'object') continue;
+        const existing = mergedStats[key] || {};
+        mergedStats[key] = {
+          ...existing,
+          ...imported,
+          seconds: Math.max(Number(existing.seconds) || 0, Number(imported.seconds) || 0),
+          day: String(imported.day || '') > String(existing.day || '') ? imported.day : existing.day
+        };
+      }
+      local.set('er-stats', mergedStats);
+    }
     if (data.readingTimer && typeof data.readingTimer === 'object') local.set('er-reading-timer', data.readingTimer);
     if (data.preferences && typeof data.preferences === 'object') local.set('er-reader-settings', { ...local.get('er-reader-settings', {}), ...data.preferences });
+    if (data.readingDays && typeof data.readingDays === 'object' && !Array.isArray(data.readingDays)) {
+      const currentDays = local.get('er-reading-days', {});
+      const mergedDays = { ...currentDays };
+      for (const [day, seconds] of Object.entries(data.readingDays)) {
+        if (/^\d{4}-\d{2}-\d{2}$/.test(day) && Number.isFinite(Number(seconds))) {
+          mergedDays[day] = Math.max(0, Number(mergedDays[day]) || 0, Number(seconds));
+        }
+      }
+      local.set('er-reading-days', mergedDays);
+    }
+    if (Number.isFinite(Number(data.readingGoal)) && data.readingGoal !== null) {
+      local.set('er-reading-goal', Math.min(240, Math.max(0, Number(data.readingGoal))));
+    }
+    if (data.viewPreferences && typeof data.viewPreferences === 'object' && !Array.isArray(data.viewPreferences)) {
+      const viewPreferences = { ...local.get('er-view-prefs', {}), ...data.viewPreferences };
+      local.set('er-view-prefs', viewPreferences);
+      document.body.classList.toggle('line-focus', Boolean(viewPreferences.lineFocus));
+      document.body.classList.toggle('high-contrast', Boolean(viewPreferences.contrast));
+      if (byId('contrast')) byId('contrast').checked = Boolean(viewPreferences.contrast);
+      const lineButton = byId('line-focus-btn');
+      if (lineButton) {
+        lineButton.setAttribute('aria-pressed', String(Boolean(viewPreferences.lineFocus)));
+        lineButton.textContent = viewPreferences.lineFocus ? 'Line focus: on' : 'Line focus';
+      }
+    }
+    if (typeof data.sourceLanguage === 'string') local.set('er-source-language', data.sourceLanguage);
+    if (typeof data.speechVoice === 'string') local.set('er-speech-voice', data.speechVoice);
+    for (const [source, target] of [
+      ['vocabularyDeleted', 'er-vocabulary-deleted'],
+      ['deletedSavedItems', 'er-deleted-saved-items'],
+      ['deletedBookmarks', 'er-deleted-bookmarks']
+    ]) {
+      if (data[source] && typeof data[source] === 'object' && !Array.isArray(data[source])) {
+        local.set(target, { ...local.get(target, {}), ...data[source] });
+      }
+    }
     if (Array.isArray(data.books)) {
       const books = data.books.filter(book => book && typeof book.key === 'string');
       for (const book of books) {
         const existing = await getBook(book.key).catch(() => null);
-        if (!existing) await putBook({ ...book, opened: Number(book.opened || 0), progress: Number(book.progress || 0), favorite: Boolean(book.favorite) });
+        const importedPosition = book.position || {};
+        const existingPosition = existing?.position || {};
+        const useImportedPosition = Number(importedPosition.savedAt || 0) > Number(existingPosition.savedAt || 0);
+        await putBook({
+          ...existing,
+          ...book,
+          file: existing?.file,
+          position: useImportedPosition ? importedPosition : existingPosition,
+          progress: useImportedPosition ? Number(book.progress || 0) : Number(existing?.progress ?? book.progress ?? 0),
+          opened: Math.max(Number(existing?.opened || 0), Number(book.opened || 0)),
+          favorite: Boolean(existing?.favorite || book.favorite)
+        });
       }
     }
+    loadReaderPreferences();
+    const sourceLanguage = byId('source-language');
+    if (sourceLanguage) sourceLanguage.value = local.get('er-source-language', 'en');
+    populateVoices();
+    updateStreakChip();
     renderLibrary().catch(()=>{});
     renderLibraryPanel().catch(()=>{});
     renderMyNotes();
     renderStats();
     renderVocabulary();
-    toast('Backup imported successfully.');
+    queueCloudSync();
+    setStatus('Backup restored and merged with data already on this device. Original book files must be restored separately.', 'success');
+    toast('Reading data restored from backup.');
   } catch (error) {
+    setStatus(error?.message || 'That backup could not be imported.', 'error');
     toast(error?.message || 'That backup could not be imported.');
   }
 }
@@ -1719,7 +1816,21 @@ async function renderContents(){const outline=byId('outline'),empty=byId('outlin
 }
 function isAdminUser() {
   const adminEmail = String(window.EASYREAD_DEVELOPER_EMAIL || '').trim().toLowerCase();
-  return Boolean(user?.email && user.email.toLowerCase() === adminEmail && adminEmail);
+  return Boolean(user?.email && user.email.trim().toLowerCase() === adminEmail && adminEmail);
+}
+
+function updateAdminDashboardAccess() {
+  const allowed = isAdminUser();
+  for (const id of ['dashboard-btn', 'sidebar-dashboard']) {
+    const button = byId(id);
+    if (button) button.hidden = !allowed;
+  }
+  if (!allowed) {
+    const panel = byId('dashboard-panel');
+    const content = byId('dashboard-content');
+    if (panel) panel.hidden = true;
+    content?.replaceChildren();
+  }
 }
 
 async function getDashboardHealth() {
@@ -1807,6 +1918,10 @@ async function renderDashboard() {
     estimateStorageUsage(),
     loadAdminMetrics()
   ]);
+  if (!isAdminUser() || byId('dashboard-panel')?.hidden) {
+    node.replaceChildren();
+    return;
+  }
 
   const addMetricCard = (label, value, detail, tone = '') => {
     const card = document.createElement('div');
@@ -1827,7 +1942,7 @@ async function renderDashboard() {
   metricsGrid.className = 'dashboard-grid';
   metricsGrid.append(
     addMetricCard('Books in library', String(books.length), 'Saved in this browser', 'blue'),
-    addMetricCard('Read time', `${Math.round(readMinutes)} min`, 'Across all sessions', 'green'),
+    addMetricCard('Read time', `${Math.round(readMinutes)} min`, 'Tracked in this browser', 'green'),
     addMetricCard('Saved notes', String(notes), 'Notes and highlights', 'violet'),
     addMetricCard('Vocabulary', String(vocabWords), 'Words saved for review', 'amber')
   );
@@ -1851,26 +1966,31 @@ async function renderDashboard() {
   const browserOnline = navigator.onLine ? 'Online' : 'Offline';
   const quotaText = storage.quota ? `${Math.round(storage.percent)}% of storage used` : 'Storage estimate unavailable';
   const adminSummary = metrics || {};
+  if (!metrics) {
+    safeText(healthColumn,'p','Firebase service counts are unavailable. Deploy the admin Cloud Functions and configure App Check to populate them.','dashboard-note');
+  }
   healthList.append(
     createMetricRow('Connection', browserOnline),
     createMetricRow('API health', health.label),
-    createMetricRow('Browser storage', quotaText),
-    createMetricRow('Registered users', String(Number(adminSummary.registeredUsers || 0))),
-    createMetricRow('30d visitors', String(Number(adminSummary.visitors30d || 0)))
+    createMetricRow('Browser storage (this device)', quotaText),
+    createMetricRow('Registered users (Firebase)', metrics ? String(Number(adminSummary.registeredUsers || 0)) : 'Unavailable'),
+    createMetricRow('30-day visitors (Firebase)', metrics ? String(Number(adminSummary.visitors30d || 0)) : 'Unavailable')
   );
   healthColumn.append(healthList);
+  safeText(healthColumn,'p','Connection, health, and storage are measured in this browser. Firebase counts come from deployed Cloud Functions.','dashboard-note');
 
   const usageColumn = document.createElement('section');
   usageColumn.className = 'dashboard-block';
-  safeText(usageColumn, 'h3', 'API usage & quota monitor');
+  safeText(usageColumn, 'h3', 'Local API activity & storage quota');
+  safeText(usageColumn,'p','Request counters are recorded by this browser only; they are not provider billing or global quota totals.','dashboard-note');
   const usageList = document.createElement('ul');
   usageList.className = 'dashboard-list';
   usageList.append(
-    createMetricRow('Explanations', String(Number(usage.explain || 0))),
-    createMetricRow('Translations', String(Number(usage.translate || 0))),
-    createMetricRow('Errors', String(Number(usage.errors || 0))),
-    createMetricRow('Local quota', quotaText),
-    createMetricRow('Active reader days', String(Number(adminSummary.activeReaderDays30d || 0)))
+    createMetricRow('Explain requests (this browser)', String(Number(usage.explain || 0))),
+    createMetricRow('Translation requests (this browser)', String(Number(usage.translate || 0))),
+    createMetricRow('Request errors (this browser)', String(Number(usage.errors || 0))),
+    createMetricRow('Browser storage estimate', quotaText),
+    createMetricRow('Active reader days (Firebase, 30 days)', metrics ? String(Number(adminSummary.activeReaderDays30d || 0)) : 'Unavailable')
   );
   usageColumn.append(usageList);
 
@@ -1883,6 +2003,10 @@ async function renderDashboard() {
   const logBlock = document.createElement('section');
   logBlock.className = 'dashboard-block';
   safeText(logBlock, 'h3', 'Error logs for support');
+  safeText(logBlock,'p','These logs are stored only in this browser and are not uploaded automatically.','dashboard-note');
+  const reportButton=safeText(logBlock,'button','Download support report','btn');
+  reportButton.type='button';
+  reportButton.addEventListener('click',exportSupportReport);
   const logList = document.createElement('div');
   logList.className = 'dashboard-log-list';
   const logs = Array.isArray(supportLogs) ? supportLogs.slice(0, 5) : [];
@@ -1959,21 +2083,68 @@ function createMetricRow(label, value) {
   return item;
 }
 
+async function exportSupportReport() {
+  const [health, storage] = await Promise.all([getDashboardHealth(), estimateStorageUsage()]);
+  const usage = local.get('er-api-usage', { explain: 0, translate: 0, other: 0, errors: 0 });
+  const report = {
+    format: 'easyread-support-report',
+    generatedAt: new Date().toISOString(),
+    browser: { online: navigator.onLine, userAgent: navigator.userAgent },
+    health,
+    storage,
+    localApiActivity: usage,
+    supportLogs: Array.isArray(local.get('er-support-logs', [])) ? local.get('er-support-logs', []).slice(0, 12) : []
+  };
+  downloadTextExport(`easyread-support-report-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(report, null, 2), 'application/json;charset=utf-8');
+  toast('Support report downloaded. It was not uploaded or shared.');
+}
+
 function renderStats(){
   const stats=local.get('er-stats',{}),seconds=Object.values(stats).reduce((sum,item)=>sum+(Number(item.seconds)||0),0);
   const node=byId('stats-content');if(!node)return;node.replaceChildren();
   const summary=document.createElement('div');summary.className='progress-summary-grid';
   const metric=(value,label)=>{const card=document.createElement('div');card.className='progress-metric';safeText(card,'strong',String(value));safeText(card,'span',label);summary.append(card);};
   metric(Math.round(seconds/60),'minutes read');metric(local.get('er-vocabulary',[]).length,'saved words');metric(local.get('er-flashcards',[]).length,'custom flashcards');node.append(summary);
-  const exportRow=document.createElement('div');exportRow.className='saved-note-export-actions';
-  const backupBtn=safeText(exportRow,'button','Download reading backup','btn');
-  backupBtn.type='button';
-  backupBtn.addEventListener('click',exportReadingBackup);
-  node.append(exportRow);
+
+  const days=local.get('er-reading-days',{}),goal=Math.max(0,Number(local.get('er-reading-goal',0))||0);
+  const today=new Date();today.setHours(0,0,0,0);
+  const mondayOffset=(today.getDay()+6)%7,weekStart=new Date(today);weekStart.setDate(today.getDate()-mondayOffset);
+  const week=[];
+  for(let index=0;index<7;index++){
+    const date=new Date(weekStart);date.setDate(weekStart.getDate()+index);
+    const key=localDayKey(date),daySeconds=Math.max(0,Number(days[key])||0);
+    week.push({date,key,seconds:daySeconds,minutes:Math.floor(daySeconds/60)});
+  }
+  const weekMinutes=week.reduce((sum,day)=>sum+day.minutes,0);
+  const activeDays=week.filter(day=>day.seconds>=60).length;
+  const streak=readingStreak(days);
+  const weekSection=document.createElement('section');weekSection.className='weekly-progress';
+  safeText(weekSection,'h3','This week');
+  safeText(weekSection,'p',`${weekMinutes} minutes read · ${activeDays} of 7 active days · ${streak}-day reading streak`,'weekly-progress-summary');
+  if(goal){
+    const goalProgress=document.createElement('progress');goalProgress.max=goal*7;goalProgress.value=Math.min(weekMinutes,goal*7);
+    goalProgress.setAttribute('aria-label',`Weekly reading goal: ${weekMinutes} of ${goal*7} minutes`);
+    weekSection.append(goalProgress);
+    safeText(weekSection, 'p', `${weekMinutes} of ${goal*7} minutes toward your weekly goal (${goal} minutes per day).`, 'note');
+  }else{
+    safeText(weekSection,'p','Set a daily reading goal in Reader settings to see your weekly target.','note');
+  }
+  const weekList=document.createElement('ol');weekList.className='weekly-progress-list';weekList.setAttribute('aria-label','Reading minutes for each day this week');
+  week.forEach(day=>{
+    const item=document.createElement('li'),label=document.createElement('span');
+    label.textContent=day.date.toLocaleDateString(undefined,{weekday:'short'});
+    const progress=document.createElement('progress');progress.max=Math.max(goal,day.minutes,1);progress.value=day.minutes;
+    const goalMet=goal>0&&day.minutes>=goal;
+    progress.setAttribute('aria-label',`${day.date.toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'})}: ${day.minutes} minutes${goal?`, daily goal ${goal} minutes${goalMet?', met':', not met'}`:''}`);
+    const minutes=document.createElement('span');minutes.textContent=`${day.minutes} min${goalMet?' · goal met':''}`;
+    item.append(label,progress,minutes);weekList.append(item);
+  });
+  weekSection.append(weekList);node.append(weekSection);
+
   const heading=safeText(node,'h3','Your reading shelf','progress-list-heading'),list=document.createElement('div');list.className='progress-book-list';node.append(heading,list);
   getBooks().then(books=>{if(!node.isConnected)return;list.replaceChildren();if(!books.length){safeText(list,'p','Open a book to start tracking your reading progress.','note');return;}
     books.sort((a,b)=>(Number(b.opened)||0)-(Number(a.opened)||0));
-    books.forEach(book=>{const row=document.createElement('div');row.className='progress-book-row';const top=document.createElement('div');top.className='progress-book-top';safeText(top,'strong',book.title||book.name||'Untitled book');const percent=Math.max(0,Math.min(100,Math.round(Number(book.progress)||0)));safeText(top,'span',percent+'%');const bar=document.createElement('progress');bar.className='progress-book-bar';bar.max=100;bar.value=percent;bar.setAttribute('aria-label','Reading progress for '+(book.title||book.name||'book'));const page=Number(book.position?.page)||0;row.append(top,bar,safeText(row,'small',page?'Last position: page '+page:(percent>=100?'Completed':'Keep going at your own pace'),'note'));const open=safeText(row,'button','Open book','progress-open-book');open.type='button';open.addEventListener('click',async()=>{const saved=await getBook(book.key).catch(()=>null);if(saved?.file)openFile(saved.file);else toast('This book is not available in the current browser.');});list.append(row);});
+    books.forEach(book=>{const row=document.createElement('div');row.className='progress-book-row';const top=document.createElement('div');top.className='progress-book-top';safeText(top,'strong',book.title||book.name||'Untitled book');const percent=Math.max(0,Math.min(100,Math.round(Number(book.progress)||0)));safeText(top,'span',percent+'%');const bar=document.createElement('progress');bar.className='progress-book-bar';bar.max=100;bar.value=percent;bar.setAttribute('aria-label','Reading progress for '+(book.title||book.name||'book'));const page=Number(book.position?.page)||0;row.append(top,bar,safeText(row,'small',page?'Last position: page '+page:(percent>=100?'Completed':'Keep going at your own pace'),'note'));const open=safeText(row,'button',book.file?'Open book':'File unavailable','progress-open-book');open.type='button';open.disabled=!book.file;open.addEventListener('click',async()=>{const saved=await getBook(book.key).catch(()=>null);if(saved?.file)openFile(saved.file);else toast('This book is not available in the current browser.');});list.append(row);});
   }).catch(()=>safeText(list,'p','Could not load your saved book progress.','note'));
 }
 function renderLearning(){
@@ -2043,9 +2214,15 @@ function formatTimer(seconds){const value=Math.max(0,Math.floor(seconds)),hours=
 function persistReadingTimer(){local.set('er-reading-timer',{day:readerTimerDay,seconds:elapsedReadingSeconds()});}
 function updateReadingTimer(){const elapsed=elapsedReadingSeconds(),remaining=readerTimerGoal?Math.max(0,readerTimerGoal*60-elapsed):elapsed,output=byId('timer-display'),toggle=byId('timer-toggle');if(output){output.textContent=formatTimer(remaining);output.setAttribute('aria-label',readerTimerGoal?`${formatTimer(remaining)} remaining toward today's goal`:`${formatTimer(elapsed)} elapsed reading time`);}if(toggle){toggle.textContent=readerTimerRunning?'Pause':'Start';toggle.setAttribute('aria-label',readerTimerRunning?'Pause reading timer':'Start reading timer');}}
 function recordReadingSeconds(total){const delta=total-readerTimerRecordedSeconds;readerTimerRecordedSeconds=total;if(delta<=0||!readerTimerBookKey)return;const stats=local.get('er-stats',{}),item=stats[readerTimerBookKey]||{seconds:0,day:readerTimerDay};item.seconds=(item.seconds||0)+delta;item.day=readerTimerDay;stats[readerTimerBookKey]=item;local.set('er-stats',stats);recordReadingDay(delta);}
-function tickReadingTimer(){const today=todayKey();if(readerTimerDay!==today){readerTimerDay=today;readerTimerSeconds=0;readerTimerStart=Date.now();readerTimerRecordedSeconds=0;}const elapsed=elapsedReadingSeconds();recordReadingSeconds(elapsed);persistReadingTimer();updateReadingTimer();if(readerTimerGoal&&elapsed>=readerTimerGoal*60){pauseReadingTimer();toast("Today's reading goal is complete.");}}
+function tickReadingTimer(){
+  const today=todayKey();
+  if(readerTimerDay!==today){readerTimerDay=today;readerTimerSeconds=0;readerTimerStart=Date.now();readerTimerRecordedSeconds=0;}
+  const elapsed=elapsedReadingSeconds();recordReadingSeconds(elapsed);persistReadingTimer();updateReadingTimer();
+  if(user&&Date.now()-lastProgressCloudSyncAt>=5*60*1000)queueCloudSync();
+  if(readerTimerGoal&&elapsed>=readerTimerGoal*60){pauseReadingTimer();toast("Today's reading goal is complete.");}
+}
 function startReadingTimer(){if(readerTimerRunning)return;readerTimerRunning=true;readerTimerStart=Date.now();readerTimerInterval=setInterval(tickReadingTimer,1000);updateReadingTimer();}
-function pauseReadingTimer(){if(!readerTimerRunning)return;readerTimerSeconds=elapsedReadingSeconds();readerTimerRunning=false;readerTimerStart=0;clearInterval(readerTimerInterval);readerTimerInterval=null;recordReadingSeconds(readerTimerSeconds);persistReadingTimer();updateReadingTimer();}
+function pauseReadingTimer(){if(!readerTimerRunning)return;readerTimerSeconds=elapsedReadingSeconds();readerTimerRunning=false;readerTimerStart=0;clearInterval(readerTimerInterval);readerTimerInterval=null;recordReadingSeconds(readerTimerSeconds);persistReadingTimer();updateReadingTimer();queueCloudSync();}
 function resetReadingTimer(){pauseReadingTimer();readerTimerDay=todayKey();readerTimerSeconds=0;readerTimerRecordedSeconds=0;persistReadingTimer();updateReadingTimer();}
 function changeReaderTextSize(delta){const settings=local.get('er-reader-settings',{}),size=Math.min(2,Math.max(.85,Number(settings.size||1.25)+delta));settings.size=Math.round(size*100)/100;local.set('er-reader-settings',settings);document.documentElement.style.setProperty('--reader-fs',settings.size+'rem');}
 function changeReaderSpacing(delta){const settings=local.get('er-reader-settings',{}),spacing=Math.min(2.3,Math.max(1.5,Math.round((Number(settings.spacing||1.9)+delta)*10)/10));settings.spacing=spacing;local.set('er-reader-settings',settings);document.documentElement.style.setProperty('--reader-leading',String(spacing));byId('spacing').value=String(spacing);}
@@ -2117,6 +2294,7 @@ function updateProfile(){
   if(byId('account-profile-name'))byId('account-profile-name').value=displayName;
   if(byId('account-email'))byId('account-email').textContent=user?.email||'';
   if(byId('account-signed-out'))byId('account-signed-out').hidden=!!user;if(byId('account-signed-in'))byId('account-signed-in').hidden=!user;
+  updateAdminDashboardAccess();
   updateWelcomeSignin();
 }
 async function signInWithGoogle(){
@@ -2154,8 +2332,61 @@ async function signOutUser(){
     toast(error?.message || 'Sign-out failed. Please try again.');
   }
 }
-function queueCloudSync(){if(!user)return;clearTimeout(cloudSyncTimer);cloudSyncTimer=setTimeout(syncCloud,800);}
-async function syncCloud(){if(!user||!navigator.onLine)return;try{if(!firestore)await initFirebase();const ref=firestore.collection('users').doc(user.uid),snapshot=await ref.get(),remote=snapshot.exists?snapshot.data():{},data={};if(typeof remote.photoData==='string'&&remote.photoData.startsWith('data:image/')&&remote.photoData.length<200000&&remote.photoData!==local.get('er-photo-'+user.uid,'')){local.set('er-photo-'+user.uid,remote.photoData);updateProfile();}const localTombstones=local.get('er-vocabulary-deleted',{}),remoteTombstones=remote.vocabularyDeleted&&typeof remote.vocabularyDeleted==='object'?remote.vocabularyDeleted:{},tombstones={};for(const key of new Set([...Object.keys(remoteTombstones),...Object.keys(localTombstones)]))tombstones[key]=Math.max(Number(remoteTombstones[key]||0),Number(localTombstones[key]||0));const localDeletedSaved=local.get('er-deleted-saved-items',{}),remoteDeletedSaved=remote.deletedSavedItems&&typeof remote.deletedSavedItems==='object'?remote.deletedSavedItems:{},deletedSaved={};for(const key of new Set([...Object.keys(remoteDeletedSaved),...Object.keys(localDeletedSaved)]))deletedSaved[key]=Math.max(Number(remoteDeletedSaved[key]||0),Number(localDeletedSaved[key]||0));const localDeletedBookmarks=local.get('er-deleted-bookmarks',{}),remoteDeletedBookmarks=remote.deletedBookmarks&&typeof remote.deletedBookmarks==='object'?remote.deletedBookmarks:{},deletedBookmarks={};for(const key of new Set([...Object.keys(remoteDeletedBookmarks),...Object.keys(localDeletedBookmarks)]))deletedBookmarks[key]=Math.max(Number(remoteDeletedBookmarks[key]||0),Number(localDeletedBookmarks[key]||0));for(const [name,key]of Object.entries(STORE_KEYS)){const localItems=local.get(key,name==='stats'?{}:[]),remoteItems=Array.isArray(remote[name])?remote[name]:[];if(name==='stats'){const localStats=localItems&&typeof localItems==='object'&&!Array.isArray(localItems)?localItems:{},remoteStats=remote[name]&&typeof remote[name]==='object'&&!Array.isArray(remote[name])?remote[name]:{};data[name]={...remoteStats,...localStats};local.set(key,data[name]);continue;}let merged;if(name==='notes'||name==='highlights'){const kind=name==='notes'?'note':'highlight',byIdentity=new Map();for(const item of remoteItems)byIdentity.set(item.id?'id:'+item.id:savedItemLegacyKey(item,kind),item);for(const item of localItems)byIdentity.set(item.id?'id:'+item.id:savedItemLegacyKey(item,kind),item);merged=[...byIdentity.values()];}else{const seen=new Set();merged=[];for(const item of [...remoteItems,...localItems]){const identity=JSON.stringify(item);if(!seen.has(identity)){seen.add(identity);merged.push(item);}}}let finalItems=merged;if(name==='vocabulary'){finalItems=merged.filter(item=>{const word=String(item.word||'').trim().toLowerCase(),deletedAt=Number(tombstones[word]||0),savedAt=Number(item.created||0);return !deletedAt||savedAt>deletedAt;});}if(name==='notes'||name==='highlights'){const kind=name==='notes'?'note':'highlight';finalItems=merged.filter(item=>!savedItemTombstoneKeys(item,kind).some(tombstoneKey=>deletedSaved[tombstoneKey]));}if(name==='bookmarks'){finalItems=merged.filter(item=>!deletedBookmarks[item.id||savedItemLegacyKey(item,'bookmark')]);}data[name]=finalItems.slice(-1000);local.set(key,data[name]);}data.vocabularyDeleted=tombstones;data.deletedSavedItems=deletedSaved;data.deletedBookmarks=deletedBookmarks;local.set('er-vocabulary-deleted',tombstones);local.set('er-deleted-saved-items',deletedSaved);local.set('er-deleted-bookmarks',deletedBookmarks);await ref.set(data,{merge:true});byId('sync-label').textContent='Synced just now';byId('last-synced').textContent='Last synced '+new Date().toLocaleString();toast('Reading data synced.');}catch(error){byId('sync-label').textContent='Sync needs attention';console.warn('Sync failed',error);}}
+function queueCloudSync(){if(!user)return;lastProgressCloudSyncAt=Date.now();clearTimeout(cloudSyncTimer);cloudSyncTimer=setTimeout(syncCloud,800);}
+async function syncCloud(){
+  if(!user||!navigator.onLine)return;
+  try{
+    if(!firestore)await initFirebase();
+    const ref=firestore.collection('users').doc(user.uid),snapshot=await ref.get(),remote=snapshot.exists?snapshot.data():{},data={};
+    if(typeof remote.photoData==='string'&&remote.photoData.startsWith('data:image/')&&remote.photoData.length<200000&&remote.photoData!==local.get('er-photo-'+user.uid,'')){local.set('er-photo-'+user.uid,remote.photoData);updateProfile();}
+    const mergeTombstones=(localKey,remoteKey)=>{
+      const savedValues=local.get(localKey,{}),localValues=savedValues&&typeof savedValues==='object'&&!Array.isArray(savedValues)?savedValues:{},remoteValues=remote[remoteKey]&&typeof remote[remoteKey]==='object'&&!Array.isArray(remote[remoteKey])?remote[remoteKey]:{},merged={};
+      for(const key of new Set([...Object.keys(remoteValues),...Object.keys(localValues)]))merged[key]=Math.max(Number(remoteValues[key]||0),Number(localValues[key]||0));
+      return merged;
+    };
+    const tombstones=mergeTombstones('er-vocabulary-deleted','vocabularyDeleted');
+    const deletedSaved=mergeTombstones('er-deleted-saved-items','deletedSavedItems');
+    const deletedBookmarks=mergeTombstones('er-deleted-bookmarks','deletedBookmarks');
+    for(const [name,key]of Object.entries(STORE_KEYS)){
+      const localItems=local.get(key,name==='stats'?{}:[]),remoteItems=Array.isArray(remote[name])?remote[name]:[];
+      if(name==='stats'){
+        const localStats=localItems&&typeof localItems==='object'&&!Array.isArray(localItems)?localItems:{},remoteStats=remote[name]&&typeof remote[name]==='object'&&!Array.isArray(remote[name])?remote[name]:{};
+        data[name]={...remoteStats,...localStats};local.set(key,data[name]);continue;
+      }
+      let merged;
+      if(name==='notes'||name==='highlights'){
+        const kind=name==='notes'?'note':'highlight',byIdentity=new Map();
+        for(const item of remoteItems)byIdentity.set(item.id?'id:'+item.id:savedItemLegacyKey(item,kind),item);
+        for(const item of localItems)byIdentity.set(item.id?'id:'+item.id:savedItemLegacyKey(item,kind),item);
+        merged=[...byIdentity.values()];
+      }else{
+        const seen=new Set();merged=[];
+        for(const item of [...remoteItems,...localItems]){const identity=JSON.stringify(item);if(!seen.has(identity)){seen.add(identity);merged.push(item);}}
+      }
+      let finalItems=merged;
+      if(name==='vocabulary')finalItems=merged.filter(item=>{const word=String(item.word||'').trim().toLowerCase(),deletedAt=Number(tombstones[word]||0),savedAt=Number(item.created||0);return !deletedAt||savedAt>deletedAt;});
+      if(name==='notes'||name==='highlights'){const kind=name==='notes'?'note':'highlight';finalItems=merged.filter(item=>!savedItemTombstoneKeys(item,kind).some(tombstoneKey=>deletedSaved[tombstoneKey]));}
+      if(name==='bookmarks')finalItems=merged.filter(item=>!deletedBookmarks[item.id||savedItemLegacyKey(item,'bookmark')]);
+      data[name]=finalItems.slice(-1000);local.set(key,data[name]);
+    }
+    const savedDays=local.get('er-reading-days',{}),localDays=savedDays&&typeof savedDays==='object'&&!Array.isArray(savedDays)?savedDays:{},remoteDays=remote.readingDays&&typeof remote.readingDays==='object'&&!Array.isArray(remote.readingDays)?remote.readingDays:{},readingDays={};
+    for(const day of new Set([...Object.keys(remoteDays),...Object.keys(localDays)])){
+      const total=Math.max(Number(remoteDays[day])||0,Number(localDays[day])||0);
+      if(/^\d{4}-\d{2}-\d{2}$/.test(day)&&total>0)readingDays[day]=total;
+    }
+    data.readingDays=readingDays;local.set('er-reading-days',readingDays);
+    const hasLocalGoal=localStorage.getItem('er-reading-goal')!==null;
+    const readingGoal=hasLocalGoal?Math.max(0,Number(local.get('er-reading-goal',0))||0):Math.max(0,Number(remote.readingGoal)||0);
+    data.readingGoal=readingGoal;local.set('er-reading-goal',readingGoal);readerTimerGoal=readingGoal;
+    if(byId('reading-goal'))byId('reading-goal').value=String(readingGoal);
+    updateReadingTimer();updateStreakChip();
+    data.vocabularyDeleted=tombstones;data.deletedSavedItems=deletedSaved;data.deletedBookmarks=deletedBookmarks;
+    local.set('er-vocabulary-deleted',tombstones);local.set('er-deleted-saved-items',deletedSaved);local.set('er-deleted-bookmarks',deletedBookmarks);
+    await ref.set(data,{merge:true});
+    lastProgressCloudSyncAt=Date.now();
+    byId('sync-label').textContent='Synced just now';byId('last-synced').textContent='Last synced '+new Date().toLocaleString();toast('Reading data synced.');
+  }catch(error){byId('sync-label').textContent='Sync needs attention';console.warn('Sync failed',error);}
+}
 function updateInstallButton() {
   const button = byId('install-btn');
   if (!button) return;
@@ -2206,6 +2437,8 @@ async function init() {
   }));
   boot('contact', initContact);
   updateWelcomeSignin();
+  boot('admin dashboard access', updateAdminDashboardAccess);
+  initFirebase().catch(error => console.warn('Firebase auth initialization failed', error));
   boot('reader preferences', loadReaderPreferences);
   boot('install state', updateInstallButton);
   window.addEventListener('beforeinstallprompt', event => {
@@ -2265,7 +2498,7 @@ async function init() {
   byId('document-page-next')?.addEventListener('click',()=>goToReaderPage(activePage+1));
   byId('note-form').addEventListener('submit',saveNote);byId('note-cancel').addEventListener('click',()=>byId('note-dialog').close());byId('delete-item-cancel')?.addEventListener('click',()=>byId('delete-item-dialog').close());byId('delete-item-confirm')?.addEventListener('click',confirmDeleteSavedItem);
   for(const id of ['library-search'])byId(id)?.addEventListener('input',renderLibraryPanel);for(const id of ['library-filter','library-sort'])byId(id)?.addEventListener('change',renderLibraryPanel);byId('library-collection')?.addEventListener('change',()=>{local.set('er-library-collection', byId('library-collection').value || 'all'); renderLibraryPanel();});byId('library-add-collection')?.addEventListener('click', async () => { const name = prompt('Name a collection', 'Classics'); if (!name) return; const selected = String(name).trim(); if (!selected) return; const current = byId('library-collection'); if (current) { const nextValue = selected.toLowerCase(); current.append(new Option(selected, nextValue)); current.value = nextValue; local.set('er-library-collection', nextValue); } renderLibraryPanel(); });byId('home-library-sort')?.addEventListener('change',renderLibrary);
-  byId('timer-toggle').addEventListener('click',()=>readerTimerRunning?pauseReadingTimer():startReadingTimer());byId('timer-reset').addEventListener('click',resetReadingTimer);byId('reading-goal').addEventListener('change',event=>{readerTimerGoal=Math.max(0,Number(event.target.value)||0);local.set('er-reading-goal',readerTimerGoal);updateReadingTimer();});
+  byId('timer-toggle').addEventListener('click',()=>readerTimerRunning?pauseReadingTimer():startReadingTimer());byId('timer-reset').addEventListener('click',resetReadingTimer);byId('reading-goal').addEventListener('change',event=>{readerTimerGoal=Math.max(0,Number(event.target.value)||0);local.set('er-reading-goal',readerTimerGoal);updateReadingTimer();updateStreakChip();queueCloudSync();});
   byId('pdf-mode-btn').addEventListener('click',()=>setPdfMode(!pdfMode));byId('pdf-prev').addEventListener('click',()=>goPdfPage(activePage-1));byId('pdf-next').addEventListener('click',()=>goPdfPage(activePage+1));byId('pdf-zoom-in').addEventListener('click',()=>scalePdf(.15));byId('pdf-zoom-out').addEventListener('click',()=>scalePdf(-.15));byId('pdf-fullscreen').addEventListener('click',()=>pdfPages.requestFullscreen?.());byId('pdf-preview-toggle').addEventListener('click',()=>{pdfPreviewsVisible=!pdfPreviewsVisible;local.set('er-pdf-previews',pdfPreviewsVisible);pdfThumbs.hidden=!pdfMode||!pdfPreviewsVisible;byId('pdf-preview-toggle').textContent=pdfPreviewsVisible?'Hide previews':'Show previews';byId('pdf-preview-toggle').setAttribute('aria-pressed',String(pdfPreviewsVisible));});
   byId('fullscreen-btn').addEventListener('click',toggleReaderFullscreen);
   byId('search-btn').addEventListener('click',()=>{closeDictionaryPanel();const tools=byId('reader-tools');tools.hidden=!tools.hidden;if(!tools.hidden){byId('search-input').focus();byId('search-input').select();}});
@@ -2279,7 +2512,7 @@ async function init() {
   byId('highlight-btn').addEventListener('click',()=>{const text=getSelection()?.toString().trim();if(!text)return;const values=local.get('er-highlights',[]);values.unshift({id:newSavedItemId(),text,book:activeBook?.key,bookName:activeBook?.title||activeBook?.name||'',created:Date.now()});local.set('er-highlights',values);recordUserActivity('highlight_saved',{book: activeBook?.title || activeBook?.name || 'library'});queueCloudSync();renderMyNotes();renderSavedItems();toast('Highlight saved.');});
   byId('bookmark-btn').addEventListener('click',()=>{const values=local.get('er-bookmarks',[]);values.unshift({id:newSavedItemId(),name:activeBook?.title||activeBook?.name||'Bookmark',book:activeBook?.key,bookName:activeBook?.title||activeBook?.name||'',scroll:scrollY,page:activePage,created:Date.now()});local.set('er-bookmarks',values);queueCloudSync();toast('Bookmark saved.');});
   byId('export-btn').addEventListener('click',exportData);byId('export-all').addEventListener('click',exportData);byId('delete-all').addEventListener('click',deleteLocalData);
-  byId('google-signin').addEventListener('click',signInWithGoogle);byId('signin-modal-google').addEventListener('click',signInWithGoogle);byId('welcome-signin-btn')?.addEventListener('click',signInWithGoogle);byId('welcome-dismiss')?.addEventListener('click',()=>{local.set('er-signin-dismissed',true);local.set('er-welcome-intro-dismissed',true);const welcome=byId('welcome-signin');if(welcome)welcome.hidden=true;});byId('email-auth-form')?.addEventListener('submit',submitEmailAuth);byId('auth-tab-signin')?.addEventListener('click',()=>setAuthMode('signin'));byId('auth-tab-signup')?.addEventListener('click',()=>setAuthMode('signup'));byId('forgot-password')?.addEventListener('click',resetPassword);byId('auth-password-toggle')?.addEventListener('click',()=>{const input=byId('auth-password'),button=byId('auth-password-toggle');if(!input||!button)return;const visible=input.type==='text';input.type=visible?'password':'text';button.textContent=visible?'Show':'Hide';button.setAttribute('aria-label',visible?'Show password':'Hide password');});    byId('sync-now').addEventListener('click',syncCloud);byId('signout').addEventListener('click',signOutUser);byId('profile-name-save').addEventListener('click',saveProfileName);byId('download-backup').addEventListener('click',exportReadingBackup);byId('import-backup').addEventListener('click',()=>byId('backup-import-input')?.click());byId('backup-import-input')?.addEventListener('change', event => { const file = event.target.files?.[0]; if (file) importReadingBackup(file); event.target.value = ''; });  byId('speak-page-btn').addEventListener('click',speakCurrent);byId('stop-speech-btn').addEventListener('click',()=>speechSynthesis.cancel());  byId('autoscroll-btn').addEventListener('click',()=>{const button=byId('autoscroll-btn');if(button.dataset.running){clearInterval(Number(button.dataset.running));delete button.dataset.running;button.textContent='Auto-scroll';}else button.dataset.running=String(setInterval(()=>scrollBy(0,1),45));});
+  byId('google-signin').addEventListener('click',signInWithGoogle);byId('signin-modal-google').addEventListener('click',signInWithGoogle);byId('welcome-signin-btn')?.addEventListener('click',signInWithGoogle);byId('welcome-dismiss')?.addEventListener('click',()=>{local.set('er-signin-dismissed',true);local.set('er-welcome-intro-dismissed',true);const welcome=byId('welcome-signin');if(welcome)welcome.hidden=true;});byId('email-auth-form')?.addEventListener('submit',submitEmailAuth);byId('auth-tab-signin')?.addEventListener('click',()=>setAuthMode('signin'));byId('auth-tab-signup')?.addEventListener('click',()=>setAuthMode('signup'));byId('forgot-password')?.addEventListener('click',resetPassword);byId('auth-password-toggle')?.addEventListener('click',()=>{const input=byId('auth-password'),button=byId('auth-password-toggle');if(!input||!button)return;const visible=input.type==='text';input.type=visible?'password':'text';button.textContent=visible?'Show':'Hide';button.setAttribute('aria-label',visible?'Show password':'Hide password');});    byId('sync-now').addEventListener('click',syncCloud);byId('signout').addEventListener('click',signOutUser);byId('profile-name-save').addEventListener('click',saveProfileName);byId('download-backup').addEventListener('click',exportReadingBackup);byId('stats-download-backup')?.addEventListener('click',exportReadingBackup);byId('stats-import-backup')?.addEventListener('click',()=>byId('backup-import-input')?.click());byId('backup-import-input')?.addEventListener('change', event => { const file = event.target.files?.[0]; if (file) importReadingBackup(file); event.target.value = ''; });  byId('speak-page-btn').addEventListener('click',speakCurrent);byId('stop-speech-btn').addEventListener('click',()=>speechSynthesis.cancel());  byId('autoscroll-btn').addEventListener('click',()=>{const button=byId('autoscroll-btn');if(button.dataset.running){clearInterval(Number(button.dataset.running));delete button.dataset.running;button.textContent='Auto-scroll';}else button.dataset.running=String(setInterval(()=>scrollBy(0,1),45));});
   byId('font-choice').addEventListener('change',event=>{const settings=local.get('er-reader-settings',{});settings.font=event.target.value;local.set('er-reader-settings',settings);document.documentElement.style.setProperty('--reader-font',event.target.value==='serif'?'Georgia,serif':event.target.value==='dyslexic'?'Arial,sans-serif':"'Literata',Georgia,serif");});byId('spacing').addEventListener('input',event=>{const settings=local.get('er-reader-settings',{});settings.spacing=Number(event.target.value);local.set('er-reader-settings',settings);document.documentElement.style.setProperty('--reader-leading',event.target.value);});byId('width').addEventListener('input',event=>{const settings=local.get('er-reader-settings',{});settings.width=Number(event.target.value);local.set('er-reader-settings',settings);document.documentElement.style.setProperty('--reader-width',event.target.value+'px');});
   for(const id of ['signin-modal-close','signin-modal-later'])byId(id).addEventListener('click',()=>{byId('signin-modal').hidden=true;local.set('er-signin-dismissed',true);local.set('er-welcome-intro-dismissed',true);});
   addEventListener('scroll',()=>{if(!readerWrap.hidden)savePosition();},{passive:true});addEventListener('beforeunload',()=>{savePosition(true);pauseReadingTimer();});document.addEventListener('visibilitychange',()=>{if(document.hidden&&readerTimerRunning){timerResumeOnVisible=true;pauseReadingTimer();}else if(!document.hidden&&timerResumeOnVisible&&!readerWrap.hidden){timerResumeOnVisible=false;startReadingTimer();}});addEventListener('resize',()=>{if(activePdf)scalePdf(0);});
@@ -2427,7 +2660,17 @@ async function deleteLocalData(){
   }
 }
 function renderPrivacyState(){byId('privacy-status').textContent='Books and reading position are stored in this browser. Sign-in sync is optional.';}
-async function renderLibrary(){const books=await getBooks(),list=byId('library-preview');if(!list)return;updateContinueCard(books);list.replaceChildren();if(!books.length){safeText(list,'p','Your books will appear here after you open one.','note');return;}const sort=byId('home-library-sort')?.value||'recent';books.sort((a,b)=>sort==='favorites'?((b.favorite?1:0)-(a.favorite?1:0))||((b.opened||0)-(a.opened||0)):sort==='title'?(a.title||a.name).localeCompare(b.title||b.name):sort==='progress'?(b.progress||0)-(a.progress||0):(b.opened||0)-(a.opened||0)).slice(0,4).forEach(book=>{const card=document.createElement('article');card.className='book-card';safeText(card,'strong',(book.favorite?'\u2605 ':'')+(book.title||book.name));const progress=document.createElement('progress');progress.max=100;progress.value=book.progress||0;card.append(progress);const open=safeText(card,'button','Continue reading','btn');open.onclick=()=>openFile(book.file);list.append(card);});}
+async function renderLibrary(){
+  const books=await getBooks(),list=byId('library-preview');if(!list)return;
+  updateContinueCard(books);list.replaceChildren();
+  if(!books.length){safeText(list,'p','Your books will appear here after you open one.','note');return;}
+  const sort=byId('home-library-sort')?.value||'recent';
+  books.sort((a,b)=>sort==='favorites'?((b.favorite?1:0)-(a.favorite?1:0))||((b.opened||0)-(a.opened||0)):sort==='title'?(a.title||a.name||'').localeCompare(b.title||b.name||''):sort==='progress'?(b.progress||0)-(a.progress||0):(b.opened||0)-(a.opened||0)).slice(0,4).forEach(book=>{
+    const card=document.createElement('article');card.className='book-card';safeText(card,'strong',(book.favorite?'\u2605 ':'')+(book.title||book.name||'Untitled book'));
+    const progress=document.createElement('progress');progress.max=100;progress.value=book.progress||0;progress.setAttribute('aria-label','Reading progress');card.append(progress);
+    const open=safeText(card,'button',book.file?'Continue reading':'File unavailable','btn');open.type='button';open.disabled=!book.file;if(!book.file)open.title='Original book files are not included in JSON backups.';open.onclick=()=>book.file&&openFile(book.file);list.append(card);
+  });
+}
 function initContact(){
   const contact=window.EASYREAD_CONTACT||{};
   const telegram=String(contact.telegram||'').trim();

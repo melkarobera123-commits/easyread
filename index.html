@@ -24,6 +24,7 @@
   <link rel="dns-prefetch" href="https://api.mymemory.translated.net">
 </head>
 <body data-view="about">
+<a class="skip-link" href="#top">Skip to main content</a>
 <div id="meter" aria-hidden="true"></div>
 <div id="network-status" class="network-status" role="status" hidden></div>
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
@@ -48,7 +49,7 @@
   <nav class="sidebar-nav">
     <button id="sidebar-about" class="shell-nav active" type="button"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1zM9 21v-7h6v7"/></svg><span>Home</span></button>
     <button id="sidebar-reader" class="shell-nav" type="button"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h11a3 3 0 0 1 3 3v15H8a3 3 0 0 0-3 3zM5 3v18a3 3 0 0 1 3-3h11"/><path d="M9 8h6M9 12h6"/></svg><span>Reader</span></button>
-    <button id="sidebar-dashboard" class="shell-nav" type="button"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 18V9m7 9V5m7 13v-7"/><path d="M3 18h18"/></svg><span>Dashboard</span></button>
+    <button id="sidebar-dashboard" class="shell-nav" type="button" hidden><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 18V9m7 9V5m7 13v-7"/><path d="M3 18h18"/></svg><span>Dashboard</span></button>
     <button id="sidebar-library" class="shell-nav" type="button"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v16H4zM8 3v18M12 7h5M12 11h5"/></svg><span>Library</span></button>
     <button id="sidebar-notes" class="shell-nav" type="button"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h14v18H5zM8 8h8M8 12h8M8 16h5"/></svg><span>Notes</span></button>
     <button id="sidebar-saved-words" class="shell-nav" type="button"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h12a2 2 0 0 1 2 2v14l-8-4-8 4V6a2 2 0 0 1 2-2z"/><path d="M9 8h6M9 11h6"/></svg><span>Saved Words</span></button>
@@ -69,7 +70,7 @@
   <nav class="nav-links" aria-label="Primary navigation">
     <button id="about-nav" class="nav-link active" type="button">Home</button>
     <button id="reader-nav" class="nav-link" type="button">Reader</button>
-    <button id="dashboard-btn" class="nav-link" type="button">Dashboard</button>
+    <button id="dashboard-btn" class="nav-link" type="button" hidden>Dashboard</button>
   </nav>
   <button id="library-btn" class="btn top-library" type="button">My library</button>
   <button id="account-btn" class="btn account-trigger" type="button"><img id="account-avatar" alt="" hidden><span id="account-label">Sign in</span></button>
@@ -91,7 +92,7 @@
   <button id="mobile-account" class="shell-nav" type="button"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c.8-4 3.4-6 8-6s7.2 2 8 6"/></svg><span>Profile</span></button>
 </nav>
 
-<main id="top">
+<main id="top" tabindex="-1">
   <section class="hero">
     <div class="copy">
       <p class="welcome-kicker">A little help for big reading days</p>
@@ -324,14 +325,21 @@
     <button id="library-view-fav" class="library-view" type="button" aria-pressed="false">&#9733; Favorites <span id="library-fav-count" class="library-count">0</span></button>
   </div>
   <div class="library-filters">
-    <label class="library-filter">Type <select id="library-filter"><option value="all">All types</option><option value="pdf">PDF</option><option value="docx">Word</option><option value="epub">EPUB</option><option value="txt">Text</option><option value="image">Images</option></select></label>
+    <label class="library-filter">Type <select id="library-filter"><option value="all">All types</option><option value="pdf">PDF</option><option value="documents">Documents</option><option value="presentations">Presentations</option><option value="spreadsheets">Spreadsheets</option><option value="epub">EPUB</option><option value="text">Text</option><option value="web">HTML</option><option value="rich-text">Rich text</option><option value="image">Images</option></select></label>
     <label class="library-sort">Collection <select id="library-collection"><option value="all">All collections</option></select></label>
     <button id="library-add-collection" class="btn" type="button">New collection</button>
     <label class="library-sort">Sort by <select id="library-sort"><option value="recent">Last opened</option><option value="title">Title</option><option value="progress">Progress</option></select></label>
   </div>
+  <p id="library-result-count" class="note" role="status" aria-live="polite"></p>
   <p id="library-fav-hint" class="note library-hint" hidden>Tap &#9734; on a book to keep it at the top and find it under Favorites.</p>
   <h3 id="library-fav-title" class="library-section-title">Favorites</h3><div id="library-favorites"></div>
   <h3 id="library-recent-title" class="library-section-title">Recently opened</h3><div id="library-list"></div>
+  <div class="saved-note-export-actions">
+    <button id="stats-download-backup" class="btn" type="button">Download reading backup</button>
+    <button id="stats-import-backup" class="btn" type="button">Import reading backup</button>
+    <input id="backup-import-input" type="file" accept="application/json,.json" hidden>
+  </div>
+  <p id="backup-import-status" class="note" role="status" aria-live="polite">A JSON backup restores reading data and book progress. Original book files are not included; use cloud book backup when signed in.</p>
 </aside>
 
 <aside id="dashboard-panel" class="panel dashboard-panel" hidden role="dialog" aria-modal="true" aria-labelledby="dashboard-title">
@@ -374,8 +382,6 @@
     <p id="sync-conflicts" class="note"></p>
     <button id="sync-now" class="btn account-action" type="button">Sync now</button>
     <button id="download-backup" class="btn account-action" type="button">Download reading backup</button>
-    <button id="import-backup" class="btn account-action" type="button">Import reading backup</button>
-    <input id="backup-import-input" type="file" accept="application/json,.json" hidden>
     <button id="backup-books" class="btn account-action" type="button">Back up original books</button>
     <button id="restore-books" class="btn account-action" type="button">Restore backed-up books</button>
     <p id="book-backup-status" class="note"></p>
