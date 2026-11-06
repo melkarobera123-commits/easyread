@@ -83,6 +83,39 @@ test('admin dashboard navigation is hidden until an admin signs in', async ({ pa
   await expect(page.locator('#sidebar-dashboard')).toBeHidden();
 });
 
+test('admin dashboard opens automatically when Firebase restores an admin session', async ({ page }) => {
+  await page.route('https://www.gstatic.com/firebasejs/**', route => route.fulfill({
+    contentType: 'application/javascript',
+    body: `(() => {
+      if (window.firebase) return;
+      const admin = { uid: 'admin-test', email: 'melkarobera123@gmail.com', displayName: 'EasyRead Admin' };
+      const auth = {
+        currentUser: admin,
+        setPersistence: async () => {},
+        onAuthStateChanged(callback) { callback(admin); },
+        getRedirectResult: async () => null
+      };
+      const firestore = { collection: () => ({ doc: () => ({
+        get: async () => ({ exists: false, data: () => ({}) }),
+        set: async () => {}
+      }) }) };
+      const functions = { httpsCallable: () => async () => ({ data: { registeredUsers: 0, visitors30d: 0, activeReaderDays30d: 0, daily: [] } }) };
+      const firebase = window.firebase = {
+        apps: [],
+        initializeApp() { this.apps.push({}); },
+        auth: () => auth,
+        firestore: () => firestore,
+        functions: () => functions
+      };
+      firebase.auth.Auth = { Persistence: { LOCAL: 'local' } };
+    })();`
+  }));
+  await page.goto('/');
+  await expect(page.locator('#dashboard-panel')).toBeVisible();
+  await expect(page.locator('#dashboard-content')).toContainText('Service health');
+  await expect(page.locator('#sidebar-dashboard')).toBeVisible();
+});
+
 test('skip link moves keyboard focus to the main content', async ({ page }) => {
   await page.goto('/');
   await page.keyboard.press('Tab');

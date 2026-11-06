@@ -2248,7 +2248,14 @@ async function initFirebase(){
   if(auth)return auth;if(firebaseInitPromise)return firebaseInitPromise;if(!window.EASYREAD_FIREBASE_CONFIG?.apiKey)throw new Error('Firebase sign-in has not been configured.');
   firebaseInitPromise=(async()=>{await Promise.all(['firebaseApp','firebaseAuth','firebaseStore','firebaseFunctions'].map(loadLibrary));if(!firebase.apps.length)firebase.initializeApp(window.EASYREAD_FIREBASE_CONFIG);auth=firebase.auth();firestore=firebase.firestore();functions=firebase.functions();
     try { await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL); } catch (error) { console.warn('Firebase persistence setup failed:', error); }
-    auth.onAuthStateChanged(next=>{user=next;if(next?.displayName)local.set('er-display-name',next.displayName);updateProfile();if(user)syncCloud();});
+    auth.onAuthStateChanged(next=>{
+      const wasAdmin=isAdminUser();
+      user=next;
+      if(next?.displayName)local.set('er-display-name',next.displayName);
+      updateProfile();
+      if(isAdminUser()&&!wasAdmin)showPanel('dashboard-panel',true);
+      if(user)syncCloud();
+    });
     try{await auth.getRedirectResult();}catch(error){if(error?.code!=='auth/no-auth-event')setAuthStatus(friendlyAuthError(error),'error');}return auth;})();
   try{return await firebaseInitPromise;}catch(error){firebaseInitPromise=null;throw error;}
 }
