@@ -268,6 +268,8 @@
     <p id="note-word" class="note-word"></p>
     <label for="note-editor-text">Your note</label>
     <textarea id="note-editor-text" rows="5" maxlength="2000" required placeholder="Write a short note…"></textarea>
+    <label for="note-tags">Tags</label>
+    <input id="note-tags" type="text" maxlength="120" placeholder="reading, summary, philosophy">
     <button class="btn account-action" type="submit">Save note</button>
   </form>
 </dialog>
@@ -320,6 +322,8 @@
   </div>
   <div class="library-filters">
     <label class="library-filter">Type <select id="library-filter"><option value="all">All types</option><option value="pdf">PDF</option><option value="docx">Word</option><option value="epub">EPUB</option><option value="txt">Text</option><option value="image">Images</option></select></label>
+    <label class="library-sort">Collection <select id="library-collection"><option value="all">All collections</option></select></label>
+    <button id="library-add-collection" class="btn" type="button">New collection</button>
     <label class="library-sort">Sort by <select id="library-sort"><option value="recent">Last opened</option><option value="title">Title</option><option value="progress">Progress</option></select></label>
   </div>
   <p id="library-fav-hint" class="note library-hint" hidden>Tap &#9734; on a book to keep it at the top and find it under Favorites.</p>
@@ -354,11 +358,16 @@
   <div id="account-signed-in" hidden>
     <div class="account-summary"><img id="account-photo" class="account-photo" alt="Your profile picture"><div><strong id="account-name"></strong><small id="account-email"></small></div></div>
     <div class="photo-actions"><input id="photo-input" type="file" accept="image/*" hidden><button id="photo-change" class="btn" type="button">Change picture</button><button id="photo-remove" class="btn" type="button" hidden>Remove</button></div>
+    <label class="account-profile-name-field">Display name<input id="account-profile-name" type="text" maxlength="80" placeholder="Your display name"></label>
+    <button id="profile-name-save" class="btn account-action" type="button">Save profile name</button>
     <p id="sync-status" class="sync-state"><span class="sync-dot"></span><span id="sync-label">Not synced yet</span></p>
     <p id="last-synced" class="note"></p>
     <p id="pending-sync" class="note"></p>
     <p id="sync-conflicts" class="note"></p>
     <button id="sync-now" class="btn account-action" type="button">Sync now</button>
+    <button id="download-backup" class="btn account-action" type="button">Download reading backup</button>
+    <button id="import-backup" class="btn account-action" type="button">Import reading backup</button>
+    <input id="backup-import-input" type="file" accept="application/json,.json" hidden>
     <button id="backup-books" class="btn account-action" type="button">Back up original books</button>
     <button id="restore-books" class="btn account-action" type="button">Restore backed-up books</button>
     <p id="book-backup-status" class="note"></p>

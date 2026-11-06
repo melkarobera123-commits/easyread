@@ -57,12 +57,35 @@ let activeImageWords = [], activeImageElement = null, activeImageUrl = null;
 let positionFrame = 0, positionWriteTimer = null, searchDebounceTimer = null;
 let activeDictionaryRange = null;
 let aiExplainUnavailable = false;
+let resumePromptShown = false;
 let activeNoteWord = '';
 let pdfPreviewsVisible = local.get('er-pdf-previews', false) === true;
 let readerTimerInterval = null, readerTimerStart = 0, readerTimerSeconds = 0, readerTimerGoal = 0, readerTimerDay = '', readerTimerRunning = false, readerTimerRecordedSeconds = 0, readerTimerBookKey = null, timerResumeOnVisible = false;
 const pdfRenderPromises = new Map();
 
-function toast(message) { const node = byId('toast'); node.textContent = message; node.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { node.hidden = true; }, 2800); }
+function toast(message, options = {}) {
+  const node = byId('toast');
+  if (!node) return;
+  const { actionLabel, onAction } = options;
+  node.replaceChildren();
+  if (actionLabel && typeof onAction === 'function') {
+    const text = document.createTextNode(message);
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'btn';
+    button.textContent = actionLabel;
+    button.addEventListener('click', () => {
+      onAction();
+      node.hidden = true;
+    });
+    node.append(text, button);
+  } else {
+    node.textContent = message;
+  }
+  node.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { node.hidden = true; node.replaceChildren(); }, 3200);
+}
 function status(message, error = false) { const node = byId('status'); node.textContent = message; node.classList.toggle('err', error); }
 function safeText(parent, tag, text, className = '') { const node = document.createElement(tag); if (className) node.className = className; node.textContent = text; parent.append(node); return node; }
 function closeOverlayPanels(except='') {
@@ -1181,7 +1204,13 @@ async function fetchAiExplanation(word, context, signal) {
   const response = await fetchWithTimeout('/api/explain?word=' + encodeURIComponent(word) + '&context=' + encodeURIComponent(context), { signal }, 12000);
   let data = {};
   try { data = await response.json(); } catch {}
-  if (!response.ok) { const error = new Error(data.error || 'AI explain is unavailable right now.'); error.notConfigured = Boolean(data.notConfigured); throw error; }
+  if (!response.ok) {
+    const error = new Error(data.error || 'AI explain is unavailable right now.');
+    error.notConfigured = Boolean(data.notConfigured);
+    error.serviceUnavailable = [429, 502, 503].includes(response.status) || response.status >= 500;
+    if (error.notConfigured || error.serviceUnavailable) aiExplainUnavailable = true;
+    throw error;
+  }
   aiExplainCache.set(key, data.explanation);
   return data.explanation;
 }
@@ -1281,10 +1310,23 @@ function renderDefinition(result,asked){
       }catch(error){
         if(error.name==='AbortError')return;
         explained.replaceChildren();
-        if(error.notConfigured){aiExplainUnavailable=true;control.remove();explained.hidden=true;return;}
+        if(error.notConfigured || error.serviceUnavailable){
+          aiExplainUnavailable=true;
+          explained.classList.add('is-unavailable');
+          const message = error.notConfigured ? 'AI explanation is not configured. Add a Gemini API key to enable this feature.' : 'AI explanation is busy right now. Please try again in a minute.';
+          safeText(explained,'p',message,'ai-explain-text');
+          safeText(explained,'small','The rest of EasyRead still works normally. You can keep reading while the AI feature recovers.','ai-explain-note is-unavailable-note');
+          control.textContent='Unavailable';
+          control.disabled=true;
+          return;
+        }
+        explained.classList.remove('is-unavailable');
         safeText(explained,'p',error.message||'AI explain is unavailable right now.','ai-explain-text');
         control.textContent='Explain simply';
-      }finally{control.disabled=false;}
+      }finally{
+        if (control.textContent === 'Unavailable') return;
+        control.disabled=false;
+      }
     });
     aiButton.classList.add('ai-explain-btn');
   }
@@ -1306,41 +1348,78 @@ function renderDefinition(result,asked){
   if(result.forms?.length)safeText(popup,'p','Forms: '+result.forms.join(', '),'note');
   if(result.word!==asked)safeText(popup,'p','Showing the base form “'+result.word+'”.','note');
 }
-function openNoteEditor(word){activeNoteWord=word;byId('note-word').textContent=`For “${word}”`;byId('note-editor-text').value='';byId('note-dialog').showModal();byId('note-editor-text').focus();}
+function normalizeTags(value) {
+  return [...new Set(String(value || '').split(',').map(part => part.trim().replace(/^#/, '').toLowerCase()).filter(Boolean))].slice(0, 5);
+}
+function tagPills(tags) {
+  const container = document.createElement('div');
+  container.className = 'note-tag-list';
+  for (const tag of tags || []) {
+    const chip = document.createElement('span');
+    chip.className = 'note-tag';
+    chip.textContent = '#' + tag;
+    container.append(chip);
+  }
+  return container;
+}
+function openNoteEditor(word){activeNoteWord=word;byId('note-word').textContent=`For “${word}”`;byId('note-editor-text').value='';byId('note-tags').value='';byId('note-dialog').showModal();byId('note-editor-text').focus();}
 function newSavedItemId(){return Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,10);}
 function savedItemLegacyKey(item,kind){return 'legacy:'+JSON.stringify([kind,Number(item.created)||0,String(item.book||''),String(item.word||''),String(item.text||'')]);}
 function savedItemTombstoneKeys(item,kind){const keys=[savedItemLegacyKey(item,kind)];if(item.id)keys.push('id:'+kind+':'+item.id);return keys;}
-function saveNote(event){event.preventDefault();const text=byId('note-editor-text').value.trim();if(!text)return;const notes=local.get('er-notes',[]);notes.unshift({id:newSavedItemId(),word:activeNoteWord,text,book:activeBook?.key,bookName:activeBook?.title||activeBook?.name||'',created:Date.now()});local.set('er-notes',notes);queueCloudSync();byId('note-dialog').close();renderMyNotes();renderSavedItems();toast('Note saved.');}
+function saveNote(event){event.preventDefault();const text=byId('note-editor-text').value.trim();if(!text)return;const notes=local.get('er-notes',[]);notes.unshift({id:newSavedItemId(),word:activeNoteWord,text,tags:normalizeTags(byId('note-tags').value),book:activeBook?.key,bookName:activeBook?.title||activeBook?.name||'',created:Date.now()});local.set('er-notes',notes);queueCloudSync();byId('note-dialog').close();renderMyNotes();renderSavedItems();toast('Note saved.');}
+function normalizeCollections(value) {
+  return [...new Set(String(value || '').split(',').map(part => part.trim().replace(/^#/, '').toLowerCase()).filter(Boolean))].slice(0, 6);
+}
+function getBookCollections(book) {
+  return Array.isArray(book?.collections) ? book.collections.filter(Boolean).map(value => String(value).trim()).filter(Boolean) : [];
+}
 async function renderLibraryPanel(){
   const list=byId('library-list'),favorites=byId('library-favorites');
   if(!list||!favorites)return;
   list.replaceChildren();favorites.replaceChildren();
   const favOnly=local.get('er-library-favorites-only',false)===true;
   const search=(byId('library-search')?.value||'').trim().toLowerCase(),filter=byId('library-filter')?.value||'all',sort=byId('library-sort')?.value||'recent';
+  const collectionSelect=byId('library-collection');
+  const collectionFilter = local.get('er-library-collection','all');
   const all=await getBooks();
+  const collectionNames=[...new Set(all.flatMap(book=>getBookCollections(book)))].sort((a,b)=>a.localeCompare(b));
+  if(collectionSelect){
+    const current=collectionSelect.value || collectionFilter;
+    const previousValue = collectionSelect.value;
+    collectionSelect.replaceChildren();
+    const allOption=document.createElement('option');allOption.value='all';allOption.textContent='All collections';collectionSelect.append(allOption);
+    for(const name of collectionNames){const option=document.createElement('option');option.value=name;option.textContent=name;collectionSelect.append(option);}
+    const exists = collectionNames.includes(current) || current === 'all';
+    collectionSelect.value = exists ? current : 'all';
+    if (!exists && previousValue !== collectionSelect.value) collectionSelect.value = 'all';
+    local.set('er-library-collection', collectionSelect.value);
+  }
   const totalFavorites=all.filter(book=>book.favorite).length;
   byId('library-view-all')?.setAttribute('aria-pressed',String(!favOnly));
   byId('library-view-fav')?.setAttribute('aria-pressed',String(favOnly));
   const count=byId('library-fav-count');if(count)count.textContent=String(totalFavorites);
-  const books=all.filter(book=>{const ext=String(book.type||book.name?.split('.').pop()||'').toLowerCase(),matchesType=filter==='all'||(filter==='image'?IMAGE_EXTS.includes(ext):ext===filter),matchesFavorite=!favOnly||book.favorite,matchesText=`${book.title||''} ${book.name||''}`.toLowerCase().includes(search);return matchesType&&matchesFavorite&&matchesText;});
+  const selectedCollection=(collectionSelect?.value||local.get('er-library-collection','all')) || 'all';
+  const books=all.filter(book=>{const ext=String(book.type||book.name?.split('.').pop()||'').toLowerCase(),matchesType=filter==='all'||(filter==='image'?IMAGE_EXTS.includes(ext):ext===filter),matchesFavorite=!favOnly||book.favorite,matchesText=`${book.title||''} ${book.name||''}`.toLowerCase().includes(search),matchesCollection=selectedCollection==='all'||getBookCollections(book).includes(selectedCollection);return matchesType&&matchesFavorite&&matchesText&&matchesCollection;});
   books.sort((a,b)=>sort==='title'?(a.title||a.name).localeCompare(b.title||b.name):sort==='progress'?(b.progress||0)-(a.progress||0):(b.opened||0)-(a.opened||0));
   const favoriteBooks=books.filter(book=>book.favorite),otherBooks=favOnly?[]:books.filter(book=>!book.favorite);
   const favoriteTitle=byId('library-fav-title'),recentTitle=byId('library-recent-title'),hint=byId('library-fav-hint');
   if(favoriteTitle)favoriteTitle.hidden=!favoriteBooks.length;
   if(recentTitle){recentTitle.hidden=!otherBooks.length;recentTitle.textContent=favoriteBooks.length?'Other books':'Your books';}
   if(hint)hint.hidden=!(all.length&&!totalFavorites&&!favOnly);
-  if(!books.length){safeText(list,'p',favOnly&&!totalFavorites?'No favorites yet. Tap the star on any book to add it.':(search||filter!=='all'||favOnly)?'No books match these filters.':'Your books will appear here after you open one.','note');return;}
+  if(!books.length){safeText(list,'p',favOnly&&!totalFavorites?'No favorites yet. Tap the star on any book to add it.':(search||filter!=='all'||selectedCollection!=='all'||favOnly)?'No books match these filters.':'Your books will appear here after you open one.','note');return;}
   const createRow=book=>{
     const title=book.title||book.name;
     const row=document.createElement('article');row.className='library-row'+(book.favorite?' is-favorite':'');
     const star=document.createElement('button');star.type='button';star.className='library-star';star.textContent=book.favorite?'\u2605':'\u2606';star.setAttribute('aria-pressed',String(Boolean(book.favorite)));star.setAttribute('aria-label',(book.favorite?'Remove from favorites: ':'Add to favorites: ')+title);star.title=book.favorite?'Remove from favorites':'Add to favorites';
     star.onclick=async()=>{book.favorite=!book.favorite;await putBook(book);renderLibraryPanel();renderLibrary();};
-    const details=document.createElement('div');details.className='library-book-details';safeText(details,'strong',title);safeText(details,'small',`${String(book.type||'').toUpperCase()} \u00b7 ${Math.round(book.progress||0)}% read`,'note');
+    const details=document.createElement('div');details.className='library-book-details';safeText(details,'strong',title);const collections=getBookCollections(book);if(collections.length){const meta = document.createElement('small'); meta.className='note'; meta.textContent = collections.map(value => '#' + value).join(' · '); details.append(meta);}
+    safeText(details,'small',`${String(book.type||'').toUpperCase()} \u00b7 ${Math.round(book.progress||0)}% read`,'note');
     const progress=document.createElement('progress');progress.className='library-progress';progress.max=100;progress.value=book.progress||0;progress.setAttribute('aria-label','Reading progress');
     const actions=document.createElement('div');actions.className='library-book-actions';
     const open=safeText(actions,'button','Continue','btn library-continue');open.type='button';open.onclick=()=>openFile(book.file);
     const rename=safeText(actions,'button','Rename','btn');rename.type='button';rename.setAttribute('aria-label',`Rename ${title}`);
     rename.onclick=async()=>{const value=prompt('Book title',title);if(value?.trim()){book.title=value.trim();await putBook(book);renderLibraryPanel();renderLibrary();}};
+    const collectionBtn=safeText(actions,'button','Collection','btn');collectionBtn.type='button';collectionBtn.onclick=async()=>{const current=getBookCollections(book).join(', ');const names=prompt('Collection name(s), comma separated',current);if(names===null)return;book.collections=normalizeCollections(names);await putBook(book);renderLibraryPanel();};
     row.append(star,details,progress,actions);return row;
   };
   favoriteBooks.forEach(book=>favorites.append(createRow(book)));
@@ -1348,6 +1427,103 @@ async function renderLibraryPanel(){
 }
 function removeSavedWord(word){const target=String(word||'').trim().toLowerCase();if(!target)return;const values=local.get('er-vocabulary',[]);const next=values.filter(item=>String(item.word||'').trim().toLowerCase()!==target);if(next.length===values.length)return;const tombstones=local.get('er-vocabulary-deleted',{});tombstones[target]=Math.max(Date.now(),Number(tombstones[target]||0)+1);local.set('er-vocabulary-deleted',tombstones);local.set('er-vocabulary',next);queueCloudSync();renderVocabulary();renderSavedItems();const saveButton=popup.querySelector('.word-actions button');if(saveButton){saveButton.textContent='Save word';saveButton.setAttribute('aria-pressed','false');}toast(`“${word}” removed from your saved words.`);}
 function renderVocabulary(){const list=byId('vocab-list');list.replaceChildren();const values=local.get('er-vocabulary',[]);if(!values.length)return safeText(list,'p','Saved words will appear here.','note');values.forEach(item=>{const row=document.createElement('div');row.className='vocab-row';const info=document.createElement('div');info.className='vocab-info';safeText(info,'strong',item.word);safeText(info,'p',item.definition||'');const remove=document.createElement('button');remove.type='button';remove.className='vocab-remove';remove.textContent='Remove';remove.setAttribute('aria-label',`Remove ${item.word} from saved words`);remove.addEventListener('click',()=>removeSavedWord(item.word));row.append(info,remove);list.append(row);});}
+function downloadTextExport(filename, text, type = 'text/plain;charset=utf-8') {
+  const blob = new Blob([text], { type });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.style.display = 'none';
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+function exportSavedNotes(kind = 'markdown') {
+  const notes = local.get('er-notes', []).map(item => ({ ...item, kind: 'note' }));
+  const highlights = local.get('er-highlights', []).map(item => ({ ...item, kind: 'highlight' }));
+  const items = [...notes, ...highlights].sort((a, b) => (b.created || 0) - (a.created || 0));
+  if (!items.length) {
+    toast('No notes or highlights to export yet.');
+    return;
+  }
+  const toText = items.map(item => {
+    const label = item.kind === 'note' ? 'Note' : 'Highlight';
+    const heading = item.word ? `${label} · ${item.word}` : label;
+    const source = item.bookName ? `Source: ${item.bookName}` : 'Source: Personal library';
+    const created = item.created ? new Date(item.created).toLocaleString() : 'Unknown date';
+    return `${heading}\n${source}\n${created}\n\n${String(item.text || item.word || '').trim()}\n`;
+  }).join('\n---\n\n');
+  const toMarkdown = items.map(item => {
+    const label = item.kind === 'note' ? 'Note' : 'Highlight';
+    const heading = item.word ? `${label}: ${item.word}` : label;
+    const source = item.bookName ? `- Source: ${item.bookName}` : '- Source: Personal library';
+    const created = item.created ? `- Date: ${new Date(item.created).toLocaleString()}` : '';
+    return `## ${heading}\n${source}\n${created}\n\n${String(item.text || item.word || '').trim()}\n`;
+  }).join('\n');
+  const payload = kind === 'markdown' ? toMarkdown : toText;
+  const extension = kind === 'markdown' ? 'md' : 'txt';
+  downloadTextExport(`easyread-notes-${new Date().toISOString().slice(0, 10)}.${extension}`, payload, kind === 'markdown' ? 'text/markdown;charset=utf-8' : 'text/plain;charset=utf-8');
+  toast(`Exported ${items.length} saved ${items.length === 1 ? 'item' : 'items'}.`);
+}
+async function exportReadingBackup() {
+  const books = await getBooks().catch(() => []);
+  const serializableBooks = books.map(({ file, ...book }) => ({ ...book }));
+  const payload = {
+    exportedAt: new Date().toISOString(),
+    books: serializableBooks,
+    vocabulary: local.get('er-vocabulary', []),
+    notes: local.get('er-notes', []),
+    highlights: local.get('er-highlights', []),
+    bookmarks: local.get('er-bookmarks', []),
+    stats: local.get('er-stats', {}),
+    flashcards: local.get('er-flashcards', []),
+    readingTimer: local.get('er-reading-timer', {}),
+    preferences: local.get('er-reader-settings', {})
+  };
+  downloadTextExport(`easyread-backup-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(payload, null, 2), 'application/json;charset=utf-8');
+  toast('Reading backup downloaded.');
+}
+async function importReadingBackup(file) {
+  if (!file) return;
+  try {
+    const data = JSON.parse(await file.text());
+    if (!data || typeof data !== 'object') throw new Error('This file does not look like an EasyRead backup.');
+    const mergeArray = (key, fallback = []) => {
+      const value = Array.isArray(data[key]) ? data[key] : fallback;
+      const current = Array.isArray(local.get(key, fallback)) ? local.get(key, fallback) : fallback;
+      const byId = new Map();
+      for (const item of [...current, ...value]) {
+        const id = item?.id || (typeof item?.word === 'string' ? `word:${item.word.toLowerCase()}` : JSON.stringify(item));
+        if (id) byId.set(id, item);
+      }
+      return [...byId.values()];
+    };
+    if (Array.isArray(data.vocabulary)) local.set('er-vocabulary', mergeArray('er-vocabulary', []));
+    if (Array.isArray(data.notes)) local.set('er-notes', mergeArray('er-notes', []));
+    if (Array.isArray(data.highlights)) local.set('er-highlights', mergeArray('er-highlights', []));
+    if (Array.isArray(data.bookmarks)) local.set('er-bookmarks', mergeArray('er-bookmarks', []));
+    if (Array.isArray(data.flashcards)) local.set('er-flashcards', mergeArray('er-flashcards', []));
+    if (data.stats && typeof data.stats === 'object') local.set('er-stats', { ...local.get('er-stats', {}), ...data.stats });
+    if (data.readingTimer && typeof data.readingTimer === 'object') local.set('er-reading-timer', data.readingTimer);
+    if (data.preferences && typeof data.preferences === 'object') local.set('er-reader-settings', { ...local.get('er-reader-settings', {}), ...data.preferences });
+    if (Array.isArray(data.books)) {
+      const books = data.books.filter(book => book && typeof book.key === 'string');
+      for (const book of books) {
+        const existing = await getBook(book.key).catch(() => null);
+        if (!existing) await putBook({ ...book, opened: Number(book.opened || 0), progress: Number(book.progress || 0), favorite: Boolean(book.favorite) });
+      }
+    }
+    renderLibrary().catch(()=>{});
+    renderLibraryPanel().catch(()=>{});
+    renderMyNotes();
+    renderStats();
+    renderVocabulary();
+    toast('Backup imported successfully.');
+  } catch (error) {
+    toast(error?.message || 'That backup could not be imported.');
+  }
+}
 function renderSavedItems(){const bookmarks=local.get('er-bookmarks',[]),b=byId('bookmark-list'),s=byId('saved-list');if(!b||!s)return;b.replaceChildren();s.replaceChildren();if(!bookmarks.length)safeText(b,'p','No bookmarks yet.','note');bookmarks.forEach((item,index)=>{const row=document.createElement('div');row.className='saved-bookmark-row';const label=(item.name||item.bookName||'Bookmark')+(item.page?' · Page '+item.page:'');const button=safeText(row,'button',label,'saved-item');button.onclick=()=>{if(item.page&&activePdf)goPdfPage(item.page);else if(item.page)goToReaderPage(item.page);else scrollTo({top:item.scroll||0,behavior:'smooth'});};const remove=safeText(row,'button','Delete','vocab-remove');remove.type='button';remove.setAttribute('aria-label','Delete bookmark');remove.onclick=()=>{const current=local.get('er-bookmarks',[]);const removed=current[index];if(!removed)return;const deleted=local.get('er-deleted-bookmarks',{});deleted[removed.id||savedItemLegacyKey(removed,'bookmark')]=Date.now();local.set('er-deleted-bookmarks',deleted);current.splice(index,1);local.set('er-bookmarks',current);queueCloudSync();renderSavedItems();toast('Bookmark deleted.');};row.append(button,remove);b.append(row);});safeText(s,'p','Notes and highlights are managed in My notes & highlights.','note');renderMyNotes();}
 function renderMyNotes(){
   const list=byId('my-notes-list');
@@ -1357,8 +1533,17 @@ function renderMyNotes(){
   const notes=local.get('er-notes',[]).map((item,index)=>({...item,kind:'note',index}));
   const highlights=local.get('er-highlights',[]).map((item,index)=>({...item,kind:'highlight',index}));
   const items=[...notes,...highlights]
-    .filter(item=>(String(item.word||'')+' '+String(item.text||'')+' '+String(item.book||'')).toLowerCase().includes(query))
+    .filter(item=>(String(item.word||'')+' '+String(item.text||'')+' '+String(item.book||'')+' '+String(item.tags?.join(' ')||'')).toLowerCase().includes(query))
     .sort((a,b)=>a.kind.localeCompare(b.kind)||(b.created||0)-(a.created||0));
+  const exportWrap=document.createElement('div');
+  exportWrap.className='saved-note-export-actions';
+  const mdButton=safeText(exportWrap,'button','Export .md','btn');
+  mdButton.type='button';
+  mdButton.addEventListener('click',()=>exportSavedNotes('markdown'));
+  const txtButton=safeText(exportWrap,'button','Export .txt','btn');
+  txtButton.type='button';
+  txtButton.addEventListener('click',()=>exportSavedNotes('text'));
+  list.append(exportWrap);
   if(!items.length){
     safeText(list,'p',query?'No notes match your search.':'Your saved notes and highlights will appear here.','note');
     return;
@@ -1372,6 +1557,7 @@ function renderMyNotes(){
     content.className='saved-note-content';
     if(item.book){content.tabIndex=0;content.setAttribute('role','button');content.setAttribute('aria-label','Open source book for this '+item.kind);const openSource=async()=>{const book=await getBook(item.book).catch(()=>null);if(book?.file)openFile(book.file);else toast('The original book is not available in this browser library.');};content.addEventListener('click',openSource);content.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();openSource();}});}
     safeText(content,'strong',item.word?'Note for '+item.word:(item.kind==='highlight'?'Highlight':'Note'));
+    if (item.tags?.length) content.append(tagPills(item.tags));
     safeText(content,'p',item.text||item.word||'Saved item','saved-note-text');
     safeText(content,'small',(item.kind==='highlight'?'Highlight':'Note')+(item.bookName||item.book?' · '+(item.bookName||item.book):'')+(item.created?' · '+new Date(item.created).toLocaleDateString():''));
     const actions=document.createElement('div');
@@ -1388,7 +1574,8 @@ function renderMyNotes(){
         if(!current[item.index])return;
         const previous=current[item.index],tombstones=local.get('er-deleted-saved-items',{});
         if(!previous.id)tombstones[savedItemLegacyKey(previous,'note')]=Date.now();
-        current[item.index]={...previous,id:previous.id||newSavedItemId(),text,updated:Date.now()};
+        const nextTags = prompt('Edit tags (comma separated)', (item.tags || []).join(', '));
+        current[item.index]={...previous,id:previous.id||newSavedItemId(),text,tags:nextTags===null ? (previous.tags || []) : normalizeTags(nextTags),updated:Date.now()};
         local.set('er-deleted-saved-items',tombstones);
         local.set('er-notes',current);
         queueCloudSync();renderMyNotes();renderSavedItems();toast('Note updated.');
@@ -1487,6 +1674,11 @@ function renderStats(){
   const summary=document.createElement('div');summary.className='progress-summary-grid';
   const metric=(value,label)=>{const card=document.createElement('div');card.className='progress-metric';safeText(card,'strong',String(value));safeText(card,'span',label);summary.append(card);};
   metric(Math.round(seconds/60),'minutes read');metric(local.get('er-vocabulary',[]).length,'saved words');metric(local.get('er-flashcards',[]).length,'custom flashcards');node.append(summary);
+  const exportRow=document.createElement('div');exportRow.className='saved-note-export-actions';
+  const backupBtn=safeText(exportRow,'button','Download reading backup','btn');
+  backupBtn.type='button';
+  backupBtn.addEventListener('click',exportReadingBackup);
+  node.append(exportRow);
   const heading=safeText(node,'h3','Your reading shelf','progress-list-heading'),list=document.createElement('div');list.className='progress-book-list';node.append(heading,list);
   getBooks().then(books=>{if(!node.isConnected)return;list.replaceChildren();if(!books.length){safeText(list,'p','Open a book to start tracking your reading progress.','note');return;}
     books.sort((a,b)=>(Number(b.opened)||0)-(Number(a.opened)||0));
@@ -1510,6 +1702,19 @@ function renderLearning(){
   if(custom.length){const manage=document.createElement('div');manage.className='flashcard-manage-list';safeText(manage,'h3','Your flashcards');custom.forEach(item=>{const row=document.createElement('div');row.className='flashcard-manage-row';const content=document.createElement('div');safeText(content,'strong',item.front);safeText(content,'p',item.back);const remove=safeText(row,'button','Delete','vocab-remove');remove.type='button';remove.addEventListener('click',()=>{local.set('er-flashcards',local.get('er-flashcards',[]).filter(value=>value.id!==item.id));renderLearning();toast('Flashcard deleted.');});row.append(content,remove);manage.append(row);});section.append(manage);}root.append(section);
 }
 function updateDocMeta(){if(activeBook){byId('doc-meta').textContent=activePdf?`${pageCount} pages · original PDF layout`:`${pageCount?pageCount+(pageCount===1?' section · ':' sections · '):''}${(activeBook.words||0).toLocaleString()} words`;if(byId('jump'))byId('jump').max=String(Math.max(1,pageCount));if(byId('reader-page-jump'))byId('reader-page-jump').max=String(Math.max(1,pageCount));}}
+async function showResumePrompt() {
+  if (activeBook || resumePromptShown) return;
+  const books = await getBooks().catch(() => []);
+  const latest = [...books]
+    .filter(book => book && book.file && book.position && Number(book.position.savedAt) > 0)
+    .sort((a, b) => Number(b.position.savedAt || 0) - Number(a.position.savedAt || 0))[0];
+  if (!latest || !latest.file) return;
+  resumePromptShown = true;
+  toast(`Resume “${latest.title || latest.name || 'your last book'}”?`, {
+    actionLabel: 'Resume',
+    onAction: () => openFile(latest.file)
+  });
+}
 function restorePosition(){setTimeout(()=>{if(activePdf)goPdfPage(activeBook.position?.page||1);else scrollTo({top:activeBook.position?.scroll||0});},120);}
 function savePosition(force=false){
   if(!activeBook)return;
@@ -1575,9 +1780,23 @@ async function initFirebase(){
   if(auth)return auth;if(firebaseInitPromise)return firebaseInitPromise;if(!window.EASYREAD_FIREBASE_CONFIG?.apiKey)throw new Error('Firebase sign-in has not been configured.');
   firebaseInitPromise=(async()=>{await Promise.all(['firebaseApp','firebaseAuth','firebaseStore'].map(loadLibrary));if(!firebase.apps.length)firebase.initializeApp(window.EASYREAD_FIREBASE_CONFIG);auth=firebase.auth();firestore=firebase.firestore();
     try { await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL); } catch (error) { console.warn('Firebase persistence setup failed:', error); }
-    auth.onAuthStateChanged(next=>{user=next;updateProfile();if(user)syncCloud();});
+    auth.onAuthStateChanged(next=>{user=next;if(next?.displayName)local.set('er-display-name',next.displayName);updateProfile();if(user)syncCloud();});
     try{await auth.getRedirectResult();}catch(error){if(error?.code!=='auth/no-auth-event')setAuthStatus(friendlyAuthError(error),'error');}return auth;})();
   try{return await firebaseInitPromise;}catch(error){firebaseInitPromise=null;throw error;}
+}
+async function saveProfileName() {
+  const field = byId('account-profile-name');
+  if (!field || !user) return;
+  const nextName = field.value.trim();
+  if (!nextName) return toast('Choose a display name before saving.');
+  try {
+    await user.updateProfile({ displayName: nextName });
+    local.set('er-display-name', nextName);
+    updateProfile();
+    toast('Profile name updated.');
+  } catch (error) {
+    toast(error?.message || 'Profile name update failed.');
+  }
 }
 async function openAccount(){showPanel('account');try{await initFirebase();setAuthMode('signin');}catch(error){setAuthStatus('Sign-in is temporarily unavailable. '+error.message,'error');}}
 function updateWelcomeSignin(){
@@ -1585,11 +1804,15 @@ function updateWelcomeSignin(){
   if(welcome)welcome.hidden=!!user||local.get('er-signin-dismissed',false);
 }
 function updateProfile(){
-  const label=user?.displayName?.split(' ')[0]||'Sign in';for(const id of ['account-label','sidebar-account-label'])if(byId(id))byId(id).textContent=label;
+  const localName = String(local.get('er-display-name', '') || '').trim();
+  const label=user?.displayName?.split(' ')[0]||localName.split(' ')[0]||'Sign in';for(const id of ['account-label','sidebar-account-label'])if(byId(id))byId(id).textContent=label;
   if(byId('sidebar-account-meta'))byId('sidebar-account-meta').textContent=user?.email||'Sync your reading';
   const pic=profilePhoto();for(const id of ['account-avatar','account-photo','sidebar-avatar'])if(byId(id)){byId(id).src=pic;byId(id).hidden=!pic;}
   if(byId('photo-remove'))byId('photo-remove').hidden=!(user&&local.get('er-photo-'+user.uid,''));
-  if(byId('account-name'))byId('account-name').textContent=user?.displayName||'';if(byId('account-email'))byId('account-email').textContent=user?.email||'';
+  const displayName = user?.displayName || localName || '';
+  if(byId('account-name'))byId('account-name').textContent=displayName;
+  if(byId('account-profile-name'))byId('account-profile-name').value=displayName;
+  if(byId('account-email'))byId('account-email').textContent=user?.email||'';
   if(byId('account-signed-out'))byId('account-signed-out').hidden=!!user;if(byId('account-signed-in'))byId('account-signed-in').hidden=!user;
   updateWelcomeSignin();
 }
@@ -1617,6 +1840,17 @@ async function resetPassword(){
   try{await initFirebase();await auth.sendPasswordResetEmail(email);setAuthStatus('Password reset instructions have been sent to your email.','success');}catch(error){setAuthStatus(friendlyAuthError(error),'error');}
 }
 async function signIn(){return signInWithGoogle();}
+async function signOutUser(){
+  if (!auth) return;
+  const confirmed = window.confirm('Sign out of EasyRead? You can sign back in any time, and your local reading data will stay on this device.');
+  if (!confirmed) return;
+  try {
+    await auth.signOut();
+    toast('Signed out.');
+  } catch (error) {
+    toast(error?.message || 'Sign-out failed. Please try again.');
+  }
+}
 function queueCloudSync(){if(!user)return;clearTimeout(cloudSyncTimer);cloudSyncTimer=setTimeout(syncCloud,800);}
 async function syncCloud(){if(!user||!navigator.onLine)return;try{if(!firestore)await initFirebase();const ref=firestore.collection('users').doc(user.uid),snapshot=await ref.get(),remote=snapshot.exists?snapshot.data():{},data={};if(typeof remote.photoData==='string'&&remote.photoData.startsWith('data:image/')&&remote.photoData.length<200000&&remote.photoData!==local.get('er-photo-'+user.uid,'')){local.set('er-photo-'+user.uid,remote.photoData);updateProfile();}const localTombstones=local.get('er-vocabulary-deleted',{}),remoteTombstones=remote.vocabularyDeleted&&typeof remote.vocabularyDeleted==='object'?remote.vocabularyDeleted:{},tombstones={};for(const key of new Set([...Object.keys(remoteTombstones),...Object.keys(localTombstones)]))tombstones[key]=Math.max(Number(remoteTombstones[key]||0),Number(localTombstones[key]||0));const localDeletedSaved=local.get('er-deleted-saved-items',{}),remoteDeletedSaved=remote.deletedSavedItems&&typeof remote.deletedSavedItems==='object'?remote.deletedSavedItems:{},deletedSaved={};for(const key of new Set([...Object.keys(remoteDeletedSaved),...Object.keys(localDeletedSaved)]))deletedSaved[key]=Math.max(Number(remoteDeletedSaved[key]||0),Number(localDeletedSaved[key]||0));const localDeletedBookmarks=local.get('er-deleted-bookmarks',{}),remoteDeletedBookmarks=remote.deletedBookmarks&&typeof remote.deletedBookmarks==='object'?remote.deletedBookmarks:{},deletedBookmarks={};for(const key of new Set([...Object.keys(remoteDeletedBookmarks),...Object.keys(localDeletedBookmarks)]))deletedBookmarks[key]=Math.max(Number(remoteDeletedBookmarks[key]||0),Number(localDeletedBookmarks[key]||0));for(const [name,key]of Object.entries(STORE_KEYS)){const localItems=local.get(key,name==='stats'?{}:[]),remoteItems=Array.isArray(remote[name])?remote[name]:[];if(name==='stats'){const localStats=localItems&&typeof localItems==='object'&&!Array.isArray(localItems)?localItems:{},remoteStats=remote[name]&&typeof remote[name]==='object'&&!Array.isArray(remote[name])?remote[name]:{};data[name]={...remoteStats,...localStats};local.set(key,data[name]);continue;}let merged;if(name==='notes'||name==='highlights'){const kind=name==='notes'?'note':'highlight',byIdentity=new Map();for(const item of remoteItems)byIdentity.set(item.id?'id:'+item.id:savedItemLegacyKey(item,kind),item);for(const item of localItems)byIdentity.set(item.id?'id:'+item.id:savedItemLegacyKey(item,kind),item);merged=[...byIdentity.values()];}else{const seen=new Set();merged=[];for(const item of [...remoteItems,...localItems]){const identity=JSON.stringify(item);if(!seen.has(identity)){seen.add(identity);merged.push(item);}}}let finalItems=merged;if(name==='vocabulary'){finalItems=merged.filter(item=>{const word=String(item.word||'').trim().toLowerCase(),deletedAt=Number(tombstones[word]||0),savedAt=Number(item.created||0);return !deletedAt||savedAt>deletedAt;});}if(name==='notes'||name==='highlights'){const kind=name==='notes'?'note':'highlight';finalItems=merged.filter(item=>!savedItemTombstoneKeys(item,kind).some(tombstoneKey=>deletedSaved[tombstoneKey]));}if(name==='bookmarks'){finalItems=merged.filter(item=>!deletedBookmarks[item.id||savedItemLegacyKey(item,'bookmark')]);}data[name]=finalItems.slice(-1000);local.set(key,data[name]);}data.vocabularyDeleted=tombstones;data.deletedSavedItems=deletedSaved;data.deletedBookmarks=deletedBookmarks;local.set('er-vocabulary-deleted',tombstones);local.set('er-deleted-saved-items',deletedSaved);local.set('er-deleted-bookmarks',deletedBookmarks);await ref.set(data,{merge:true});byId('sync-label').textContent='Synced just now';byId('last-synced').textContent='Last synced '+new Date().toLocaleString();toast('Reading data synced.');}catch(error){byId('sync-label').textContent='Sync needs attention';console.warn('Sync failed',error);}}
 function updateInstallButton() {
@@ -1727,7 +1961,7 @@ async function init() {
   byId('document-page-prev')?.addEventListener('click',()=>goToReaderPage(activePage-1));
   byId('document-page-next')?.addEventListener('click',()=>goToReaderPage(activePage+1));
   byId('note-form').addEventListener('submit',saveNote);byId('note-cancel').addEventListener('click',()=>byId('note-dialog').close());byId('delete-item-cancel')?.addEventListener('click',()=>byId('delete-item-dialog').close());byId('delete-item-confirm')?.addEventListener('click',confirmDeleteSavedItem);
-  for(const id of ['library-search'])byId(id)?.addEventListener('input',renderLibraryPanel);for(const id of ['library-filter','library-sort'])byId(id)?.addEventListener('change',renderLibraryPanel);byId('home-library-sort')?.addEventListener('change',renderLibrary);
+  for(const id of ['library-search'])byId(id)?.addEventListener('input',renderLibraryPanel);for(const id of ['library-filter','library-sort'])byId(id)?.addEventListener('change',renderLibraryPanel);byId('library-collection')?.addEventListener('change',()=>{local.set('er-library-collection', byId('library-collection').value || 'all'); renderLibraryPanel();});byId('library-add-collection')?.addEventListener('click', async () => { const name = prompt('Name a collection', 'Classics'); if (!name) return; const selected = String(name).trim(); if (!selected) return; const current = byId('library-collection'); if (current) { const nextValue = selected.toLowerCase(); current.append(new Option(selected, nextValue)); current.value = nextValue; local.set('er-library-collection', nextValue); } renderLibraryPanel(); });byId('home-library-sort')?.addEventListener('change',renderLibrary);
   byId('timer-toggle').addEventListener('click',()=>readerTimerRunning?pauseReadingTimer():startReadingTimer());byId('timer-reset').addEventListener('click',resetReadingTimer);byId('reading-goal').addEventListener('change',event=>{readerTimerGoal=Math.max(0,Number(event.target.value)||0);local.set('er-reading-goal',readerTimerGoal);updateReadingTimer();});
   byId('pdf-mode-btn').addEventListener('click',()=>setPdfMode(!pdfMode));byId('pdf-prev').addEventListener('click',()=>goPdfPage(activePage-1));byId('pdf-next').addEventListener('click',()=>goPdfPage(activePage+1));byId('pdf-zoom-in').addEventListener('click',()=>scalePdf(.15));byId('pdf-zoom-out').addEventListener('click',()=>scalePdf(-.15));byId('pdf-fullscreen').addEventListener('click',()=>pdfPages.requestFullscreen?.());byId('pdf-preview-toggle').addEventListener('click',()=>{pdfPreviewsVisible=!pdfPreviewsVisible;local.set('er-pdf-previews',pdfPreviewsVisible);pdfThumbs.hidden=!pdfMode||!pdfPreviewsVisible;byId('pdf-preview-toggle').textContent=pdfPreviewsVisible?'Hide previews':'Show previews';byId('pdf-preview-toggle').setAttribute('aria-pressed',String(pdfPreviewsVisible));});
   byId('fullscreen-btn').addEventListener('click',toggleReaderFullscreen);
@@ -1742,9 +1976,7 @@ async function init() {
   byId('highlight-btn').addEventListener('click',()=>{const text=getSelection()?.toString().trim();if(!text)return;const values=local.get('er-highlights',[]);values.unshift({id:newSavedItemId(),text,book:activeBook?.key,bookName:activeBook?.title||activeBook?.name||'',created:Date.now()});local.set('er-highlights',values);queueCloudSync();renderMyNotes();renderSavedItems();toast('Highlight saved.');});
   byId('bookmark-btn').addEventListener('click',()=>{const values=local.get('er-bookmarks',[]);values.unshift({id:newSavedItemId(),name:activeBook?.title||activeBook?.name||'Bookmark',book:activeBook?.key,bookName:activeBook?.title||activeBook?.name||'',scroll:scrollY,page:activePage,created:Date.now()});local.set('er-bookmarks',values);queueCloudSync();toast('Bookmark saved.');});
   byId('export-btn').addEventListener('click',exportData);byId('export-all').addEventListener('click',exportData);byId('delete-all').addEventListener('click',deleteLocalData);
-  byId('google-signin').addEventListener('click',signInWithGoogle);byId('signin-modal-google').addEventListener('click',signInWithGoogle);byId('welcome-signin-btn')?.addEventListener('click',signInWithGoogle);byId('welcome-dismiss')?.addEventListener('click',()=>{local.set('er-signin-dismissed',true);local.set('er-welcome-intro-dismissed',true);const welcome=byId('welcome-signin');if(welcome)welcome.hidden=true;});byId('email-auth-form')?.addEventListener('submit',submitEmailAuth);byId('auth-tab-signin')?.addEventListener('click',()=>setAuthMode('signin'));byId('auth-tab-signup')?.addEventListener('click',()=>setAuthMode('signup'));byId('forgot-password')?.addEventListener('click',resetPassword);byId('auth-password-toggle')?.addEventListener('click',()=>{const input=byId('auth-password'),button=byId('auth-password-toggle');if(!input||!button)return;const visible=input.type==='text';input.type=visible?'password':'text';button.textContent=visible?'Show':'Hide';button.setAttribute('aria-label',visible?'Show password':'Hide password');});byId('sync-now').addEventListener('click',syncCloud);byId('signout').addEventListener('click',()=>auth?.signOut());
-  byId('speak-page-btn').addEventListener('click',speakCurrent);byId('stop-speech-btn').addEventListener('click',()=>speechSynthesis.cancel());
-  byId('autoscroll-btn').addEventListener('click',()=>{const button=byId('autoscroll-btn');if(button.dataset.running){clearInterval(Number(button.dataset.running));delete button.dataset.running;button.textContent='Auto-scroll';}else button.dataset.running=String(setInterval(()=>scrollBy(0,1),45));});
+  byId('google-signin').addEventListener('click',signInWithGoogle);byId('signin-modal-google').addEventListener('click',signInWithGoogle);byId('welcome-signin-btn')?.addEventListener('click',signInWithGoogle);byId('welcome-dismiss')?.addEventListener('click',()=>{local.set('er-signin-dismissed',true);local.set('er-welcome-intro-dismissed',true);const welcome=byId('welcome-signin');if(welcome)welcome.hidden=true;});byId('email-auth-form')?.addEventListener('submit',submitEmailAuth);byId('auth-tab-signin')?.addEventListener('click',()=>setAuthMode('signin'));byId('auth-tab-signup')?.addEventListener('click',()=>setAuthMode('signup'));byId('forgot-password')?.addEventListener('click',resetPassword);byId('auth-password-toggle')?.addEventListener('click',()=>{const input=byId('auth-password'),button=byId('auth-password-toggle');if(!input||!button)return;const visible=input.type==='text';input.type=visible?'password':'text';button.textContent=visible?'Show':'Hide';button.setAttribute('aria-label',visible?'Show password':'Hide password');});    byId('sync-now').addEventListener('click',syncCloud);byId('signout').addEventListener('click',signOutUser);byId('profile-name-save').addEventListener('click',saveProfileName);byId('download-backup').addEventListener('click',exportReadingBackup);byId('import-backup').addEventListener('click',()=>byId('backup-import-input')?.click());byId('backup-import-input')?.addEventListener('change', event => { const file = event.target.files?.[0]; if (file) importReadingBackup(file); event.target.value = ''; });  byId('speak-page-btn').addEventListener('click',speakCurrent);byId('stop-speech-btn').addEventListener('click',()=>speechSynthesis.cancel());  byId('autoscroll-btn').addEventListener('click',()=>{const button=byId('autoscroll-btn');if(button.dataset.running){clearInterval(Number(button.dataset.running));delete button.dataset.running;button.textContent='Auto-scroll';}else button.dataset.running=String(setInterval(()=>scrollBy(0,1),45));});
   byId('font-choice').addEventListener('change',event=>{const settings=local.get('er-reader-settings',{});settings.font=event.target.value;local.set('er-reader-settings',settings);document.documentElement.style.setProperty('--reader-font',event.target.value==='serif'?'Georgia,serif':event.target.value==='dyslexic'?'Arial,sans-serif':"'Literata',Georgia,serif");});byId('spacing').addEventListener('input',event=>{const settings=local.get('er-reader-settings',{});settings.spacing=Number(event.target.value);local.set('er-reader-settings',settings);document.documentElement.style.setProperty('--reader-leading',event.target.value);});byId('width').addEventListener('input',event=>{const settings=local.get('er-reader-settings',{});settings.width=Number(event.target.value);local.set('er-reader-settings',settings);document.documentElement.style.setProperty('--reader-width',event.target.value+'px');});
   for(const id of ['signin-modal-close','signin-modal-later'])byId(id).addEventListener('click',()=>{byId('signin-modal').hidden=true;local.set('er-signin-dismissed',true);local.set('er-welcome-intro-dismissed',true);});
   addEventListener('scroll',()=>{if(!readerWrap.hidden)savePosition();},{passive:true});addEventListener('beforeunload',()=>{savePosition(true);pauseReadingTimer();});document.addEventListener('visibilitychange',()=>{if(document.hidden&&readerTimerRunning){timerResumeOnVisible=true;pauseReadingTimer();}else if(!document.hidden&&timerResumeOnVisible&&!readerWrap.hidden){timerResumeOnVisible=false;startReadingTimer();}});addEventListener('resize',()=>{if(activePdf)scalePdf(0);});
@@ -2494,6 +2726,12 @@ async function restoreBooks() {
   };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind);
   else bind();
+})();
+
+(() => {
+  const start = () => { setTimeout(() => { showResumePrompt(); }, 250); };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true });
+  else start();
 })();
 
 // ---------- Profile picture (custom photo overrides the Google one; stored locally and in the user's own Firestore doc) ----------

@@ -580,7 +580,7 @@ textarea:focus,select:focus{
   background:var(--bg);
   color:var(--ink);
 }
-.library-row,.vocab-row,.notes-panel .saved-note-row{
+.library-filters{display:flex;flex-wrap:wrap;align-items:end;gap:10px;margin:12px 0 8px}.library-filters label,.library-filters button{flex:1 1 150px}.library-filters .btn{width:auto}.library-row,.vocab-row,.notes-panel .saved-note-row{
   gap:12px;
   padding:15px 0;
 }
@@ -644,9 +644,17 @@ textarea:focus,select:focus{
 #popup .word-actions .btn{min-height:40px}
 #popup .close{position:sticky;float:right;top:0;margin:-7px -8px 0 8px}
 .toast{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
   max-width:min(440px,calc(100vw - 28px));
   overflow-wrap:anywhere;
 }
+#toast .btn{min-height:32px;padding:7px 10px;border-radius:999px;background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.18);color:#fff}
+#toast .btn:hover{border-color:rgba(255,255,255,.42);background:rgba(255,255,255,.14)}
+#toast > *:first-child{flex:1 1 auto}
+.saved-note-export-actions,
+.progress-summary-grid + .saved-note-export-actions { display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:12px 0 18px; }
+.saved-note-export-actions .btn { min-height:34px; }
+.note-tag-list{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 10px}.note-tag{display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;background:var(--accent-soft);color:var(--accent);font-size:.72rem;font-weight:700}
 @media(max-width:900px){
   .section-heading{align-items:flex-start}
   .library-grid{gap:12px}
@@ -1879,7 +1887,7 @@ body #pdf-fullscreen { display: none !important; } /* duplicate of Full document
   body #contents-btn { font-size: 0; gap: 0; padding-inline: 12px; }
 }
 
-.photo-actions{display:flex;gap:8px;flex-wrap:wrap;margin:-4px 0 14px}.photo-actions .btn{min-height:40px;padding:6px 14px}
+.photo-actions{display:flex;gap:8px;flex-wrap:wrap;margin:-4px 0 14px}.photo-actions .btn{min-height:40px;padding:6px 14px}.account-profile-name-field{display:grid;gap:8px;margin:12px 0;color:var(--muted);font-size:.82rem}.account-profile-name-field input{width:100%;min-height:44px;padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink)}.account-profile-name-field input:focus{border-color:var(--accent);outline:2px solid color-mix(in srgb,var(--accent) 25%,transparent)}
 
 /* Camera shortcut: only shown on touch devices, where it opens the rear camera. */
 .upload-alt{display:none;margin:10px 0 0;text-align:center}
